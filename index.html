@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>소설 작성 에디터</title>
+
+  <!-- 스타일시트 -->
+  <link rel="stylesheet" href="styles/main.css">
+  <link rel="stylesheet" href="styles/project-list.css">
+  <link rel="stylesheet" href="styles/editor.css">
+</head>
+
+<body>
+
+  <!-- 프로젝트 선택 화면 -->
+  <div id="projectScreen" class="project-screen">
+    <header class="project-header">
+      <div class="project-header-title">
+        <h1>📚 소설 작성 에디터</h1>
+      </div>
+      <button class="btn btn-primary" id="newProjectBtn">
+        <span>➕</span>
+        <span>새 프로젝트</span>
+      </button>
+    </header>
+
+    <div id="projectList" class="project-grid">
+      <!-- 프로젝트 카드들이 여기에 동적으로 추가됩니다 -->
+    </div>
+  </div>
+
+  <!-- 에디터 화면 -->
+  <div id="editorScreen" class="editor-screen hidden">
+    <!-- 에디터 헤더 -->
+    <header class="editor-header">
+      <div class="editor-header-left">
+        <button class="btn btn-secondary" id="backToProjectsBtn">
+          <span>←</span>
+          <span>프로젝트로 돌아가기</span>
+        </button>
+        <div>
+          <div class="editor-header-title" id="currentProjectName">프로젝트 이름</div>
+          <div class="editor-header-file" id="currentFileName">파일을 선택하세요</div>
+        </div>
+      </div>
+      <div class="flex gap-md items-center">
+        <span id="autoSaveIndicator" class="auto-save-indicator"></span>
+        <button class="btn btn-secondary" id="saveBtn">💾 저장</button>
+      </div>
+    </header>
+
+    <!-- 메인 에디터 영역 -->
+    <main class="editor-main">
+      <!-- 왼쪽 파일 트리 -->
+      <aside class="file-tree-panel" id="fileTreePanel">
+        <div class="file-tree-header">
+          <span class="file-tree-title">파일</span>
+          <div class="file-tree-actions">
+            <button class="btn btn-icon btn-secondary" id="newFolderBtn" title="새 폴더">📁</button>
+            <button class="btn btn-icon btn-secondary" id="newFileBtn" title="새 파일">📄</button>
+          </div>
+        </div>
+        <div class="file-tree-content" id="fileTree">
+          <!-- 파일 트리가 여기에 동적으로 추가됩니다 -->
+        </div>
+      </aside>
+
+      <!-- 리사이저 -->
+      <div class="resizer" id="fileTreeResizer"></div>
+
+      <!-- 중앙 에디터 -->
+      <section class="editor-panel">
+        <div class="editor-tabs" id="editorTabs">
+          <!-- 열린 파일 탭들이 여기에 추가됩니다 -->
+        </div>
+        <div class="editor-content" id="editorContent">
+          <div class="editor-placeholder" id="editorPlaceholder">
+            <div style="text-align: center;">
+              <div style="font-size: 48px; margin-bottom: 16px;">📝</div>
+              <div style="font-size: 18px; font-weight: 500; margin-bottom: 8px; color: var(--color-text-primary);">파일을
+                선택하세요</div>
+              <div style="font-size: 14px; color: var(--color-text-tertiary);">왼쪽에서 파일을 선택하거나 새로 만들어보세요</div>
+            </div>
+          </div>
+          <div class="editor-wrapper" id="editorWrapper" style="display: none;">
+            <div class="editor-backdrop" id="editorBackdrop"></div>
+            <textarea class="editor-textarea" id="editorTextarea" placeholder="여기에 이야기를 작성하세요..."
+              spellcheck="false"></textarea>
+          </div>
+        </div>
+      </section>
+
+      <!-- 리사이저 -->
+      <div class="resizer" id="toolsPanelResizer"></div>
+
+      <!-- 오른쪽 도구 패널 -->
+      <aside class="tools-panel" id="toolsPanel">
+        <div class="tools-tabs">
+          <button class="tools-tab active" data-tab="stats">통계</button>
+          <button class="tools-tab" data-tab="tools">도구</button>
+          <button class="tools-tab" data-tab="memos">메모</button>
+          <button class="tools-tab" data-tab="search">검색</button>
+          <button class="tools-tab" data-tab="settings">설정</button>
+        </div>
+        <div class="tools-content" id="toolsContent">
+          <!-- 도구 내용이 여기에 동적으로 추가됩니다 -->
+        </div>
+      </aside>
+    </main>
+  </div>
+
+  <!-- 새 프로젝트 모달 -->
+  <div id="newProjectModal" class="modal-overlay hidden">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 class="modal-title">새 프로젝트</h2>
+        <button class="modal-close" id="closeNewProjectModal">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label" for="projectName">프로젝트 이름</label>
+          <input type="text" class="input" id="projectName" placeholder="나의 소설" autofocus>
+        </div>
+        <div class="form-group">
+          <label class="form-label">썸네일 이미지 (선택사항)</label>
+          <div class="thumbnail-upload" id="thumbnailUpload">
+            <input type="file" id="thumbnailInput" accept="image/*">
+            <img id="thumbnailPreview" class="thumbnail-preview hidden" alt="썸네일 미리보기">
+            <div class="thumbnail-placeholder" id="thumbnailPlaceholder">
+              <div class="thumbnail-placeholder-icon">🖼️</div>
+              <div>이미지를 선택하거나 드래그하세요</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="cancelNewProjectBtn">취소</button>
+        <button class="btn btn-primary" id="createProjectBtn">생성</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 프로젝트 수정 모달 -->
+  <div id="editProjectModal" class="modal-overlay hidden">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 class="modal-title">프로젝트 수정</h2>
+        <button class="modal-close" id="closeEditProjectModal">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label" for="editProjectName">프로젝트 이름</label>
+          <input type="text" class="input" id="editProjectName">
+        </div>
+        <div class="form-group">
+          <label class="form-label">썸네일 이미지</label>
+          <div class="thumbnail-upload" id="editThumbnailUpload">
+            <input type="file" id="editThumbnailInput" accept="image/*">
+            <img id="editThumbnailPreview" class="thumbnail-preview hidden" alt="썸네일 미리보기">
+            <div class="thumbnail-placeholder" id="editThumbnailPlaceholder">
+              <div class="thumbnail-placeholder-icon">🖼️</div>
+              <div>이미지를 선택하거나 드래그하세요</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="cancelEditProjectBtn">취소</button>
+        <button class="btn btn-primary" id="saveEditProjectBtn">저장</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 새 파일/폴더 모달 -->
+  <div id="newFileModal" class="modal-overlay hidden">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 class="modal-title" id="newFileModalTitle">새 파일</h2>
+        <button class="modal-close" id="closeNewFileModal">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label" for="fileName">이름</label>
+          <input type="text" class="input" id="fileName" placeholder="파일 이름"
+            onkeypress="if(event.key==='Enter') document.getElementById('createFileBtn').click()">
+        </div>
+        <div class="form-group" id="templateGroup">
+          <label class="form-label" for="fileTemplate">템플릿 선택</label>
+          <select class="input" id="fileTemplate">
+            <option value="blank">빈 파일</option>
+            <option value="item">📦 아이템 설정 (이름, 특징, 소유자 등)</option>
+            <option value="place">🗺️ 장소/배경 설정 (위치, 분위기, 역사 등)</option>
+          </select>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="cancelNewFileBtn">취소</button>
+        <button class="btn btn-primary" id="createFileBtn">생성</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 캐릭터 모달 -->
+  <div id="characterModal" class="modal-overlay hidden">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 class="modal-title" id="characterModalTitle">새 캐릭터</h2>
+        <button class="modal-close" id="closeCharacterModal">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label" for="characterName">이름</label>
+          <input type="text" class="input" id="characterName" placeholder="캐릭터 이름">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="characterDescription">설명</label>
+          <textarea class="input" id="characterDescription" rows="4" placeholder="캐릭터 설명"></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="cancelCharacterBtn">취소</button>
+        <button class="btn btn-primary" id="saveCharacterBtn">저장</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 템플릿 관리 모달 -->
+  <div id="templateModal" class="modal-overlay hidden">
+    <div class="modal" style="width: 800px; max-width: 90vw;">
+      <div class="modal-header">
+        <h2 class="modal-title">템플릿 관리</h2>
+        <button class="modal-close" id="closeTemplateModal">✕</button>
+      </div>
+      <div class="modal-body" style="display: grid; grid-template-columns: 250px 1fr; gap: 24px; min-height: 400px;">
+        <!-- 왼쪽: 템플릿 목록 -->
+        <div style="border-right: 1px solid var(--color-border); padding-right: 20px;">
+          <button class="btn btn-secondary" id="addNewTemplateBtn" style="width: 100%; margin-bottom: 16px;">+ 새 템플릿
+            추가</button>
+          <div id="templateManagerList" style="display: flex; flex-direction: column; gap: 8px;">
+            <!-- 템플릿 목록이 여기에 동적으로 추가됩니다 -->
+          </div>
+        </div>
+        <!-- 오른쪽: 템플릿 편집 -->
+        <div id="templateEditorArea" class="hidden">
+          <div class="form-group">
+            <label class="form-label">템플릿 이름</label>
+            <input type="text" class="input" id="tplName" placeholder="예: 무기 설정">
+          </div>
+          <div class="form-group">
+            <label class="form-label">아이콘 선택 및 직접 입력</label>
+            <div class="icon-picker-container">
+              <button class="icon-display-btn" id="tplIconBtn">📄</button>
+              <input type="text" class="input" id="tplIcon" value="📄"
+                style="width: 60px; text-align: center; font-size: 18px;" placeholder="🖋️">
+              <span style="font-size: 12px; color: var(--color-text-tertiary);">아이콘을 누르거나 직접 입력하세요</span>
+              <div id="iconPickerPopover" class="icon-list-popover hidden">
+                <!-- 아이콘 리스트가 동적으로 생성됩니다 -->
+              </div>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">템플릿 내용 (마크다운 추천)</label>
+            <textarea class="input" id="tplContent" rows="12" placeholder="새 파일을 만들 때 삽입될 기본 내용을 입력하세요."
+              style="font-family: var(--font-mono);"></textarea>
+          </div>
+          <div style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 20px;">
+            <button class="btn btn-danger" id="deleteTemplateBtn" style="margin-right: auto;">삭제</button>
+            <button class="btn btn-secondary" id="cancelTplBtn">취소</button>
+            <button class="btn btn-primary" id="saveTemplateBtn">템플릿 저장</button>
+          </div>
+        </div>
+        <div id="templateEmptyState"
+          style="display: flex; align-items: center; justify-content: center; color: var(--color-text-tertiary); text-align: center;">
+          왼쪽에서 템플릿을 선택하거나<br>새로 만들어보세요.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 메모 모달 -->
+  <div id="memoModal" class="modal-overlay hidden">
+    <div class="modal" style="width: 600px; max-width: 90vw;">
+      <div class="modal-header">
+        <h2 class="modal-title" id="memoModalTitle">새 메모 작성</h2>
+        <button class="modal-close" id="closeMemoModal">✕</button>
+      </div>
+      <div class="modal-body">
+        <textarea id="memoContent" class="input" rows="15" placeholder="메모 내용을 입력하세요... (내용이 길어도 편하게 작성하실 수 있습니다)"
+          style="font-family: var(--font-sans); line-height: 1.6; padding: 16px; resize: vertical;"></textarea>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-danger" id="deleteMemoBtn" style="margin-right: auto;">삭제</button>
+        <button class="btn btn-secondary" id="cancelMemoBtn">취소</button>
+        <button class="btn btn-primary" id="saveMemoBtn">메모 저장</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 컨텍스트 메뉴 -->
+  <div id="contextMenu" class="context-menu hidden">
+    <!-- 컨텍스트 메뉴 항목들이 동적으로 추가됩니다 -->
+  </div>
+
+  <!-- JavaScript 모듈 -->
+  <script src="js/storage.js"></script>
+  <script src="js/file-tree.js"></script>
+  <script src="js/template-manager.js"></script>
+  <script src="js/editor.js"></script>
+  <script src="js/project-manager.js"></script>
+  <script src="js/tools-panel.js"></script>
+  <script src="js/resizer.js"></script>
+  <script src="js/app.js"></script>
+</body>
+
+</html>
