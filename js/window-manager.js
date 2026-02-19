@@ -152,6 +152,34 @@ class WindowManager {
         this.saveProjectCanvasState();
     }
 
+    /**
+     * 줌 배율 표시기 노출
+     */
+    showZoomIndicator() {
+        const indicator = document.getElementById('zoomIndicator');
+        if (!indicator) return;
+
+        indicator.textContent = `${Math.round(this.scale * 100)}%`;
+        indicator.classList.add('show');
+
+        clearTimeout(this._zoomTimer);
+        this._zoomTimer = setTimeout(() => {
+            indicator.classList.remove('show');
+        }, 1000);
+    }
+
+    /**
+     * 줌/팬 초기화
+     */
+    resetZoom() {
+        this.scale = 1;
+        this.panX = 0;
+        this.panY = 0;
+        this.applyTransform();
+        this.showZoomIndicator();
+        this.saveProjectCanvasState();
+    }
+
     applyTransform(container) {
         if (!container) container = document.getElementById('canvasContainer');
         if (!container) return;

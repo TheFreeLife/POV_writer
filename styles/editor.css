@@ -72,20 +72,20 @@
     border-right: 1px solid var(--color-border);
     display: flex;
     flex-direction: column;
-    overflow: hidden;
+    overflow: visible;
+    /* 토글 버튼이 보이도록 수정 */
     position: relative;
     z-index: var(--z-sidebar);
-    transition: width 0.3s ease, min-width 0.3s ease, opacity 0.3s ease;
+    transition: width 0.3s ease, min-width 0.3s ease;
 }
 
 .file-tree-panel.collapsed {
     width: 0 !important;
     min-width: 0 !important;
     border-right: none;
-    overflow: hidden;
 }
 
-.file-tree-panel.collapsed>* {
+.file-tree-panel.collapsed>*:not(.sidebar-toggle) {
     opacity: 0;
     pointer-events: none;
 }
@@ -599,21 +599,21 @@
     border-left: 1px solid var(--color-border);
     display: flex;
     flex-direction: column;
-    overflow: hidden;
+    overflow: visible;
+    /* 토글 버튼이 보이도록 수정 */
     position: relative;
     z-index: var(--z-sidebar);
     container-type: inline-size;
-    transition: width 0.3s ease, min-width 0.3s ease, opacity 0.3s ease;
+    transition: width 0.3s ease, min-width 0.3s ease;
 }
 
 .tools-panel.collapsed {
     width: 0 !important;
     min-width: 0 !important;
     border-left: none;
-    overflow: hidden;
 }
 
-.tools-panel.collapsed>* {
+.tools-panel.collapsed>*:not(.sidebar-toggle) {
     opacity: 0;
     pointer-events: none;
 }

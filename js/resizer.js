@@ -87,24 +87,28 @@ class ResizerManager {
         // 좌측 파일 트리 토글
         const toggleFileTree = document.getElementById('toggleFileTree');
         const fileTreePanel = document.getElementById('fileTreePanel');
+        const fileTreeResizer = document.getElementById('fileTreeResizer');
 
         if (toggleFileTree && fileTreePanel) {
             toggleFileTree.addEventListener('click', () => {
                 const isCollapsed = fileTreePanel.classList.toggle('collapsed');
                 toggleFileTree.textContent = isCollapsed ? '▶' : '◀';
                 toggleFileTree.title = isCollapsed ? '파일 트리 펼치기' : '파일 트리 접기';
+                if (fileTreeResizer) fileTreeResizer.style.display = isCollapsed ? 'none' : 'block';
             });
         }
 
         // 우측 도구 패널 토글
         const toggleToolsPanel = document.getElementById('toggleToolsPanel');
         const toolsPanel = document.getElementById('toolsPanel');
+        const toolsPanelResizer = document.getElementById('toolsPanelResizer');
 
         if (toggleToolsPanel && toolsPanel) {
             toggleToolsPanel.addEventListener('click', () => {
                 const isCollapsed = toolsPanel.classList.toggle('collapsed');
                 toggleToolsPanel.textContent = isCollapsed ? '◀' : '▶';
                 toggleToolsPanel.title = isCollapsed ? '도구 패널 펼치기' : '도구 패널 접기';
+                if (toolsPanelResizer) toolsPanelResizer.style.display = isCollapsed ? 'none' : 'block';
             });
         }
     }

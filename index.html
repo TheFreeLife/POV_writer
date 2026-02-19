@@ -74,6 +74,8 @@
         <div class="canvas-container" id="canvasContainer">
           <!-- 에디터 윈도우들이 여기에 동적으로 추가됩니다 -->
         </div>
+        <!-- 줌 배율 표시 -->
+        <div id="zoomIndicator" class="zoom-indicator">100%</div>
       </section>
 
       <!-- 리사이저 -->
@@ -81,8 +83,6 @@
 
       <!-- 오른쪽 도구 패널 -->
       <aside class="tools-panel" id="toolsPanel">
-        <!-- 사이드바 토글 -->
-        <button class="sidebar-toggle sidebar-toggle-right" id="toggleToolsPanel" title="도구 패널 접기">▶</button>
         <div class="tools-tabs">
           <button class="tools-tab active" data-tab="stats">통계</button>
           <button class="tools-tab" data-tab="tools">도구</button>
@@ -93,6 +93,8 @@
         <div class="tools-content" id="toolsContent">
           <!-- 도구 내용이 여기에 동적으로 추가됩니다 -->
         </div>
+        <!-- 사이드바 토글 -->
+        <button class="sidebar-toggle sidebar-toggle-right" id="toggleToolsPanel" title="도구 패널 접기">▶</button>
       </aside>
     </main>
   </div>

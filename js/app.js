@@ -101,14 +101,14 @@ async function initApp() {
     }
 }
 
-// [핵심] 돌아가기 버튼 이벤트 위임 등록 (버튼의 존재 여부와 상관없이 미리 등록)
+// [핵심] 돌아가기 버튼 및 사이드바 토글 이벤트 위임
 document.addEventListener('click', (e) => {
+    // 돌아가기 버튼
     const backBtn = e.target.closest('#backToProjectsBtn');
     if (backBtn) {
-        console.log('[DEBUG] 돌아가기 버튼 클릭 감지(이벤트 위임)');
         e.preventDefault();
-        e.stopPropagation();
         goBackToProjects();
+        return;
     }
 });
 
