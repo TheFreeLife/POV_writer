@@ -11,6 +11,15 @@ class WindowManager {
         this.dragState = null;
         this.resizeState = null;
         this.autoSaveTimers = new Map();
+
+        // 캔버스 줌/팬 상태
+        this.scale = 1;
+        this.panX = 0;
+        this.panY = 0;
+        this.panState = null;
+        this.minScale = 0.25;
+        this.maxScale = 3;
+
         this.init();
     }
 
@@ -18,6 +27,112 @@ class WindowManager {
         // 전역 마우스 이벤트
         document.addEventListener('mousemove', (e) => this.onMouseMove(e));
         document.addEventListener('mouseup', (e) => this.onMouseUp(e));
+
+        // 캔버스 줌/팬 초기화 (DOM 로드 후)
+        setTimeout(() => this.setupCanvasZoom(), 0);
+    }
+
+    /**
+     * 캔버스 줌/팬 설정
+     */
+    setupCanvasZoom() {
+        const canvasArea = document.getElementById('canvasArea');
+        const container = document.getElementById('canvasContainer');
+        if (!canvasArea || !container) return;
+
+        // 초기 위치: (0,0)에서 시작
+        this.panX = 0;
+        this.panY = 0;
+        this.applyTransform(container);
+
+        // 마우스 휠 줌
+        canvasArea.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            const delta = e.deltaY > 0 ? -0.08 : 0.08;
+            const newScale = Math.min(this.maxScale, Math.max(this.minScale, this.scale + delta));
+            if (newScale === this.scale) return;
+
+            // 마우스 포인터 기준으로 줌
+            const rect = canvasArea.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+
+            // 줌 전 마우스가 가리키던 캔버스 내 좌표
+            const prevCanvasX = (mouseX - this.panX) / this.scale;
+            const prevCanvasY = (mouseY - this.panY) / this.scale;
+
+            this.scale = newScale;
+
+            // 줌 후 같은 캔버스 좌표가 마우스 위치에 오도록 팬 조정
+            this.panX = mouseX - prevCanvasX * this.scale;
+            this.panY = mouseY - prevCanvasY * this.scale;
+
+            this.applyTransform(container);
+            this.showZoomIndicator();
+        }, { passive: false });
+
+        // 우클릭 드래그로 캔버스 팬 이동
+        canvasArea.addEventListener('mousedown', (e) => {
+            if (e.button === 2) {
+                e.preventDefault();
+                this.panState = {
+                    startX: e.clientX,
+                    startY: e.clientY,
+                    origPanX: this.panX,
+                    origPanY: this.panY
+                };
+                document.body.style.cursor = 'grabbing';
+                document.body.style.userSelect = 'none';
+            }
+        });
+
+        // 캔버스 위 우클릭 메뉴 차단
+        canvasArea.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+        });
+
+        // 줌 리셋 단축키 (Ctrl+0)
+        document.addEventListener('keydown', (e) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === '0') {
+                const editorScreen = document.getElementById('editorScreen');
+                if (editorScreen && !editorScreen.classList.contains('hidden')) {
+                    e.preventDefault();
+                    this.resetZoom();
+                }
+            }
+        });
+    }
+
+    applyTransform(container) {
+        if (!container) container = document.getElementById('canvasContainer');
+        if (!container) return;
+        container.style.transformOrigin = '0 0';
+        container.style.transform = `translate(${this.panX}px, ${this.panY}px) scale(${this.scale})`;
+    }
+
+    showZoomIndicator() {
+        let indicator = document.getElementById('zoomIndicator');
+        if (!indicator) {
+            indicator = document.createElement('div');
+            indicator.id = 'zoomIndicator';
+            indicator.className = 'zoom-indicator';
+            const canvasArea = document.getElementById('canvasArea');
+            if (canvasArea) canvasArea.appendChild(indicator);
+        }
+        indicator.textContent = `${Math.round(this.scale * 100)}%`;
+        indicator.classList.add('show');
+        clearTimeout(this._zoomIndicatorTimer);
+        this._zoomIndicatorTimer = setTimeout(() => {
+            indicator.classList.remove('show');
+        }, 1200);
+    }
+
+    resetZoom() {
+        this.scale = 1;
+        this.panX = 0;
+        this.panY = 0;
+        this.applyTransform();
+        this.showZoomIndicator();
     }
 
     /**
@@ -34,14 +149,19 @@ class WindowManager {
         const file = await storage.getFile(fileId);
         if (!file || file.type === 'folder') return;
 
-        // 창 위치 계산 (캐스케이드)
+        // 창 위치 계산 — 현재 보이는 영역의 중앙 기준 캐스케이드
         const container = document.getElementById('canvasContainer');
+        const canvasArea = document.getElementById('canvasArea');
         if (!container) return;
 
-        const rect = container.getBoundingClientRect();
+        const areaRect = canvasArea ? canvasArea.getBoundingClientRect() : { width: 800, height: 600 };
+        // 현재 뷰포트 중앙의 캔버스 좌표
+        const viewCenterX = (areaRect.width / 2 - this.panX) / this.scale;
+        const viewCenterY = (areaRect.height / 2 - this.panY) / this.scale;
+
         const offsetStep = 32;
-        const x = 40 + (this.cascadeOffset * offsetStep) % Math.max(rect.width - 520, 100);
-        const y = 40 + (this.cascadeOffset * offsetStep) % Math.max(rect.height - 420, 100);
+        const x = viewCenterX - 260 + (this.cascadeOffset * offsetStep) % 200;
+        const y = viewCenterY - 200 + (this.cascadeOffset * offsetStep) % 150;
         this.cascadeOffset++;
 
         // 창 DOM 생성
@@ -204,8 +324,8 @@ class WindowManager {
     onMouseMove(e) {
         // 드래그
         if (this.dragState) {
-            const dx = e.clientX - this.dragState.startX;
-            const dy = e.clientY - this.dragState.startY;
+            const dx = (e.clientX - this.dragState.startX) / this.scale;
+            const dy = (e.clientY - this.dragState.startY) / this.scale;
             this.dragState.element.style.left = `${this.dragState.origLeft + dx}px`;
             this.dragState.element.style.top = `${this.dragState.origTop + dy}px`;
         }
@@ -213,16 +333,14 @@ class WindowManager {
         // 8방향 리사이즈
         if (this.resizeState) {
             const s = this.resizeState;
-            const dx = e.clientX - s.startX;
-            const dy = e.clientY - s.startY;
+            const dx = (e.clientX - s.startX) / this.scale;
+            const dy = (e.clientY - s.startY) / this.scale;
             const dir = s.dir;
             let newW = s.origWidth, newH = s.origHeight;
             let newL = s.origLeft, newT = s.origTop;
 
-            // 가로 처리
             if (dir.includes('e')) { newW = Math.max(360, s.origWidth + dx); }
             if (dir.includes('w')) { newW = Math.max(360, s.origWidth - dx); newL = s.origLeft + (s.origWidth - newW); }
-            // 세로 처리
             if (dir.includes('s')) { newH = Math.max(280, s.origHeight + dy); }
             if (dir.includes('n')) { newH = Math.max(280, s.origHeight - dy); newT = s.origTop + (s.origHeight - newH); }
 
@@ -231,15 +349,25 @@ class WindowManager {
             s.element.style.left = `${newL}px`;
             s.element.style.top = `${newT}px`;
         }
+
+        // 캔버스 팬
+        if (this.panState) {
+            const dx = e.clientX - this.panState.startX;
+            const dy = e.clientY - this.panState.startY;
+            this.panX = this.panState.origPanX + dx;
+            this.panY = this.panState.origPanY + dy;
+            this.applyTransform();
+        }
     }
 
     /**
      * 마우스 놓기 처리
      */
     onMouseUp(e) {
-        if (this.dragState || this.resizeState) {
+        if (this.dragState || this.resizeState || this.panState) {
             this.dragState = null;
             this.resizeState = null;
+            this.panState = null;
             document.body.style.cursor = '';
             document.body.style.userSelect = '';
         }

@@ -226,17 +226,15 @@
         linear-gradient(var(--color-bg-primary) 0%, #0a0e14 100%);
 }
 
-/* 캔버스 배경 도트 패턴 */
+/* 캔버스 배경 도트 패턴 — 무한 캔버스 */
 .canvas-container {
     position: absolute;
-    top: 0;
+    width: 20000px;
+    height: 20000px;
     left: 0;
-    right: 0;
-    bottom: 0;
-    overflow: hidden;
+    top: 0;
     background-image: radial-gradient(circle, var(--color-border) 1px, transparent 1px);
     background-size: 24px 24px;
-    background-position: 12px 12px;
 }
 
 /* 캔버스 빈 상태 */
@@ -268,6 +266,31 @@
 .canvas-placeholder-sub {
     font-size: var(--font-size-sm);
     color: var(--color-text-muted);
+}
+
+/* 줌 인디케이터 */
+.zoom-indicator {
+    position: absolute;
+    bottom: 16px;
+    right: 16px;
+    background: rgba(22, 27, 34, 0.9);
+    backdrop-filter: blur(8px);
+    color: var(--color-text-primary);
+    padding: 6px 14px;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--color-border);
+    font-size: 13px;
+    font-weight: 600;
+    font-family: var(--font-mono);
+    z-index: 200;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    pointer-events: none;
+    user-select: none;
+}
+
+.zoom-indicator.show {
+    opacity: 1;
 }
 
 /* ===================================
