@@ -169,10 +169,11 @@ class FileTreeManager {
     }
 
     async selectFile(id) {
-        if (this.currentFileId === id) return;
-        if (this.currentFileId) await window.editorManager?.saveCurrentFile(true);
         this.currentFileId = id;
-        await window.editorManager?.loadFile(id);
+        // 다중 창 시스템: 윈도우 매니저를 통해 파일을 캔버스 위 창으로 열기
+        if (window.windowManager) {
+            await window.windowManager.openWindow(id);
+        }
         this.renderFileTree();
     }
 

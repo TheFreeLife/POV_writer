@@ -1,5 +1,5 @@
 /* ===================================
-   에디터 워크스페이스 스타일
+   에디터 워크스페이스 - 다크 + 다중창
    =================================== */
 
 .editor-screen {
@@ -7,17 +7,18 @@
     display: flex;
     flex-direction: column;
     overflow: hidden;
+    background: var(--color-bg-primary);
 }
 
 /* 에디터 헤더 */
 .editor-header {
-    height: 60px;
+    height: 48px;
     background: var(--color-surface-1);
     border-bottom: 1px solid var(--color-border);
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0 var(--spacing-lg);
+    padding: 0 var(--spacing-md);
     flex-shrink: 0;
     position: relative;
     z-index: 100;
@@ -26,23 +27,23 @@
 .editor-header-left {
     display: flex;
     align-items: center;
-    gap: var(--spacing-lg);
+    gap: var(--spacing-md);
 }
 
 .editor-header-title {
-    font-size: var(--font-size-lg);
+    font-size: var(--font-size-sm);
     font-weight: var(--font-weight-bold);
     color: var(--color-text-primary);
 }
 
 .editor-header-file {
-    font-size: var(--font-size-sm);
-    color: var(--color-text-secondary);
+    font-size: var(--font-size-xs);
+    color: var(--color-text-tertiary);
 }
 
 .auto-save-indicator {
     font-size: 12px;
-    color: var(--color-text-tertiary);
+    color: var(--color-accent-success);
     opacity: 0;
     transition: opacity 0.3s ease;
     margin-right: 8px;
@@ -52,41 +53,58 @@
     opacity: 1;
 }
 
-/* 에디터 메인 영역 (3단 레이아웃) */
+/* 에디터 메인 영역 */
 .editor-main {
     flex: 1;
     display: flex;
     overflow: hidden;
+    position: relative;
 }
 
-/* 왼쪽 파일 트리 패널 */
+/* ===================================
+   좌측 파일 트리 패널
+   =================================== */
 .file-tree-panel {
-    width: 280px;
-    min-width: 200px;
-    max-width: 800px;
+    width: 260px;
+    min-width: 0;
+    max-width: 600px;
     background: var(--color-surface-1);
     border-right: 1px solid var(--color-border);
     display: flex;
     flex-direction: column;
     overflow: hidden;
     position: relative;
-    z-index: 1;
+    z-index: var(--z-sidebar);
+    transition: width 0.3s ease, min-width 0.3s ease, opacity 0.3s ease;
+}
+
+.file-tree-panel.collapsed {
+    width: 0 !important;
+    min-width: 0 !important;
+    border-right: none;
+    overflow: hidden;
+}
+
+.file-tree-panel.collapsed>* {
+    opacity: 0;
+    pointer-events: none;
 }
 
 .file-tree-header {
-    padding: var(--spacing-md);
+    padding: var(--spacing-sm) var(--spacing-md);
     border-bottom: 1px solid var(--color-border);
     display: flex;
     align-items: center;
     justify-content: space-between;
+    flex-shrink: 0;
 }
 
 .file-tree-title {
-    font-size: var(--font-size-sm);
-    font-weight: var(--font-weight-medium);
-    color: var(--color-text-secondary);
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-bold);
+    color: var(--color-text-tertiary);
     text-transform: uppercase;
-    letter-spacing: 0.5px;
+    letter-spacing: 1px;
 }
 
 .file-tree-actions {
@@ -97,38 +115,33 @@
 .file-tree-content {
     flex: 1;
     overflow-y: auto;
-    padding: var(--spacing-sm);
+    padding: var(--spacing-xs);
 }
 
-/* 재구축된 파일 트리 스타일 */
+/* 파일 트리 아이템 */
 .tree-node-wrapper {
     display: flex;
     flex-direction: column;
+    position: relative;
 }
 
 .tree-item {
     display: flex;
     align-items: center;
-    padding: 6px 12px;
+    padding: 5px 10px;
     cursor: pointer;
     border-radius: var(--radius-sm);
-    transition: all 0.2s ease;
+    transition: all 0.15s ease;
     user-select: none;
     min-height: 28px;
     border: 1px solid transparent;
     color: var(--color-text-secondary);
     gap: 2px;
-    /* 화살표와 아이콘 사이 간격 축소 */
-    position: relative;
-}
-
-/* 계층 연결 가이드 노드 */
-.tree-node-wrapper {
     position: relative;
 }
 
 .tree-item:hover {
-    background: var(--color-bg-tertiary);
+    background: var(--color-bg-hover);
     color: var(--color-text-primary);
 }
 
@@ -138,7 +151,6 @@
     font-weight: 500;
 }
 
-/* 드래그 효과 개선: 삽입 지시선 및 폴더 강조 */
 .tree-item.drag-into {
     background: var(--color-accent-primary-transparent) !important;
     outline: 2px solid var(--color-accent-primary);
@@ -159,8 +171,8 @@
 }
 
 .tree-chevron {
-    width: 20px;
-    height: 20px;
+    width: 18px;
+    height: 18px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -168,7 +180,6 @@
     transition: transform 0.2s ease;
     color: var(--color-text-tertiary);
     flex-shrink: 0;
-    z-index: 2;
 }
 
 .tree-chevron.active {
@@ -176,12 +187,12 @@
 }
 
 .tree-icon {
-    width: 20px;
-    height: 20px;
+    width: 18px;
+    height: 18px;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 16px;
+    font-size: 14px;
     line-height: 1;
     flex-shrink: 0;
 }
@@ -192,7 +203,6 @@
     overflow: hidden;
     text-overflow: ellipsis;
     margin-left: 4px;
-    /* 아이콘과 이름 사이 간격 보정 */
 }
 
 .file-tree-item.drag-over {
@@ -204,178 +214,340 @@
     margin-left: var(--spacing-lg);
 }
 
-/* 중앙 에디터 영역 */
-.editor-panel {
+/* ===================================
+   캔버스 영역 (다중 창 컨테이너)
+   =================================== */
+.canvas-area {
     flex: 1;
+    position: relative;
+    overflow: hidden;
+    background:
+        radial-gradient(circle at 50% 50%, rgba(88, 166, 255, 0.03) 0%, transparent 70%),
+        linear-gradient(var(--color-bg-primary) 0%, #0a0e14 100%);
+}
+
+/* 캔버스 배경 도트 패턴 */
+.canvas-container {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    overflow: hidden;
+    background-image: radial-gradient(circle, var(--color-border) 1px, transparent 1px);
+    background-size: 24px 24px;
+    background-position: 12px 12px;
+}
+
+/* 캔버스 빈 상태 */
+.canvas-placeholder {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+    color: var(--color-text-muted);
+    pointer-events: none;
+    user-select: none;
+    transition: opacity 0.3s ease;
+}
+
+.canvas-placeholder-icon {
+    font-size: 56px;
+    margin-bottom: 16px;
+    opacity: 0.4;
+}
+
+.canvas-placeholder-text {
+    font-size: var(--font-size-md);
+    font-weight: var(--font-weight-medium);
+    margin-bottom: 6px;
+    color: var(--color-text-tertiary);
+}
+
+.canvas-placeholder-sub {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+/* ===================================
+   에디터 윈도우 (다중 창)
+   =================================== */
+.editor-window {
+    position: absolute;
+    min-width: 360px;
+    min-height: 280px;
+    background: var(--color-surface-1);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-window);
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    background: var(--color-bg-primary);
+    transition: box-shadow 0.2s ease;
 }
 
-.editor-tabs {
-    display: flex;
-    gap: var(--spacing-xs);
-    padding: var(--spacing-sm);
-    background: var(--color-surface-1);
+.editor-window.focused {
+    border-color: rgba(88, 166, 255, 0.3);
+    box-shadow: var(--shadow-window-focus);
+}
+
+/* 윈도우 타이틀 바 */
+.window-titlebar {
+    height: 36px;
+    background: var(--color-bg-tertiary);
     border-bottom: 1px solid var(--color-border);
-    overflow-x: auto;
-}
-
-.editor-tab {
     display: flex;
     align-items: center;
-    gap: var(--spacing-sm);
-    padding: var(--spacing-sm) var(--spacing-md);
-    background: transparent;
-    border: 1px solid transparent;
-    border-radius: var(--radius-sm);
-    font-size: var(--font-size-sm);
-    color: var(--color-text-secondary);
-    cursor: pointer;
-    transition: all var(--transition-fast);
-    white-space: nowrap;
+    justify-content: space-between;
+    padding: 0 10px;
+    cursor: grab;
+    flex-shrink: 0;
+    user-select: none;
 }
 
-.editor-tab:hover {
-    background: var(--color-bg-hover);
-    color: var(--color-text-primary);
+.window-titlebar:active {
+    cursor: grabbing;
 }
 
-.editor-tab.active {
-    background: var(--color-bg-primary);
-    border-color: var(--color-border);
-    color: var(--color-text-primary);
-}
-
-.editor-tab-close {
-    width: 16px;
-    height: 16px;
+.window-titlebar-left {
     display: flex;
     align-items: center;
-    justify-content: center;
-    border-radius: var(--radius-sm);
-    opacity: 0.6;
-    transition: all var(--transition-fast);
-}
-
-.editor-tab-close:hover {
-    opacity: 1;
-    background: var(--color-bg-hover);
-}
-
-.editor-content {
-    flex: 1;
-    overflow-y: auto;
-    padding: var(--spacing-2xl);
-    background: var(--color-bg-secondary);
-    display: flex;
-    justify-content: center;
-}
-
-.editor-wrapper {
-    position: relative;
-    width: 100%;
-    max-width: 900px;
-    min-height: calc(100vh - 200px);
-}
-
-.editor-backdrop,
-.editor-textarea {
-    width: 100%;
-    height: 100%;
-    min-height: calc(100vh - 200px);
-    margin: 0;
-    padding: var(--spacing-2xl) var(--spacing-xl);
-    font-family: var(--font-serif);
-    font-size: var(--font-size-lg);
-    line-height: var(--line-height-relaxed);
-    box-sizing: border-box;
-    border-radius: var(--radius-lg);
-    white-space: pre-wrap;
-    word-wrap: break-word;
-}
-
-.editor-backdrop {
-    position: absolute;
-    top: 0;
-    left: 0;
-    background: white;
-    border: 1px solid var(--color-border);
-    box-shadow: var(--shadow-lg);
-    color: var(--color-text-primary);
+    gap: 8px;
     overflow: hidden;
-    z-index: 1;
+    flex: 1;
 }
 
-.editor-textarea {
-    position: relative;
-    background: transparent !important;
-    border: 1px solid transparent;
-    color: transparent !important;
-    /* 글자는 투명하게 */
-    caret-color: var(--color-text-primary);
-    /* 커서는 보이게 */
-    resize: none;
-    outline: none;
-    z-index: 2;
+.window-titlebar-icon {
+    font-size: 14px;
+    flex-shrink: 0;
 }
 
-.hl-dialogue,
-.hl-thought {
-    color: var(--color-highlight, #2563eb);
-}
-
-.hl-dialogue {
+.window-titlebar-name {
+    font-size: 12px;
     font-weight: 500;
+    color: var(--color-text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
-/* 스타일 가독성 및 정리 */
-/* 기울임체 제거 */
-.editor-placeholder {
+.editor-window.focused .window-titlebar-name {
+    color: var(--color-text-primary);
+}
+
+/* 윈도우 상태 인디케이터 (수정됨 표시) */
+.window-modified {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--color-accent-warning);
+    flex-shrink: 0;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+.window-modified.show {
+    opacity: 1;
+}
+
+.window-titlebar-actions {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    flex-shrink: 0;
+}
+
+.window-btn {
+    width: 24px;
+    height: 24px;
     display: flex;
     align-items: center;
     justify-content: center;
-    height: 100%;
-    width: 100%;
+    border: none;
+    background: transparent;
     color: var(--color-text-tertiary);
-    font-size: var(--font-size-md);
-    text-align: center;
-    position: absolute;
-    top: 0;
-    left: 0;
+    cursor: pointer;
+    border-radius: var(--radius-sm);
+    font-size: 12px;
+    transition: all 0.15s ease;
 }
 
-/* 오른쪽 도구 패널 */
+.window-btn:hover {
+    background: var(--color-bg-hover);
+    color: var(--color-text-primary);
+}
+
+.window-btn-close:hover {
+    background: var(--color-accent-danger);
+    color: white;
+}
+
+/* 윈도우 내부 에디터 */
+.window-editor {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+    display: flex;
+}
+
+.window-textarea {
+    width: 100%;
+    height: 100%;
+    padding: var(--spacing-lg) var(--spacing-md);
+    font-family: var(--font-serif);
+    font-size: var(--font-size-md);
+    line-height: var(--line-height-relaxed);
+    color: var(--color-text-primary);
+    background: var(--color-bg-primary);
+    border: none;
+    outline: none;
+    resize: none;
+    caret-color: var(--color-accent-primary);
+}
+
+.window-textarea::placeholder {
+    color: var(--color-text-muted);
+}
+
+/* 윈도우 하단 상태 바 */
+.window-statusbar {
+    height: 24px;
+    background: var(--color-bg-tertiary);
+    border-top: 1px solid var(--color-border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 10px;
+    font-size: 11px;
+    color: var(--color-text-muted);
+    flex-shrink: 0;
+}
+
+/* 윈도우 8방향 리사이즈 핸들 */
+.window-edge {
+    position: absolute;
+    z-index: 10;
+}
+
+/* 상/하 변 */
+.edge-n {
+    top: -4px;
+    left: 8px;
+    right: 8px;
+    height: 8px;
+    cursor: ns-resize;
+}
+
+.edge-s {
+    bottom: -4px;
+    left: 8px;
+    right: 8px;
+    height: 8px;
+    cursor: ns-resize;
+}
+
+/* 좌/우 변 */
+.edge-w {
+    left: -4px;
+    top: 8px;
+    bottom: 8px;
+    width: 8px;
+    cursor: ew-resize;
+}
+
+.edge-e {
+    right: -4px;
+    top: 8px;
+    bottom: 8px;
+    width: 8px;
+    cursor: ew-resize;
+}
+
+/* 모서리 */
+.edge-nw {
+    top: -4px;
+    left: -4px;
+    width: 14px;
+    height: 14px;
+    cursor: nwse-resize;
+}
+
+.edge-ne {
+    top: -4px;
+    right: -4px;
+    width: 14px;
+    height: 14px;
+    cursor: nesw-resize;
+}
+
+.edge-sw {
+    bottom: -4px;
+    left: -4px;
+    width: 14px;
+    height: 14px;
+    cursor: nesw-resize;
+}
+
+.edge-se {
+    bottom: -4px;
+    right: -4px;
+    width: 14px;
+    height: 14px;
+    cursor: nwse-resize;
+}
+
+/* 호버 시 가장자리 하이라이트 */
+.window-edge:hover {
+    background: rgba(88, 166, 255, 0.15);
+    border-radius: 2px;
+}
+
+/* ===================================
+   오른쪽 도구 패널
+   =================================== */
 .tools-panel {
-    width: 320px;
-    min-width: 280px;
-    max-width: 900px;
+    width: 300px;
+    min-width: 0;
+    max-width: 600px;
     background: var(--color-surface-1);
     border-left: 1px solid var(--color-border);
     display: flex;
     flex-direction: column;
     overflow: hidden;
     position: relative;
-    z-index: 1;
+    z-index: var(--z-sidebar);
     container-type: inline-size;
-    /* 컨테이너 쿼리 활성화 */
+    transition: width 0.3s ease, min-width 0.3s ease, opacity 0.3s ease;
+}
+
+.tools-panel.collapsed {
+    width: 0 !important;
+    min-width: 0 !important;
+    border-left: none;
+    overflow: hidden;
+}
+
+.tools-panel.collapsed>* {
+    opacity: 0;
+    pointer-events: none;
 }
 
 .tools-tabs {
     display: flex;
     border-bottom: 1px solid var(--color-border);
+    flex-shrink: 0;
 }
 
 .tools-tab {
     flex: 1;
-    padding: var(--spacing-md);
+    padding: var(--spacing-sm) var(--spacing-xs);
     background: transparent;
     border: none;
     border-bottom: 2px solid transparent;
-    font-size: var(--font-size-sm);
+    font-size: var(--font-size-xs);
     font-weight: var(--font-weight-medium);
-    color: var(--color-text-secondary);
+    color: var(--color-text-tertiary);
     cursor: pointer;
     transition: all var(--transition-fast);
 }
@@ -393,7 +565,7 @@
 .tools-content {
     flex: 1;
     overflow-y: auto;
-    padding: var(--spacing-lg);
+    padding: var(--spacing-md);
 }
 
 /* 통계 탭 */
@@ -502,15 +674,14 @@
     display: flex;
     flex-direction: column;
     gap: var(--spacing-lg);
-    padding: var(--spacing-md);
+    padding: var(--spacing-sm);
 }
 
 .stopwatch-card {
-    background: var(--color-bg-secondary);
+    background: var(--color-bg-primary);
     border-radius: var(--radius-lg);
     padding: var(--spacing-lg);
     border: 1px solid var(--color-border);
-    box-shadow: var(--shadow-sm);
     text-align: center;
 }
 
@@ -538,19 +709,18 @@
 
 .mode-btn.active {
     background: var(--color-accent-primary);
-    color: white;
+    color: #0d1117;
 }
 
 .stopwatch-display {
     font-size: clamp(1rem, 11cqw, 2.8rem);
-    /* 배율을 낮춰서 기본 안정성 확보 */
     font-weight: 850;
-    font-family: 'JetBrains Mono', 'Courier New', monospace;
+    font-family: var(--font-mono);
     color: var(--color-accent-primary);
     margin: var(--spacing-sm) 0;
     letter-spacing: -1.5px;
     font-variant-numeric: tabular-nums;
-    text-shadow: 0 0 10px var(--color-accent-primary-transparent);
+    text-shadow: 0 0 20px rgba(88, 166, 255, 0.3);
     display: block;
     width: 100%;
     overflow: hidden;
@@ -624,7 +794,7 @@
 
 .search-result-highlight {
     background: var(--color-accent-primary);
-    color: white;
+    color: #0d1117;
     padding: 2px 4px;
     border-radius: var(--radius-sm);
 }
@@ -656,5 +826,103 @@
 }
 
 .resizer:hover::before {
-    background: rgba(59, 130, 246, 0.03);
+    background: rgba(88, 166, 255, 0.03);
+}
+
+/* ===================================
+   기존 에디터 영역 (호환 유지)
+   =================================== */
+.editor-panel {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: var(--color-bg-primary);
+}
+
+.editor-tabs {
+    display: flex;
+    gap: var(--spacing-xs);
+    padding: var(--spacing-sm);
+    background: var(--color-surface-1);
+    border-bottom: 1px solid var(--color-border);
+    overflow-x: auto;
+}
+
+.editor-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: var(--spacing-2xl);
+    background: var(--color-bg-secondary);
+    display: flex;
+    justify-content: center;
+}
+
+.editor-wrapper {
+    position: relative;
+    width: 100%;
+    max-width: 900px;
+    min-height: calc(100vh - 200px);
+}
+
+.editor-backdrop,
+.editor-textarea {
+    width: 100%;
+    height: 100%;
+    min-height: calc(100vh - 200px);
+    margin: 0;
+    padding: var(--spacing-2xl) var(--spacing-xl);
+    font-family: var(--font-serif);
+    font-size: var(--font-size-lg);
+    line-height: var(--line-height-relaxed);
+    box-sizing: border-box;
+    border-radius: var(--radius-lg);
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+
+.editor-backdrop {
+    position: absolute;
+    top: 0;
+    left: 0;
+    background: var(--color-surface-1);
+    border: 1px solid var(--color-border);
+    box-shadow: var(--shadow-lg);
+    color: var(--color-text-primary);
+    overflow: hidden;
+    z-index: 1;
+}
+
+.editor-textarea {
+    position: relative;
+    background: transparent !important;
+    border: 1px solid transparent;
+    color: transparent !important;
+    caret-color: var(--color-text-primary);
+    resize: none;
+    outline: none;
+    z-index: 2;
+}
+
+.hl-dialogue,
+.hl-thought {
+    color: var(--color-accent-primary);
+}
+
+.hl-dialogue {
+    font-weight: 500;
+}
+
+.editor-placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    width: 100%;
+    color: var(--color-text-tertiary);
+    font-size: var(--font-size-md);
+    text-align: center;
+    position: absolute;
+    top: 0;
+    left: 0;
 }

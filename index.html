@@ -38,7 +38,7 @@
       <div class="editor-header-left">
         <button class="btn btn-secondary" id="backToProjectsBtn">
           <span>←</span>
-          <span>프로젝트로 돌아가기</span>
+          <span>프로젝트</span>
         </button>
         <div>
           <div class="editor-header-title" id="currentProjectName">프로젝트 이름</div>
@@ -65,30 +65,22 @@
         <div class="file-tree-content" id="fileTree">
           <!-- 파일 트리가 여기에 동적으로 추가됩니다 -->
         </div>
+        <!-- 사이드바 토글 -->
+        <button class="sidebar-toggle sidebar-toggle-left" id="toggleFileTree" title="파일 트리 접기">◀</button>
       </aside>
 
       <!-- 리사이저 -->
       <div class="resizer" id="fileTreeResizer"></div>
 
-      <!-- 중앙 에디터 -->
-      <section class="editor-panel">
-        <div class="editor-tabs" id="editorTabs">
-          <!-- 열린 파일 탭들이 여기에 추가됩니다 -->
+      <!-- 중앙 캔버스 영역 (다중 창 컨테이너) -->
+      <section class="canvas-area" id="canvasArea">
+        <div class="canvas-container" id="canvasContainer">
+          <!-- 에디터 윈도우들이 여기에 동적으로 추가됩니다 -->
         </div>
-        <div class="editor-content" id="editorContent">
-          <div class="editor-placeholder" id="editorPlaceholder">
-            <div style="text-align: center;">
-              <div style="font-size: 48px; margin-bottom: 16px;">📝</div>
-              <div style="font-size: 18px; font-weight: 500; margin-bottom: 8px; color: var(--color-text-primary);">파일을
-                선택하세요</div>
-              <div style="font-size: 14px; color: var(--color-text-tertiary);">왼쪽에서 파일을 선택하거나 새로 만들어보세요</div>
-            </div>
-          </div>
-          <div class="editor-wrapper" id="editorWrapper" style="display: none;">
-            <div class="editor-backdrop" id="editorBackdrop"></div>
-            <textarea class="editor-textarea" id="editorTextarea" placeholder="여기에 이야기를 작성하세요..."
-              spellcheck="false"></textarea>
-          </div>
+        <div class="canvas-placeholder" id="canvasPlaceholder">
+          <div class="canvas-placeholder-icon">📝</div>
+          <div class="canvas-placeholder-text">파일을 선택하세요</div>
+          <div class="canvas-placeholder-sub">왼쪽에서 파일을 선택하면 여기에 창으로 열립니다</div>
         </div>
       </section>
 
@@ -97,6 +89,8 @@
 
       <!-- 오른쪽 도구 패널 -->
       <aside class="tools-panel" id="toolsPanel">
+        <!-- 사이드바 토글 -->
+        <button class="sidebar-toggle sidebar-toggle-right" id="toggleToolsPanel" title="도구 패널 접기">▶</button>
         <div class="tools-tabs">
           <button class="tools-tab active" data-tab="stats">통계</button>
           <button class="tools-tab" data-tab="tools">도구</button>
@@ -308,6 +302,7 @@
   <script src="js/file-tree.js"></script>
   <script src="js/template-manager.js"></script>
   <script src="js/editor.js"></script>
+  <script src="js/window-manager.js"></script>
   <script src="js/project-manager.js"></script>
   <script src="js/tools-panel.js"></script>
   <script src="js/resizer.js"></script>

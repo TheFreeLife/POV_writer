@@ -11,17 +11,17 @@ window.currentProjectId = null;
 async function goBackToProjects(force = false) {
     console.log('[DEBUG] goBackToProjects 실행...', { force });
 
-    // 1. 현재 편집 중인 파일 저장 (파일이 있을 때만)
+    // 1. 모든 열린 창 저장 및 정리
     try {
-        if (window.editorManager && window.editorManager.currentFile) {
-            console.log('[DEBUG] 파일 저장 중 (자동 저장 컨텍스트)');
-            await window.editorManager.saveCurrentFile(true);
+        if (window.windowManager) {
+            await window.windowManager.saveAllWindows();
+            await window.windowManager.clearAllWindows();
         }
     } catch (e) {
-        console.error('저장 실패 (무시됨):', e);
+        console.error('창 정리 실패 (무시됨):', e);
     }
 
-    // 2. 화면 전환 (클래스 조작은 동기적으로 즉시 실행)
+    // 2. 화면 전환
     const editorScreen = document.getElementById('editorScreen');
     const projectScreen = document.getElementById('projectScreen');
 
@@ -33,7 +33,7 @@ async function goBackToProjects(force = false) {
     if (window.editorManager) window.editorManager.hideEditor();
     if (window.fileTreeManager) window.fileTreeManager.clearState();
 
-    // 4. 프로젝트 목록 새로고침 (오류가 나더라도 화면은 이미 전환됨)
+    // 4. 프로젝트 목록 새로고침
     try {
         if (window.projectManager) {
             await window.projectManager.renderProjectList();

@@ -1,10 +1,11 @@
 /* ===================================
-   프로젝트 선택 화면 스타일
+   프로젝트 선택 화면 - 다크 테마
    =================================== */
 
 .project-screen {
     min-height: 100vh;
     padding: var(--spacing-2xl);
+    background: var(--color-bg-primary);
 }
 
 .project-header {
@@ -57,7 +58,7 @@
 .project-card:hover {
     transform: translateY(-4px);
     border-color: var(--color-accent-primary);
-    box-shadow: var(--shadow-lg);
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(88, 166, 255, 0.2);
 }
 
 .project-card-thumbnail {
@@ -65,7 +66,7 @@
     height: 160px;
     position: relative;
     overflow: hidden;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+    background: linear-gradient(135deg, #1a3a5c 0%, #2d1b4e 50%, #3d1f3f 100%);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -109,7 +110,7 @@
     justify-content: space-between;
     align-items: center;
     font-size: var(--font-size-xs);
-    color: var(--color-text-secondary);
+    color: var(--color-text-tertiary);
     margin-top: var(--spacing-sm);
 }
 
@@ -133,7 +134,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background: rgba(255, 255, 255, 0.95);
+    background: rgba(22, 27, 34, 0.9);
     backdrop-filter: blur(4px);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-md);
@@ -143,7 +144,7 @@
 }
 
 .project-card-action-btn:hover {
-    background: var(--color-bg-primary);
+    background: var(--color-bg-hover);
     border-color: var(--color-accent-primary);
 }
 
@@ -181,7 +182,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    color: white;
+    color: #0d1117;
     font-size: 24px;
 }
 
@@ -209,7 +210,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    color: white;
+    color: #0d1117;
     font-size: 40px;
     margin-bottom: var(--spacing-lg);
 }

@@ -615,21 +615,31 @@ class ToolsPanel {
     }
 
     applySettings(s) {
+        // 다중 창 시스템: 모든 열린 창의 textarea에 설정 적용
+        document.documentElement.style.setProperty('--color-highlight', s.highlightColor || '#58a6ff');
+
+        const textareas = document.querySelectorAll('.window-textarea');
+        textareas.forEach(textarea => {
+            textarea.style.fontFamily = s.fontFamily;
+            textarea.style.fontSize = s.fontSize + 'px';
+            textarea.style.lineHeight = s.lineHeight;
+            textarea.style.letterSpacing = s.letterSpacing + 'px';
+        });
+
+        // 레거시 호환 (단일 에디터 요소가 있는 경우)
         const textarea = document.getElementById('editorTextarea');
         const backdrop = document.getElementById('editorBackdrop');
         const wrapper = document.getElementById('editorWrapper');
-        if (!textarea) return;
-
-        textarea.style.backgroundColor = s.backgroundColor;
-        textarea.style.color = 'transparent';
-        textarea.style.caretColor = s.textColor;
-        textarea.style.fontFamily = s.fontFamily;
-        textarea.style.fontSize = s.fontSize + 'px';
-        textarea.style.lineHeight = s.lineHeight;
-        textarea.style.letterSpacing = s.letterSpacing + 'px';
-
+        if (textarea) {
+            textarea.style.backgroundColor = s.backgroundColor;
+            textarea.style.color = 'transparent';
+            textarea.style.caretColor = s.textColor;
+            textarea.style.fontFamily = s.fontFamily;
+            textarea.style.fontSize = s.fontSize + 'px';
+            textarea.style.lineHeight = s.lineHeight;
+            textarea.style.letterSpacing = s.letterSpacing + 'px';
+        }
         if (wrapper) wrapper.style.maxWidth = s.editorWidth + 'px';
-
         if (backdrop) {
             backdrop.style.backgroundColor = s.backgroundColor;
             backdrop.style.color = s.textColor;
@@ -637,8 +647,6 @@ class ToolsPanel {
             backdrop.style.fontSize = s.fontSize + 'px';
             backdrop.style.lineHeight = s.lineHeight;
             backdrop.style.letterSpacing = s.letterSpacing + 'px';
-            document.documentElement.style.setProperty('--color-highlight', s.highlightColor);
-            window.editorManager?.updateHighlighter();
         }
     }
 

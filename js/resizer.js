@@ -1,6 +1,5 @@
 /**
- * 리사이저 관리
- * 패널 크기를 드래그로 조절할 수 있게 합니다.
+ * 리사이저 및 사이드바 토글 관리
  */
 
 class ResizerManager {
@@ -13,6 +12,7 @@ class ResizerManager {
     init() {
         this.setupFileTreeResizer();
         this.setupToolsPanelResizer();
+        this.setupSidebarToggles();
     }
 
     setupFileTreeResizer() {
@@ -22,6 +22,7 @@ class ResizerManager {
         if (!resizer || !leftPanel) return;
 
         resizer.addEventListener('mousedown', (e) => {
+            if (leftPanel.classList.contains('collapsed')) return;
             this.isResizing = true;
             this.currentResizer = 'fileTree';
             document.body.style.cursor = 'col-resize';
@@ -33,7 +34,7 @@ class ResizerManager {
             if (!this.isResizing || this.currentResizer !== 'fileTree') return;
 
             const newWidth = e.clientX;
-            if (newWidth >= 200 && newWidth <= 800) {
+            if (newWidth >= 180 && newWidth <= 600) {
                 leftPanel.style.width = `${newWidth}px`;
             }
         });
@@ -55,6 +56,7 @@ class ResizerManager {
         if (!resizer || !rightPanel) return;
 
         resizer.addEventListener('mousedown', (e) => {
+            if (rightPanel.classList.contains('collapsed')) return;
             this.isResizing = true;
             this.currentResizer = 'toolsPanel';
             document.body.style.cursor = 'col-resize';
@@ -66,7 +68,7 @@ class ResizerManager {
             if (!this.isResizing || this.currentResizer !== 'toolsPanel') return;
 
             const newWidth = window.innerWidth - e.clientX;
-            if (newWidth >= 280 && newWidth <= 900) {
+            if (newWidth >= 200 && newWidth <= 600) {
                 rightPanel.style.width = `${newWidth}px`;
             }
         });
@@ -79,6 +81,32 @@ class ResizerManager {
                 document.body.style.userSelect = '';
             }
         });
+    }
+
+    setupSidebarToggles() {
+        // 좌측 파일 트리 토글
+        const toggleFileTree = document.getElementById('toggleFileTree');
+        const fileTreePanel = document.getElementById('fileTreePanel');
+
+        if (toggleFileTree && fileTreePanel) {
+            toggleFileTree.addEventListener('click', () => {
+                const isCollapsed = fileTreePanel.classList.toggle('collapsed');
+                toggleFileTree.textContent = isCollapsed ? '▶' : '◀';
+                toggleFileTree.title = isCollapsed ? '파일 트리 펼치기' : '파일 트리 접기';
+            });
+        }
+
+        // 우측 도구 패널 토글
+        const toggleToolsPanel = document.getElementById('toggleToolsPanel');
+        const toolsPanel = document.getElementById('toolsPanel');
+
+        if (toggleToolsPanel && toolsPanel) {
+            toggleToolsPanel.addEventListener('click', () => {
+                const isCollapsed = toolsPanel.classList.toggle('collapsed');
+                toggleToolsPanel.textContent = isCollapsed ? '◀' : '▶';
+                toggleToolsPanel.title = isCollapsed ? '도구 패널 펼치기' : '도구 패널 접기';
+            });
+        }
     }
 }
 
