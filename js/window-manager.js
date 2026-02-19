@@ -309,8 +309,15 @@ class WindowManager {
                     spellcheck="false">${this.escapeHtml(file.content || '')}</textarea>
             </div>
             <div class="window-statusbar">
-                <span class="window-status-chars" data-chars="${file.id}">0자</span>
-                <span class="window-status-saved" data-saved="${file.id}"></span>
+                <div class="window-status-left" data-stats="${file.id}">
+                    <span class="stat-item total">0자</span>
+                    <span class="stat-item nospace">(공백제외 0)</span>
+                    <span class="stat-item sentences">0문장</span>
+                    <span class="stat-item paragraphs">0단락</span>
+                </div>
+                <div class="window-status-right">
+                    <span class="window-status-saved" data-saved="${file.id}"></span>
+                </div>
             </div>
             <div class="window-edge edge-n" data-dir="n"></div>
             <div class="window-edge edge-s" data-dir="s"></div>
@@ -334,7 +341,7 @@ class WindowManager {
         this.bindWindowEvents(win, file.id);
 
         // 초기 글자수 업데이트
-        this.updateCharCount(file.id, file.content || '');
+        this.updateCharCount(file.id, file.content || '', win);
 
         return win;
     }
@@ -397,8 +404,8 @@ class WindowManager {
                 element: win,
                 startX: e.clientX,
                 startY: e.clientY,
-                origLeft: rect.left - containerRect.left,
-                origTop: rect.top - containerRect.top
+                origLeft: win.offsetLeft,
+                origTop: win.offsetTop
             };
             document.body.style.cursor = 'grabbing';
             document.body.style.userSelect = 'none';
@@ -406,11 +413,9 @@ class WindowManager {
             // 드래그 종료 시 위치 저장
             window.addEventListener('mouseup', () => {
                 if (this.dragState && this.dragState.fileId === fileId) {
-                    const r = win.getBoundingClientRect();
-                    const cr = win.parentElement.getBoundingClientRect();
                     this.updateFileWindowState(fileId, {
-                        x: r.left - cr.left,
-                        y: r.top - cr.top
+                        x: win.offsetLeft,
+                        y: win.offsetTop
                     });
                 }
             }, { once: true });
@@ -441,8 +446,8 @@ class WindowManager {
                     startY: e.clientY,
                     origWidth: win.offsetWidth,
                     origHeight: win.offsetHeight,
-                    origLeft: rect.left - containerRect.left,
-                    origTop: rect.top - containerRect.top
+                    origLeft: win.offsetLeft,
+                    origTop: win.offsetTop
                 };
                 const cursorMap = { n: 'ns-resize', s: 'ns-resize', e: 'ew-resize', w: 'ew-resize', nw: 'nwse-resize', se: 'nwse-resize', ne: 'nesw-resize', sw: 'nesw-resize' };
                 document.body.style.cursor = cursorMap[edge.dataset.dir] || 'nwse-resize';
@@ -450,11 +455,9 @@ class WindowManager {
 
                 // 리사이즈 종료 시 크기/위치 저장
                 window.addEventListener('mouseup', () => {
-                    const r = win.getBoundingClientRect();
-                    const cr = win.parentElement.getBoundingClientRect();
                     this.updateFileWindowState(fileId, {
-                        x: r.left - cr.left,
-                        y: r.top - cr.top,
+                        x: win.offsetLeft,
+                        y: win.offsetTop,
                         width: win.offsetWidth,
                         height: win.offsetHeight
                     });
@@ -730,12 +733,23 @@ class WindowManager {
     /**
      * 글자수 업데이트
      */
-    updateCharCount(fileId, content) {
-        const el = document.querySelector(`[data-chars="${fileId}"]`);
-        if (el) {
-            const count = content.replace(/\s/g, '').length;
-            el.textContent = `${count.toLocaleString()}자`;
-        }
+    updateCharCount(fileId, content, root = document) {
+        const statsEl = root.querySelector(`[data-stats="${fileId}"]`);
+        if (!statsEl) return;
+
+        const total = content.length;
+        const noSpace = content.replace(/\s/g, '').length;
+
+        // 문장: . ! ? 기준으로 분리 (다중 구두점 고려)
+        const sentences = content.split(/[.!?]+/).filter(s => s.trim().length > 0).length;
+
+        // 단락: 줄바꿈 기준
+        const paragraphs = content.split(/\n+/).filter(p => p.trim().length > 0).length;
+
+        statsEl.querySelector('.total').textContent = `${total.toLocaleString()}자`;
+        statsEl.querySelector('.nospace').textContent = `(공백제외 ${noSpace.toLocaleString()})`;
+        statsEl.querySelector('.sentences').textContent = `${sentences.toLocaleString()}문장`;
+        statsEl.querySelector('.paragraphs').textContent = `${paragraphs.toLocaleString()}단락`;
     }
 
     /**

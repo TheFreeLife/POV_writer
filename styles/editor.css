@@ -461,16 +461,52 @@
 
 /* 윈도우 하단 상태 바 */
 .window-statusbar {
-    height: 24px;
+    height: 28px;
     background: var(--color-bg-tertiary);
     border-top: 1px solid var(--color-border);
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0 10px;
+    padding: 0 12px;
     font-size: 11px;
-    color: var(--color-text-muted);
+    color: var(--color-text-tertiary);
     flex-shrink: 0;
+    user-select: none;
+}
+
+.window-status-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.stat-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.stat-item.total {
+    color: var(--color-accent-primary);
+    font-weight: 600;
+}
+
+.stat-item.nospace {
+    color: var(--color-text-secondary);
+}
+
+.stat-item.sentences {
+    color: var(--color-accent-success);
+}
+
+.stat-item.paragraphs {
+    color: var(--color-accent-secondary);
+}
+
+.window-status-saved {
+    font-style: italic;
+    font-size: 10px;
+    color: var(--color-text-muted);
 }
 
 /* 윈도우 8방향 리사이즈 핸들 */
