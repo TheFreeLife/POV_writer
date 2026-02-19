@@ -129,6 +129,12 @@ class WindowManager {
         });
     }
 
+    /**
+     * 특정 지점 기준 줌 실행
+     * @param {number} clientX 마우스 X 좌표
+     * @param {number} clientY 마우스 Y 좌표
+     * @param {number} delta 줌 변화량
+     */
     zoomAt(clientX, clientY, delta) {
         const canvasArea = document.getElementById('canvasArea');
         if (!canvasArea) return;
@@ -153,7 +159,7 @@ class WindowManager {
     }
 
     /**
-     * 줌 배율 표시기 노출
+     * 줌 배율 표시기 노출 (우하단)
      */
     showZoomIndicator() {
         const indicator = document.getElementById('zoomIndicator');
@@ -169,7 +175,7 @@ class WindowManager {
     }
 
     /**
-     * 줌/팬 초기화
+     * 줌 및 팬 상태 초기화 (100%)
      */
     resetZoom() {
         this.scale = 1;
@@ -180,25 +186,32 @@ class WindowManager {
         this.saveProjectCanvasState();
     }
 
+    /**
+     * 캔버스 변형 적용 (Scale & Pan)
+     */
     applyTransform(container) {
         if (!container) container = document.getElementById('canvasContainer');
         if (!container) return;
+
         container.style.transformOrigin = '0 0';
         container.style.transform = `translate(${this.panX}px, ${this.panY}px) scale(${this.scale})`;
 
-        // 가상 배경 동기화 (무한 도트 패턴)
+        // 도트 배경 동기화 (CSS Variables 활용)
         const area = document.getElementById('canvasArea');
         if (area) {
             area.style.setProperty('--pan-x', `${this.panX}px`);
             area.style.setProperty('--pan-y', `${this.panY}px`);
             area.style.setProperty('--scale', this.scale);
 
-            // 일정 이상 축소 시 도트 숨기기 (0.5 이하에서 점점 투명해짐)
+            // 축소 배율에 따른 도트 투명도 처리
             const dotOpacity = this.scale < 0.5 ? Math.max(0, (this.scale - 0.3) / 0.2) : 1;
             area.style.setProperty('--dot-opacity', dotOpacity);
         }
     }
 
+    /**
+     * 프로젝트 캔버스 상태 저장 (로컬 스토리지)
+     */
     async saveProjectCanvasState() {
         if (!window.currentProjectId) return;
         await storage.updateProject(window.currentProjectId, {
@@ -206,8 +219,7 @@ class WindowManager {
                 scale: this.scale,
                 panX: this.panX,
                 panY: this.panY
-            },
-            updatedAt: Date.now()
+            }
         });
     }
 

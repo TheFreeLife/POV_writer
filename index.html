@@ -50,7 +50,7 @@
 
     <!-- 메인 에디터 영역 -->
     <main class="editor-main">
-      <!-- 왼쪽 파일 트리 -->
+      <!-- 왼쪽 파일 트리 패널 -->
       <aside class="file-tree-panel" id="fileTreePanel">
         <div class="file-tree-header">
           <span class="file-tree-title">파일</span>
@@ -60,25 +60,25 @@
           </div>
         </div>
         <div class="file-tree-content" id="fileTree">
-          <!-- 파일 트리가 여기에 동적으로 추가됩니다 -->
+          <!-- 파일 트리가 동적으로 생성됩니다 -->
         </div>
-        <!-- 사이드바 토글 -->
+        <!-- 패널 토글 버튼 -->
         <button class="sidebar-toggle sidebar-toggle-left" id="toggleFileTree" title="파일 트리 접기">◀</button>
       </aside>
 
-      <!-- 리사이저 -->
+      <!-- 좌측 리사이저 -->
       <div class="resizer" id="fileTreeResizer"></div>
 
-      <!-- 중앙 캔버스 영역 (다중 창 컨테이너) -->
+      <!-- 중앙 무한 캔버스 영역 -->
       <section class="canvas-area" id="canvasArea">
         <div class="canvas-container" id="canvasContainer">
-          <!-- 에디터 윈도우들이 여기에 동적으로 추가됩니다 -->
+          <!-- 에디터 윈도우들이 동적으로 추가됩니다 -->
         </div>
-        <!-- 줌 배율 표시 -->
+        <!-- 줌 배율 표시기 -->
         <div id="zoomIndicator" class="zoom-indicator">100%</div>
       </section>
 
-      <!-- 리사이저 -->
+      <!-- 우측 리사이저 -->
       <div class="resizer" id="toolsPanelResizer"></div>
 
       <!-- 오른쪽 도구 패널 -->
@@ -91,9 +91,9 @@
           <button class="tools-tab" data-tab="settings">설정</button>
         </div>
         <div class="tools-content" id="toolsContent">
-          <!-- 도구 내용이 여기에 동적으로 추가됩니다 -->
+          <!-- 도구 탭 내용이 동적으로 생성됩니다 -->
         </div>
-        <!-- 사이드바 토글 -->
+        <!-- 패널 토글 버튼 -->
         <button class="sidebar-toggle sidebar-toggle-right" id="toggleToolsPanel" title="도구 패널 접기">▶</button>
       </aside>
     </main>
