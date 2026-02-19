@@ -103,6 +103,15 @@ class WindowManager {
             }
         });
 
+        // 캔버스 배경 클릭 시 모든 포커스 해제
+        canvasArea.addEventListener('mousedown', (e) => {
+            if (e.target === canvasArea || e.target === container) {
+                if (e.button === 0) { // 좌클릭
+                    this.unfocusAll();
+                }
+            }
+        });
+
         // 캔버스 위 우클릭 메뉴 차단
         canvasArea.addEventListener('contextmenu', (e) => {
             e.preventDefault();
@@ -387,10 +396,8 @@ class WindowManager {
      * 창 이벤트 바인딩
      */
     bindWindowEvents(win, fileId) {
-        // 포커스
-        win.addEventListener('mousedown', (e) => {
-            this.focusWindow(fileId);
-        });
+        // 포커스 (클릭 시)
+        win.addEventListener('mousedown', () => this.focusWindow(fileId));
 
         // 타이틀 바 드래그
         const titlebar = win.querySelector('.window-titlebar');
@@ -476,9 +483,14 @@ class WindowManager {
             this.updateHighlighter(fileId);
         });
 
-        // 텍스트 영역에서 드래그 방지 안 함 (타이틀바만 드래그)
+        // 텍스트 영역에서 드래그 방지 및 포커스 처리
         textarea.addEventListener('mousedown', (e) => {
+            this.focusWindow(fileId);
             e.stopPropagation();
+        });
+
+        textarea.addEventListener('focus', () => {
+            this.focusWindow(fileId);
         });
     }
 
@@ -557,6 +569,16 @@ class WindowManager {
 
         // 통계 업데이트
         window.toolsPanel?.updateStats();
+    }
+
+    /**
+     * 모든 창 포커스 해제
+     */
+    unfocusAll() {
+        this.windows.forEach((info) => {
+            info.element.classList.remove('focused');
+        });
+        this.activeWindowId = null;
     }
 
     /**
@@ -695,6 +717,9 @@ class WindowManager {
                 this.focusWindow(remaining[remaining.length - 1]);
             }
         }
+
+        // 통계 업데이트
+        window.toolsPanel?.updateStats();
     }
 
     /**

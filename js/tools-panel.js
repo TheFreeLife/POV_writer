@@ -82,12 +82,33 @@ class ToolsPanel {
         `;
     }
 
-    updateStats() {
-        const text = window.editorManager?.getText() || '';
-        const charCount = text.length;
-        const charCountNoSpace = text.replace(/\s/g, '').length;
-        const wordCount = text.trim().split(/\s+/).filter(w => w).length;
-        const paragraphCount = text.split(/\n\n+/).filter(p => p.trim()).length;
+    async updateStats() {
+        if (!this.currentProjectId) return;
+
+        // 1. 저장소의 모든 파일 가져오기
+        const files = await storage.getProjectFiles(this.currentProjectId);
+        let totalText = '';
+
+        for (const file of files) {
+            if (file.type !== 'file') continue;
+
+            // 2. 현재 창이 열려있으면 실시간 텍스트 사용, 아니면 저장된 텍스트 사용
+            const openWindow = window.windowManager?.windows.get(file.id);
+            if (openWindow) {
+                totalText += openWindow.textarea.value + '\n';
+            } else if (file.content) {
+                totalText += file.content + '\n';
+            }
+        }
+
+        const charCount = totalText.length;
+        const charCountNoSpace = totalText.replace(/\s/g, '').length;
+
+        // 단어 수 (한글/영문 공백 기준)
+        const wordCount = totalText.trim().split(/\s+/).filter(w => w).length;
+
+        // 문단 수 (두 번 이상의 줄바꿈 기준)
+        const paragraphCount = totalText.split(/\n\n+/).filter(p => p.trim()).length;
 
         const charCountEl = document.getElementById('charCount');
         const charCountNoSpaceEl = document.getElementById('charCountNoSpace');
@@ -653,6 +674,7 @@ class ToolsPanel {
     async loadProjectData(projectId) {
         this.currentProjectId = projectId;
         this.memos = await storage.getProjectMemos(projectId);
+        this.updateStats();
     }
     formatDate(t) { return new Date(t).toLocaleDateString(); }
     escapeHtml(t) { const d = document.createElement('div'); d.textContent = t; return d.innerHTML; }
