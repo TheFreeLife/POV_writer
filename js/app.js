@@ -30,7 +30,6 @@ async function goBackToProjects(force = false) {
 
     // 3. 내부 상태 초기화
     window.currentProjectId = null;
-    if (window.editorManager) window.editorManager.hideEditor();
     if (window.fileTreeManager) window.fileTreeManager.clearState();
 
     // 4. 프로젝트 목록 새로고침
@@ -125,8 +124,8 @@ if (document.readyState === 'loading') {
  * 에디터 내부(복사/붙여넣기)를 제외한 모든 공간에서 시스템 메뉴를 방지하여 네이티브 앱 느낌을 줌
  */
 document.addEventListener('contextmenu', (e) => {
-    // 텍스트 에디터에서는 기본 기능을 위해 허용
-    if (e.target.id === 'editorTextarea') return;
+    // 텍스트 선택 중이거나 입력창이면 허용 (다중 창의 textarea 포함)
+    if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT') return;
 
     // 그 외 모든 곳에서는 기본 메뉴 차단
     e.preventDefault();

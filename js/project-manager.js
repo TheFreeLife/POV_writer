@@ -174,6 +174,11 @@ class ProjectManager {
         document.getElementById('projectScreen')?.classList.add('hidden');
         document.getElementById('editorScreen')?.classList.remove('hidden');
 
+        // 세션 복구 (줌/팬 및 열린 창들)
+        if (window.windowManager) {
+            await window.windowManager.restoreSession();
+        }
+
         window.toolsPanel?.loadProjectData(projectId);
     }
 

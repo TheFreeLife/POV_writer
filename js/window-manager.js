@@ -28,6 +28,22 @@ class WindowManager {
         document.addEventListener('mousemove', (e) => this.onMouseMove(e));
         document.addEventListener('mouseup', (e) => this.onMouseUp(e));
 
+        // 상단 헤더 저장 버튼
+        document.getElementById('saveBtn')?.addEventListener('click', () => {
+            this.saveActiveWindow();
+        });
+
+        // 전역 단축키 (저장)
+        window.addEventListener('keydown', (e) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+                const editorScreen = document.getElementById('editorScreen');
+                if (editorScreen && !editorScreen.classList.contains('hidden')) {
+                    e.preventDefault();
+                    this.saveActiveWindow();
+                }
+            }
+        });
+
         // 캔버스 줌/팬 초기화 (DOM 로드 후)
         setTimeout(() => this.setupCanvasZoom(), 0);
     }
@@ -43,33 +59,34 @@ class WindowManager {
         // 초기 위치: (0,0)에서 시작
         this.panX = 0;
         this.panY = 0;
+
+        // 프로젝트 상태 로드 (줌/팬)
+        setTimeout(() => this.restoreSession(), 0);
+
         this.applyTransform(container);
 
-        // 마우스 휠 줌
+        // 마우스 휠 줌 (Ctrl 없이 바로 동작)
         canvasArea.addEventListener('wheel', (e) => {
+            // 에디터 창 내부(텍스트 영역 등)에서 휠을 사용하는 경우는 제외 (스크롤 허용)
+            if (e.target.closest('.editor-window')) return;
+
             e.preventDefault();
             const delta = e.deltaY > 0 ? -0.08 : 0.08;
-            const newScale = Math.min(this.maxScale, Math.max(this.minScale, this.scale + delta));
-            if (newScale === this.scale) return;
-
-            // 마우스 포인터 기준으로 줌
-            const rect = canvasArea.getBoundingClientRect();
-            const mouseX = e.clientX - rect.left;
-            const mouseY = e.clientY - rect.top;
-
-            // 줌 전 마우스가 가리키던 캔버스 내 좌표
-            const prevCanvasX = (mouseX - this.panX) / this.scale;
-            const prevCanvasY = (mouseY - this.panY) / this.scale;
-
-            this.scale = newScale;
-
-            // 줌 후 같은 캔버스 좌표가 마우스 위치에 오도록 팬 조정
-            this.panX = mouseX - prevCanvasX * this.scale;
-            this.panY = mouseY - prevCanvasY * this.scale;
-
-            this.applyTransform(container);
-            this.showZoomIndicator();
+            this.zoomAt(e.clientX, e.clientY, delta);
         }, { passive: false });
+
+        // 키보드 줌 (+/-)
+        document.addEventListener('keydown', (e) => {
+            if (e.ctrlKey || e.metaKey) {
+                if (e.key === '=' || e.key === '+') {
+                    e.preventDefault();
+                    this.zoomAt(window.innerWidth / 2, window.innerHeight / 2, 0.1);
+                } else if (e.key === '-') {
+                    e.preventDefault();
+                    this.zoomAt(window.innerWidth / 2, window.innerHeight / 2, -0.1);
+                }
+            }
+        });
 
         // 우클릭 드래그로 캔버스 팬 이동
         canvasArea.addEventListener('mousedown', (e) => {
@@ -103,42 +120,84 @@ class WindowManager {
         });
     }
 
+    zoomAt(clientX, clientY, delta) {
+        const canvasArea = document.getElementById('canvasArea');
+        if (!canvasArea) return;
+
+        const newScale = Math.min(this.maxScale, Math.max(this.minScale, this.scale + delta));
+        if (newScale === this.scale) return;
+
+        const rect = canvasArea.getBoundingClientRect();
+        const mouseX = clientX - rect.left;
+        const mouseY = clientY - rect.top;
+
+        const prevCanvasX = (mouseX - this.panX) / this.scale;
+        const prevCanvasY = (mouseY - this.panY) / this.scale;
+
+        this.scale = newScale;
+        this.panX = mouseX - prevCanvasX * this.scale;
+        this.panY = mouseY - prevCanvasY * this.scale;
+
+        this.applyTransform();
+        this.showZoomIndicator();
+        this.saveProjectCanvasState();
+    }
+
     applyTransform(container) {
         if (!container) container = document.getElementById('canvasContainer');
         if (!container) return;
         container.style.transformOrigin = '0 0';
         container.style.transform = `translate(${this.panX}px, ${this.panY}px) scale(${this.scale})`;
-    }
 
-    showZoomIndicator() {
-        let indicator = document.getElementById('zoomIndicator');
-        if (!indicator) {
-            indicator = document.createElement('div');
-            indicator.id = 'zoomIndicator';
-            indicator.className = 'zoom-indicator';
-            const canvasArea = document.getElementById('canvasArea');
-            if (canvasArea) canvasArea.appendChild(indicator);
+        // 가상 배경 동기화 (무한 도트 패턴)
+        const area = document.getElementById('canvasArea');
+        if (area) {
+            area.style.setProperty('--pan-x', `${this.panX}px`);
+            area.style.setProperty('--pan-y', `${this.panY}px`);
+            area.style.setProperty('--scale', this.scale);
+
+            // 일정 이상 축소 시 도트 숨기기 (0.5 이하에서 점점 투명해짐)
+            const dotOpacity = this.scale < 0.5 ? Math.max(0, (this.scale - 0.3) / 0.2) : 1;
+            area.style.setProperty('--dot-opacity', dotOpacity);
         }
-        indicator.textContent = `${Math.round(this.scale * 100)}%`;
-        indicator.classList.add('show');
-        clearTimeout(this._zoomIndicatorTimer);
-        this._zoomIndicatorTimer = setTimeout(() => {
-            indicator.classList.remove('show');
-        }, 1200);
     }
 
-    resetZoom() {
-        this.scale = 1;
-        this.panX = 0;
-        this.panY = 0;
-        this.applyTransform();
-        this.showZoomIndicator();
+    async saveProjectCanvasState() {
+        if (!window.currentProjectId) return;
+        await storage.updateProject(window.currentProjectId, {
+            canvasState: {
+                scale: this.scale,
+                panX: this.panX,
+                panY: this.panY
+            },
+            updatedAt: Date.now()
+        });
+    }
+
+    async restoreSession() {
+        if (!window.currentProjectId) return;
+
+        const project = await storage.getProject(window.currentProjectId);
+        if (project && project.canvasState) {
+            this.scale = project.canvasState.scale || 1;
+            this.panX = project.canvasState.panX || 0;
+            this.panY = project.canvasState.panY || 0;
+            this.applyTransform();
+        }
+
+        // 열려있던 창들 복구
+        const files = await storage.getProjectFiles(window.currentProjectId);
+        const openFiles = files.filter(f => f.windowState && f.windowState.isOpen);
+
+        for (const file of openFiles) {
+            await this.openWindow(file.id, file.windowState);
+        }
     }
 
     /**
      * 파일을 새 창으로 열거나, 이미 열린 창이면 포커스
      */
-    async openWindow(fileId) {
+    async openWindow(fileId, restoreState = null) {
         // 이미 열린 경우 포커스
         if (this.windows.has(fileId)) {
             this.focusWindow(fileId);
@@ -149,23 +208,34 @@ class WindowManager {
         const file = await storage.getFile(fileId);
         if (!file || file.type === 'folder') return;
 
-        // 창 위치 계산 — 현재 보이는 영역의 중앙 기준 캐스케이드
+        // 창 위치 계산
         const container = document.getElementById('canvasContainer');
         const canvasArea = document.getElementById('canvasArea');
         if (!container) return;
 
-        const areaRect = canvasArea ? canvasArea.getBoundingClientRect() : { width: 800, height: 600 };
-        // 현재 뷰포트 중앙의 캔버스 좌표
-        const viewCenterX = (areaRect.width / 2 - this.panX) / this.scale;
-        const viewCenterY = (areaRect.height / 2 - this.panY) / this.scale;
+        let x, y, width = 520, height = 400;
 
-        const offsetStep = 32;
-        const x = viewCenterX - 260 + (this.cascadeOffset * offsetStep) % 200;
-        const y = viewCenterY - 200 + (this.cascadeOffset * offsetStep) % 150;
-        this.cascadeOffset++;
+        // 저장된 상태가 있거나 파일 객체에 저장된 위치 정보가 있는 경우 사용
+        const state = restoreState || file.windowState;
+
+        if (state && typeof state.x === 'number') {
+            x = state.x;
+            y = state.y;
+            width = state.width || 520;
+            height = state.height || 400;
+        } else {
+            const areaRect = canvasArea ? canvasArea.getBoundingClientRect() : { width: 800, height: 600 };
+            const viewCenterX = (areaRect.width / 2 - this.panX) / this.scale;
+            const viewCenterY = (areaRect.height / 2 - this.panY) / this.scale;
+
+            const offsetStep = 32;
+            x = viewCenterX - 260 + (this.cascadeOffset * offsetStep) % 200;
+            y = viewCenterY - 200 + (this.cascadeOffset * offsetStep) % 150;
+            this.cascadeOffset++;
+        }
 
         // 창 DOM 생성
-        const windowEl = this.createWindowDOM(file, x, y);
+        const windowEl = this.createWindowDOM(file, x, y, width, height);
         container.appendChild(windowEl);
 
         // 상태 저장
@@ -174,31 +244,47 @@ class WindowManager {
             file,
             element: windowEl,
             textarea: windowEl.querySelector('.window-textarea'),
+            backdrop: windowEl.querySelector('.window-backdrop'),
             modified: false
         };
         this.windows.set(fileId, windowInfo);
 
+        // 파일의 isOpen 상태 업데이트
+        if (!restoreState) {
+            await this.updateFileWindowState(fileId, { isOpen: true, x, y, width, height });
+        }
+
         // 포커스
         this.focusWindow(fileId);
 
-        // 플레이스홀더 숨기기
-        this.updatePlaceholder();
+        // 초기 하이라이트 적용
+        this.updateHighlighter(fileId);
+    }
 
-        // 헤더 파일명 업데이트
-        this.updateHeaderFileName(file.name);
+    /**
+     * 파일의 윈도우 상태 저장
+     */
+    async updateFileWindowState(fileId, stateUpdates) {
+        const file = await storage.getFile(fileId);
+        if (!file) return;
+
+        const currentWindowState = file.windowState || {};
+        const newWindowState = { ...currentWindowState, ...stateUpdates };
+
+        await storage.updateFile(fileId, { windowState: newWindowState });
     }
 
     /**
      * 창 DOM 생성
      */
-    createWindowDOM(file, x, y) {
+    createWindowDOM(file, x, y, width, height) {
         const win = document.createElement('div');
         win.className = 'editor-window';
         win.dataset.fileId = file.id;
         win.style.left = `${x}px`;
         win.style.top = `${y}px`;
-        win.style.width = '520px';
-        win.style.height = '400px';
+        win.style.width = `${width}px`;
+        win.style.height = `${height}px`;
         win.style.zIndex = ++this.zIndexCounter;
 
         // 아이콘 결정
@@ -217,6 +303,7 @@ class WindowManager {
                 </div>
             </div>
             <div class="window-editor">
+                <div class="window-backdrop"></div>
                 <textarea class="window-textarea" 
                     placeholder="여기에 이야기를 작성하세요..." 
                     spellcheck="false">${this.escapeHtml(file.content || '')}</textarea>
@@ -235,6 +322,14 @@ class WindowManager {
             <div class="window-edge edge-se" data-dir="se"></div>
         `;
 
+        // 설정 적용 지연 실행 (글꼴 등 동기화)
+        setTimeout(() => {
+            if (window.toolsPanel) {
+                const settings = window.toolsPanel.loadSettings();
+                this.applySettingsToWindow(win, settings);
+            }
+        }, 0);
+
         // 이벤트 바인딩
         this.bindWindowEvents(win, file.id);
 
@@ -242,6 +337,43 @@ class WindowManager {
         this.updateCharCount(file.id, file.content || '');
 
         return win;
+    }
+
+    applySettingsToWindow(win, s) {
+        const textarea = win.querySelector('.window-textarea');
+        const backdrop = win.querySelector('.window-backdrop');
+        if (!textarea) return;
+
+        [textarea, backdrop].forEach(el => {
+            if (!el) return;
+            el.style.fontFamily = s.fontFamily;
+            el.style.fontSize = s.fontSize + 'px';
+            el.style.lineHeight = s.lineHeight;
+            el.style.letterSpacing = s.letterSpacing + 'px';
+        });
+    }
+
+    /**
+     * 하이라이터 업데이트 (다이얼로그/생각 강조)
+     */
+    updateHighlighter(fileId) {
+        const info = this.windows.get(fileId);
+        if (!info || !info.backdrop) return;
+
+        const text = info.textarea.value;
+        const highlighted = text
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"([^"]*)"/g, '<span class="hl-dialogue">"$1"</span>')
+            .replace(/'([^']*)'/g, '<span class="hl-thought">\'$1\'</span>')
+            .replace(/\(([^)]*)\)/g, '<span class="hl-thought">($1)</span>')
+            .replace(/\n/g, '<br>');
+
+        info.backdrop.innerHTML = highlighted + (text.endsWith('\n') ? '<br>' : '');
+
+        // 스크롤 동기화
+        info.backdrop.scrollTop = info.textarea.scrollTop;
     }
 
     /**
@@ -270,6 +402,18 @@ class WindowManager {
             };
             document.body.style.cursor = 'grabbing';
             document.body.style.userSelect = 'none';
+
+            // 드래그 종료 시 위치 저장
+            window.addEventListener('mouseup', () => {
+                if (this.dragState && this.dragState.fileId === fileId) {
+                    const r = win.getBoundingClientRect();
+                    const cr = win.parentElement.getBoundingClientRect();
+                    this.updateFileWindowState(fileId, {
+                        x: r.left - cr.left,
+                        y: r.top - cr.top
+                    });
+                }
+            }, { once: true });
         });
 
         // 버튼 (닫기, 최대화)
@@ -303,6 +447,18 @@ class WindowManager {
                 const cursorMap = { n: 'ns-resize', s: 'ns-resize', e: 'ew-resize', w: 'ew-resize', nw: 'nwse-resize', se: 'nwse-resize', ne: 'nesw-resize', sw: 'nesw-resize' };
                 document.body.style.cursor = cursorMap[edge.dataset.dir] || 'nwse-resize';
                 document.body.style.userSelect = 'none';
+
+                // 리사이즈 종료 시 크기/위치 저장
+                window.addEventListener('mouseup', () => {
+                    const r = win.getBoundingClientRect();
+                    const cr = win.parentElement.getBoundingClientRect();
+                    this.updateFileWindowState(fileId, {
+                        x: r.left - cr.left,
+                        y: r.top - cr.top,
+                        width: win.offsetWidth,
+                        height: win.offsetHeight
+                    });
+                }, { once: true });
             });
         });
 
@@ -310,6 +466,11 @@ class WindowManager {
         const textarea = win.querySelector('.window-textarea');
         textarea.addEventListener('input', () => {
             this.onTextChange(fileId, textarea.value);
+            this.updateHighlighter(fileId);
+        });
+
+        textarea.addEventListener('scroll', () => {
+            this.updateHighlighter(fileId);
         });
 
         // 텍스트 영역에서 드래그 방지 안 함 (타이틀바만 드래그)
@@ -357,6 +518,8 @@ class WindowManager {
             this.panX = this.panState.origPanX + dx;
             this.panY = this.panState.origPanY + dy;
             this.applyTransform();
+            // 팬 이동 시 상태 저장 (디바운스 고려 가능하지만 일단 즉시 저장)
+            this.saveProjectCanvasState();
         }
     }
 
@@ -388,15 +551,6 @@ class WindowManager {
         info.element.style.zIndex = ++this.zIndexCounter;
         info.element.classList.add('focused');
         this.activeWindowId = fileId;
-
-        // 헤더 파일명 업데이트
-        this.updateHeaderFileName(info.file.name);
-
-        // 에디터 매니저의 currentFile 동기화 (통계 등을 위해)
-        if (window.editorManager) {
-            window.editorManager.currentFile = info.file;
-            window.editorManager.currentTextarea = info.textarea;
-        }
 
         // 통계 업데이트
         window.toolsPanel?.updateStats();
@@ -519,6 +673,9 @@ class WindowManager {
             await this.saveWindow(fileId, true);
         }
 
+        // 닫기 상태 저장
+        await this.updateFileWindowState(fileId, { isOpen: false });
+
         // 타이머 정리
         clearTimeout(this.autoSaveTimers.get(fileId));
         this.autoSaveTimers.delete(fileId);
@@ -533,17 +690,8 @@ class WindowManager {
             const remaining = Array.from(this.windows.keys());
             if (remaining.length > 0) {
                 this.focusWindow(remaining[remaining.length - 1]);
-            } else {
-                this.updateHeaderFileName(null);
-                if (window.editorManager) {
-                    window.editorManager.currentFile = null;
-                    window.editorManager.currentTextarea = null;
-                }
             }
         }
-
-        // 플레이스홀더 업데이트
-        this.updatePlaceholder();
     }
 
     /**
@@ -591,26 +739,6 @@ class WindowManager {
     }
 
     /**
-     * 플레이스홀더 표시/숨기기
-     */
-    updatePlaceholder() {
-        const ph = document.getElementById('canvasPlaceholder');
-        if (ph) {
-            ph.style.display = this.windows.size === 0 ? 'block' : 'none';
-        }
-    }
-
-    /**
-     * 헤더 파일명 업데이트
-     */
-    updateHeaderFileName(name) {
-        const el = document.getElementById('currentFileName');
-        if (el) {
-            el.textContent = name || '파일을 선택하세요';
-        }
-    }
-
-    /**
      * 모든 창 닫기 (프로젝트 전환 시)
      */
     async clearAllWindows() {
@@ -625,7 +753,12 @@ class WindowManager {
         this.autoSaveTimers.clear();
         this.activeWindowId = null;
         this.cascadeOffset = 0;
-        this.updatePlaceholder();
+
+        // 캔버스 상태 리셋
+        this.scale = 1;
+        this.panX = 0;
+        this.panY = 0;
+        this.applyTransform();
     }
 
     /**
