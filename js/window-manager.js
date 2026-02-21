@@ -405,17 +405,20 @@ class WindowManager {
      * 창 DOM 생성
      */
     createWindowDOM(file, x, y, width, height) {
+        const isCollapsed = file.windowState?.isCollapsed || false;
+        
         const win = document.createElement('div');
-        win.className = 'editor-window';
+        win.className = `editor-window${isCollapsed ? ' collapsed' : ''}`;
         win.dataset.fileId = file.id;
         win.style.left = `${x}px`;
         win.style.top = `${y}px`;
         win.style.width = `${width}px`;
-        win.style.height = `${height}px`;
+        win.style.height = isCollapsed ? '36px' : `${height}px`;
         win.style.zIndex = ++this.zIndexCounter;
 
         // 아이콘 결정
         const icon = file.icon || (file.template ? this.getTemplateIcon(file.template) : '📄');
+        const collapseChar = isCollapsed ? '+' : '−';
 
         win.innerHTML = `
             <div class="window-titlebar" data-file-id="${file.id}">
@@ -425,7 +428,7 @@ class WindowManager {
                     <span class="window-modified" data-indicator="${file.id}"></span>
                 </div>
                 <div class="window-titlebar-actions">
-                    <button class="window-btn window-btn-maximize" data-action="maximize" title="최대화">□</button>
+                    <button class="window-btn window-btn-collapse" data-action="collapse" title="접기/펴기">${collapseChar}</button>
                     <button class="window-btn window-btn-close" data-action="close" title="닫기">✕</button>
                 </div>
             </div>
@@ -569,13 +572,13 @@ class WindowManager {
             }, { once: true });
         });
 
-        // 버튼 (닫기, 최대화)
+        // 버튼 (닫기, 접기)
         win.querySelectorAll('.window-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 e.stopPropagation();
                 const action = btn.dataset.action;
                 if (action === 'close') this.closeWindow(fileId);
-                if (action === 'maximize') this.toggleMaximize(fileId);
+                if (action === 'collapse') this.toggleCollapse(fileId);
             });
         });
 
@@ -982,36 +985,32 @@ class WindowManager {
     }
 
     /**
-     * 최대화/복원 토글
+     * 창 접기/펴기 토글
      */
-    toggleMaximize(fileId) {
+    toggleCollapse(fileId) {
         const info = this.windows.get(fileId);
         if (!info) return;
 
         const el = info.element;
-        if (el.dataset.maximized === 'true') {
-            // 복원
-            el.style.left = el.dataset.prevLeft;
-            el.style.top = el.dataset.prevTop;
-            el.style.width = el.dataset.prevWidth;
-            el.style.height = el.dataset.prevHeight;
-            el.dataset.maximized = 'false';
-        } else {
-            // 최대화
-            el.dataset.prevLeft = el.style.left;
-            el.dataset.prevTop = el.style.top;
-            el.dataset.prevWidth = el.style.width;
-            el.dataset.prevHeight = el.style.height;
-            el.style.left = '8px';
-            el.style.top = '8px';
+        const btn = el.querySelector('.window-btn-collapse');
 
-            const container = document.getElementById('canvasContainer');
-            if (container) {
-                el.style.width = `${container.clientWidth - 16}px`;
-                el.style.height = `${container.clientHeight - 16}px`;
-            }
-            el.dataset.maximized = 'true';
+        if (el.classList.contains('collapsed')) {
+            // 펴기
+            el.classList.remove('collapsed');
+            el.style.height = el.dataset.prevHeight || '400px';
+            if (btn) btn.textContent = '−';
+        } else {
+            // 접기
+            el.dataset.prevHeight = el.style.height;
+            el.classList.add('collapsed');
+            if (btn) btn.textContent = '+';
         }
+
+        // 상태 저장
+        this.updateFileWindowState(fileId, {
+            height: el.offsetHeight,
+            isCollapsed: el.classList.contains('collapsed')
+        });
     }
 
     /**

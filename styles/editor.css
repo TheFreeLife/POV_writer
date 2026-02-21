@@ -292,6 +292,22 @@
     box-shadow: var(--shadow-window-focus);
 }
 
+/* 윈도우 접기 (Collapse) 상태 */
+.editor-window.collapsed {
+    min-height: 0 !important;
+    height: 36px !important; /* 타이틀 바 높이 */
+}
+
+.editor-window.collapsed .window-editor,
+.editor-window.collapsed .window-statusbar,
+.editor-window.collapsed .window-edge {
+    display: none !important;
+}
+
+.editor-window.collapsed .window-titlebar {
+    border-bottom: none;
+}
+
 /* 윈도우 타이틀 바 */
 .window-titlebar {
     height: 36px;
