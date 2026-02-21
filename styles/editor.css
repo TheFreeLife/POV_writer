@@ -998,16 +998,13 @@
     font-weight: 500;
 }
 
-.editor-placeholder {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    height: 100%;
-    width: 100%;
-    color: var(--color-text-tertiary);
-    font-size: var(--font-size-md);
-    text-align: center;
+/* ===================================
+   선택 상자 (Marquee Selection)
+   =================================== */
+.selection-box {
     position: absolute;
-    top: 0;
-    left: 0;
+    border: 1.5px solid var(--color-accent-primary);
+    background: rgba(88, 166, 255, 0.1);
+    pointer-events: none;
+    z-index: 10000;
 }

@@ -8,8 +8,10 @@ class WindowManager {
         this.zIndexCounter = 100;
         this.cascadeOffset = 0;
         this.activeWindowId = null;
+        this.selectedWindowIds = new Set(); // 다중 선택된 ID들
         this.dragState = null;
         this.resizeState = null;
+        this.selectionState = null; // 영역 선택 상태
         this.autoSaveTimers = new Map();
 
         // 캔버스 줌/팬 상태
@@ -103,11 +105,29 @@ class WindowManager {
             }
         });
 
-        // 캔버스 배경 클릭 시 모든 포커스 해제
+        // 캔버스 배경 클릭 시 다중 선택 시작
         canvasArea.addEventListener('mousedown', (e) => {
             if (e.target === canvasArea || e.target === container) {
                 if (e.button === 0) { // 좌클릭
-                    this.unfocusAll();
+                    const isMulti = e.shiftKey || e.ctrlKey || e.metaKey;
+                    if (!isMulti) {
+                        this.unfocusAll();
+                    }
+
+                    const rect = canvasArea.getBoundingClientRect();
+                    // 캔버스 기준 좌표 계산 (줌/팬 반영)
+                    const startX = (e.clientX - rect.left - this.panX) / this.scale;
+                    const startY = (e.clientY - rect.top - this.panY) / this.scale;
+
+                    this.selectionState = {
+                        startX,
+                        startY,
+                        currentX: startX,
+                        currentY: startY,
+                        element: null,
+                        isMulti,
+                        initialSelected: new Set(this.selectedWindowIds)
+                    };
                 }
             }
         });
@@ -437,32 +457,55 @@ class WindowManager {
      */
     bindWindowEvents(win, fileId) {
         // 포커스 (클릭 시)
-        win.addEventListener('mousedown', () => this.focusWindow(fileId));
+        win.addEventListener('mousedown', (e) => {
+            const isMulti = e.shiftKey || e.ctrlKey || e.metaKey;
+            this.focusWindow(fileId, isMulti);
+        });
 
         // 타이틀 바 드래그
         const titlebar = win.querySelector('.window-titlebar');
         titlebar.addEventListener('mousedown', (e) => {
             if (e.target.closest('.window-btn')) return;
             e.preventDefault();
-            const rect = win.getBoundingClientRect();
-            const containerRect = win.parentElement.getBoundingClientRect();
+
+            // 만약 현재 창이 선택되지 않은 상태라면 이를 단독 선택(또는 다중 추가)
+            const isMulti = e.shiftKey || e.ctrlKey || e.metaKey;
+            if (!this.selectedWindowIds.has(fileId)) {
+                this.focusWindow(fileId, isMulti);
+            }
+
+            // 선택된 모든 창들의 정보를 수집하여 드래그 상태에 저장
+            const targets = [];
+            this.selectedWindowIds.forEach(id => {
+                const info = this.windows.get(id);
+                if (info) {
+                    targets.push({
+                        id,
+                        element: info.element,
+                        origLeft: info.element.offsetLeft,
+                        origTop: info.element.offsetTop
+                    });
+                }
+            });
+
             this.dragState = {
                 fileId,
-                element: win,
+                targets,
                 startX: e.clientX,
-                startY: e.clientY,
-                origLeft: win.offsetLeft,
-                origTop: win.offsetTop
+                startY: e.clientY
             };
+
             document.body.style.cursor = 'grabbing';
             document.body.style.userSelect = 'none';
 
             // 드래그 종료 시 위치 저장
             window.addEventListener('mouseup', () => {
                 if (this.dragState && this.dragState.fileId === fileId) {
-                    this.updateFileWindowState(fileId, {
-                        x: win.offsetLeft,
-                        y: win.offsetTop
+                    this.dragState.targets.forEach(t => {
+                        this.updateFileWindowState(t.id, {
+                            x: t.element.offsetLeft,
+                            y: t.element.offsetTop
+                        });
                     });
                 }
             }, { once: true });
@@ -538,12 +581,30 @@ class WindowManager {
      * 마우스 이동 처리
      */
     onMouseMove(e) {
-        // 드래그
+        // 다중 드래그 이동
         if (this.dragState) {
             const dx = (e.clientX - this.dragState.startX) / this.scale;
             const dy = (e.clientY - this.dragState.startY) / this.scale;
-            this.dragState.element.style.left = `${this.dragState.origLeft + dx}px`;
-            this.dragState.element.style.top = `${this.dragState.origTop + dy}px`;
+            this.dragState.targets.forEach(t => {
+                t.element.style.left = `${t.origLeft + dx}px`;
+                t.element.style.top = `${t.origTop + dy}px`;
+            });
+        }
+
+        // 영역 선택 드래그 (Marquee)
+        if (this.selectionState) {
+            const canvasArea = document.getElementById('canvasArea');
+            const rect = canvasArea.getBoundingClientRect();
+            
+            // 캔버스 좌표계 기준 위치 계산
+            const currentX = (e.clientX - rect.left - this.panX) / this.scale;
+            const currentY = (e.clientY - rect.top - this.panY) / this.scale;
+            
+            this.selectionState.currentX = currentX;
+            this.selectionState.currentY = currentY;
+            
+            this.updateSelectionBox();
+            this.updateSelection(this.selectionState.isMulti);
         }
 
         // 8방향 리사이즈
@@ -573,7 +634,6 @@ class WindowManager {
             this.panX = this.panState.origPanX + dx;
             this.panY = this.panState.origPanY + dy;
             this.applyTransform();
-            // 팬 이동 시 상태 저장 (디바운스 고려 가능하지만 일단 즉시 저장)
             this.saveProjectCanvasState();
         }
     }
@@ -582,30 +642,124 @@ class WindowManager {
      * 마우스 놓기 처리
      */
     onMouseUp(e) {
-        if (this.dragState || this.resizeState || this.panState) {
+        if (this.selectionState && this.selectionState.element) {
+            this.selectionState.element.remove();
+        }
+
+        if (this.dragState || this.resizeState || this.panState || this.selectionState) {
             this.dragState = null;
             this.resizeState = null;
             this.panState = null;
+            this.selectionState = null;
             document.body.style.cursor = '';
             document.body.style.userSelect = '';
         }
     }
 
     /**
-     * 창 포커스
+     * 선택 영역 UI 업데이트
      */
-    focusWindow(fileId) {
-        // 이전 포커스 제거
-        this.windows.forEach((info) => {
-            info.element.classList.remove('focused');
+    updateSelectionBox() {
+        const s = this.selectionState;
+        if (!s) return;
+
+        const left = Math.min(s.startX, s.currentX);
+        const top = Math.min(s.startY, s.currentY);
+        const width = Math.abs(s.startX - s.currentX);
+        const height = Math.abs(s.startY - s.currentY);
+
+        // 일정 크기 이상 드래그했을 때만 상자 생성
+        if (!s.element && (width > 5 || height > 5)) {
+            s.element = document.createElement('div');
+            s.element.className = 'selection-box';
+            document.getElementById('canvasContainer').appendChild(s.element);
+        }
+
+        if (s.element) {
+            s.element.style.left = `${left}px`;
+            s.element.style.top = `${top}px`;
+            s.element.style.width = `${width}px`;
+            s.element.style.height = `${height}px`;
+        }
+    }
+
+    /**
+     * 선택 영역 내의 창 식별 및 상태 업데이트
+     */
+    updateSelection(isMulti) {
+        const s = this.selectionState;
+        if (!s) return;
+
+        const left = Math.min(s.startX, s.currentX);
+        const top = Math.min(s.startY, s.currentY);
+        const right = left + Math.abs(s.startX - s.currentX);
+        const bottom = top + Math.abs(s.startY - s.currentY);
+
+        this.windows.forEach((info, fileId) => {
+            const winLeft = info.element.offsetLeft;
+            const winTop = info.element.offsetTop;
+            const winRight = winLeft + info.element.offsetWidth;
+            const winBottom = winTop + info.element.offsetHeight;
+
+            // 사각형 충돌 체크 (AABB)
+            const isInside = !(winLeft > right || winRight < left || winTop > bottom || winBottom < top);
+
+            if (isMulti) {
+                // 다중 선택 모드: 기존 선택 유지 + 현재 영역 포함된 것 추가
+                if (isInside || s.initialSelected.has(fileId)) {
+                    this.selectedWindowIds.add(fileId);
+                    info.element.classList.add('focused');
+                } else {
+                    this.selectedWindowIds.delete(fileId);
+                    info.element.classList.remove('focused');
+                }
+            } else {
+                // 일반 모드: 현재 영역 안에 있는 것만 선택
+                if (isInside) {
+                    this.selectedWindowIds.add(fileId);
+                    info.element.classList.add('focused');
+                    this.activeWindowId = fileId;
+                } else {
+                    this.selectedWindowIds.delete(fileId);
+                    info.element.classList.remove('focused');
+                }
+            }
         });
+
+        // 통계 업데이트
+        window.toolsPanel?.updateStats();
+    }
+
+    /**
+     * 창 포커스 (다중 선택 대응)
+     * @param {string} fileId 파일 ID
+     * @param {boolean} isMulti Shift 키 등을 이용한 다중 선택 여부
+     */
+    focusWindow(fileId, isMulti = false) {
+        if (!isMulti) {
+            // 일반 클릭 시: 이전의 모든 포커스 제거 (이미 선택된 것 중 본인이 있으면 해제하지 않음 - 드래그를 위해)
+            if (!this.selectedWindowIds.has(fileId)) {
+                this.unfocusAll();
+            }
+        }
 
         const info = this.windows.get(fileId);
         if (!info) return;
 
-        info.element.style.zIndex = ++this.zIndexCounter;
-        info.element.classList.add('focused');
-        this.activeWindowId = fileId;
+        if (isMulti && this.selectedWindowIds.has(fileId)) {
+            // 이미 선택된 경우 해제 (토글)
+            this.selectedWindowIds.delete(fileId);
+            info.element.classList.remove('focused');
+            if (this.activeWindowId === fileId) {
+                this.activeWindowId = Array.from(this.selectedWindowIds).pop() || null;
+            }
+        } else {
+            // 새로 선택
+            this.selectedWindowIds.add(fileId);
+            info.element.style.zIndex = ++this.zIndexCounter;
+            info.element.classList.add('focused');
+            this.activeWindowId = fileId;
+        }
 
         // 통계 업데이트
         window.toolsPanel?.updateStats();
@@ -619,6 +773,7 @@ class WindowManager {
             info.element.classList.remove('focused');
         });
         this.activeWindowId = null;
+        this.selectedWindowIds.clear();
     }
 
     /**
@@ -748,13 +903,19 @@ class WindowManager {
         // DOM 제거
         info.element.remove();
         this.windows.delete(fileId);
+        this.selectedWindowIds.delete(fileId);
 
         // 다른 창으로 포커스 이동
         if (this.activeWindowId === fileId) {
-            this.activeWindowId = null;
-            const remaining = Array.from(this.windows.keys());
-            if (remaining.length > 0) {
-                this.focusWindow(remaining[remaining.length - 1]);
+            const remainingSelected = Array.from(this.selectedWindowIds);
+            if (remainingSelected.length > 0) {
+                this.focusWindow(remainingSelected[remainingSelected.length - 1], true);
+            } else {
+                this.activeWindowId = null;
+                const remaining = Array.from(this.windows.keys());
+                if (remaining.length > 0) {
+                    this.focusWindow(remaining[remaining.length - 1]);
+                }
             }
         }
 
@@ -829,6 +990,7 @@ class WindowManager {
             info.element.remove();
         }
         this.windows.clear();
+        this.selectedWindowIds.clear();
         this.autoSaveTimers.clear();
         this.activeWindowId = null;
         this.cascadeOffset = 0;
