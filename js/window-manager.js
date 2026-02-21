@@ -267,9 +267,16 @@ class WindowManager {
      * 파일을 새 창으로 열거나, 이미 열린 창이면 포커스
      */
     async openWindow(fileId, restoreState = null) {
-        // 이미 열린 경우 포커스
+        const isManualOpen = !restoreState;
+
+        // 이미 열린 경우
         if (this.windows.has(fileId)) {
             this.focusWindow(fileId);
+            
+            // 수동으로 열었는데 현재 화면(뷰포트)에 보이지 않는다면 중앙으로 이동
+            if (isManualOpen && !this.isWindowInViewport(fileId)) {
+                this.moveWindowToViewCenter(fileId);
+            }
             return;
         }
 
@@ -284,23 +291,17 @@ class WindowManager {
 
         let x, y, width = 520, height = 400;
 
-        // 저장된 상태가 있거나 파일 객체에 저장된 위치 정보가 있는 경우 사용
-        const state = restoreState || file.windowState;
-
-        if (state && typeof state.x === 'number') {
-            x = state.x;
-            y = state.y;
-            width = state.width || 520;
-            height = state.height || 400;
+        // 세션 복구(최초 로드 등)일 때만 저장된 상태를 사용
+        if (restoreState && typeof restoreState.x === 'number') {
+            x = restoreState.x;
+            y = restoreState.y;
+            width = restoreState.width || 520;
+            height = restoreState.height || 400;
         } else {
-            const areaRect = canvasArea ? canvasArea.getBoundingClientRect() : { width: 800, height: 600 };
-            const viewCenterX = (areaRect.width / 2 - this.panX) / this.scale;
-            const viewCenterY = (areaRect.height / 2 - this.panY) / this.scale;
-
-            const offsetStep = 32;
-            x = viewCenterX - 260 + (this.cascadeOffset * offsetStep) % 200;
-            y = viewCenterY - 200 + (this.cascadeOffset * offsetStep) % 150;
-            this.cascadeOffset++;
+            // 수동으로 여는 경우 현재 보고 있는 화면의 중앙 좌표 계산
+            const center = this.calculateViewCenter(width, height);
+            x = center.x;
+            y = center.y;
         }
 
         // 창 DOM 생성
@@ -328,6 +329,63 @@ class WindowManager {
 
         // 초기 하이라이트 적용
         this.updateHighlighter(fileId);
+    }
+
+    /**
+     * 현재 뷰포트의 중앙 좌표 계산 (줌/팬 반영)
+     */
+    calculateViewCenter(width, height) {
+        const canvasArea = document.getElementById('canvasArea');
+        const areaRect = canvasArea ? canvasArea.getBoundingClientRect() : { width: 800, height: 600 };
+        
+        // 캔버스 좌표계 기준 중심점 계산
+        const viewCenterX = (areaRect.width / 2 - this.panX) / this.scale;
+        const viewCenterY = (areaRect.height / 2 - this.panY) / this.scale;
+
+        // 계단식 배열(Cascade)을 위한 오프셋 적용
+        const offsetStep = 32;
+        const x = viewCenterX - (width / 2) + (this.cascadeOffset * offsetStep) % 200;
+        const y = viewCenterY - (height / 2) + (this.cascadeOffset * offsetStep) % 150;
+        this.cascadeOffset++;
+        
+        return { x, y };
+    }
+
+    /**
+     * 창이 현재 화면(뷰포트) 안에 있는지 확인
+     */
+    isWindowInViewport(fileId) {
+        const info = this.windows.get(fileId);
+        if (!info) return false;
+        
+        const rect = info.element.getBoundingClientRect();
+        const areaRect = document.getElementById('canvasArea').getBoundingClientRect();
+        
+        // 최소 50px 이상 화면에 걸쳐있는지 확인
+        return (
+            rect.right > areaRect.left + 50 &&
+            rect.left < areaRect.right - 50 &&
+            rect.bottom > areaRect.top + 50 &&
+            rect.top < areaRect.bottom - 50
+        );
+    }
+
+    /**
+     * 창을 현재 화면 중앙으로 즉시 이동
+     */
+    moveWindowToViewCenter(fileId) {
+        const info = this.windows.get(fileId);
+        if (!info) return;
+        
+        const width = info.element.offsetWidth;
+        const height = info.element.offsetHeight;
+        const center = this.calculateViewCenter(width, height);
+        
+        info.element.style.left = `${center.x}px`;
+        info.element.style.top = `${center.y}px`;
+        
+        // 이동된 위치 저장
+        this.updateFileWindowState(fileId, { x: center.x, y: center.y });
     }
 
     /**
