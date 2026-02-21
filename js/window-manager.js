@@ -412,8 +412,8 @@ class WindowManager {
         win.dataset.fileId = file.id;
         win.style.left = `${x}px`;
         win.style.top = `${y}px`;
-        win.style.width = `${width}px`;
-        win.style.height = isCollapsed ? '36px' : `${height}px`;
+        win.style.width = isCollapsed ? '180px' : `${width}px`;
+        win.style.height = isCollapsed ? '50px' : `${height}px`;
         win.style.zIndex = ++this.zIndexCounter;
 
         // 아이콘 결정
@@ -997,10 +997,12 @@ class WindowManager {
         if (el.classList.contains('collapsed')) {
             // 펴기
             el.classList.remove('collapsed');
+            el.style.width = el.dataset.prevWidth || '520px';
             el.style.height = el.dataset.prevHeight || '400px';
             if (btn) btn.textContent = '−';
         } else {
             // 접기
+            el.dataset.prevWidth = el.style.width;
             el.dataset.prevHeight = el.style.height;
             el.classList.add('collapsed');
             if (btn) btn.textContent = '+';
@@ -1008,6 +1010,7 @@ class WindowManager {
 
         // 상태 저장
         this.updateFileWindowState(fileId, {
+            width: el.offsetWidth,
             height: el.offsetHeight,
             isCollapsed: el.classList.contains('collapsed')
         });
