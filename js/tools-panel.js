@@ -552,6 +552,14 @@ class ToolsPanel {
             </div>
           </div>
 
+          <div class="settings-section">
+            <h3 class="settings-section-title">트리거 설정</h3>
+            <div class="form-group">
+              <label class="form-label">장소 표시 트리거 (예: 장소:)</label>
+              <input type="text" class="input" id="triggerLocation" value="${s.triggerLocation || '장소:'}" placeholder="장소:">
+            </div>
+          </div>
+
           <div style="margin-top: var(--spacing-2xl); display: flex; flex-direction: column; gap: 12px; padding-bottom: 40px;">
             <button class="btn btn-primary" id="saveSettingsBtn" style="width: 100%; height: 50px; font-size: 15px; font-weight: 700;">환경 설정 저장</button>
             <button class="btn btn-secondary" id="resetSettingsBtn" style="width: 100%; border-color: transparent;">초기화</button>
@@ -592,6 +600,7 @@ class ToolsPanel {
         getEl('highlightColor')?.addEventListener('input', (e) => updatePreview('highlightColor', e.target.value));
         getEl('autoCloseQuotes')?.addEventListener('change', (e) => updatePreview('autoCloseQuotes', e.target.checked));
         getEl('autoSaveToggle')?.addEventListener('change', (e) => updatePreview('autoSave', e.target.checked));
+        getEl('triggerLocation')?.addEventListener('input', (e) => updatePreview('triggerLocation', e.target.value));
 
         getEl('editorWidth')?.addEventListener('input', (e) => {
             getEl('editorWidthValue').textContent = e.target.value + 'px';
@@ -630,7 +639,8 @@ class ToolsPanel {
             highlightColor: '#2563eb',
             autoCloseQuotes: true,
             autoSave: true,
-            editorWidth: 900
+            editorWidth: 900,
+            triggerLocation: '장소:'
         };
         try {
             const saved = localStorage.getItem('editorSettings');

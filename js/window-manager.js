@@ -1222,12 +1222,34 @@ class WindowManager {
 
         if (fileIds.length < 2) return alert('병합할 파일이 부족합니다.');
 
+        const settings = window.toolsPanel?.settings || {};
+        const trigger = settings.triggerLocation || '장소:';
+        const locations = [];
+
         let mergedContent = '';
         for (let i = 0; i < fileIds.length; i++) {
             const info = this.windows.get(fileIds[i]);
             if (info) {
                 let content = info.textarea.value;
                 
+                // 장소 추출 및 본문에서 제거
+                const lines = content.split('\n');
+                let processedLines = [];
+                let locationFoundForThisFile = false;
+
+                for (const line of lines) {
+                    const trimmedLine = line.trim();
+                    if (!locationFoundForThisFile && trimmedLine.startsWith(trigger)) {
+                        const loc = trimmedLine.substring(trigger.length).trim();
+                        if (loc) locations.push(loc);
+                        locationFoundForThisFile = true;
+                        continue; // 트리거 줄은 결과 본문에 포함하지 않음
+                    }
+                    processedLines.push(line);
+                }
+
+                content = processedLines.join('\n');
+
                 // 첫 번째 파일인 경우 앞쪽 공백 제거
                 if (i === 0) content = content.trimStart();
                 
@@ -1242,6 +1264,12 @@ class WindowManager {
                     }
                 }
             }
+        }
+
+        // 장소 이동 경로 추가
+        if (locations.length > 0) {
+            const movement = `[장소 이동: ${locations.join(' -> ')}]\n\n`;
+            mergedContent = movement + mergedContent;
         }
 
         try {
