@@ -29,6 +29,7 @@ class WindowManager {
         // 전역 마우스 이벤트
         document.addEventListener('mousemove', (e) => this.onMouseMove(e));
         document.addEventListener('mouseup', (e) => this.onMouseUp(e));
+        document.addEventListener('click', () => this.hideContextMenu());
 
         // 상단 헤더 저장 버튼
         document.getElementById('saveBtn')?.addEventListener('click', () => {
@@ -525,6 +526,14 @@ class WindowManager {
 
         // 타이틀 바 드래그
         const titlebar = win.querySelector('.window-titlebar');
+
+        // 우클릭 컨텍스트 메뉴
+        titlebar.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            this.showContextMenu(e.clientX, e.clientY, fileId);
+        });
+
         titlebar.addEventListener('mousedown', (e) => {
             if (e.target.closest('.window-btn')) return;
             e.preventDefault();
@@ -1065,6 +1074,41 @@ class WindowManager {
     /**
      * 현재 활성 창의 텍스트 반환 (통계 등에서 사용)
      */
+    /**
+     * 컨텍스트 메뉴 표시
+     */
+    showContextMenu(x, y, fileId) {
+        const menu = document.getElementById('contextMenu');
+        if (!menu) return;
+
+        menu.innerHTML = `
+            <div class="context-menu-item danger" data-action="delete">
+                <span class="context-menu-icon">🗑️</span>
+                <span>삭제</span>
+            </div>
+        `;
+
+        menu.style.left = `${x}px`;
+        menu.style.top = `${y}px`;
+        menu.classList.remove('hidden');
+
+        // 메뉴 아이템 클릭 이벤트
+        const deleteBtn = menu.querySelector('[data-action="delete"]');
+        deleteBtn?.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.closeWindow(fileId);
+            this.hideContextMenu();
+        });
+    }
+
+    /**
+     * 컨텍스트 메뉴 숨기기
+     */
+    hideContextMenu() {
+        const menu = document.getElementById('contextMenu');
+        if (menu) menu.classList.add('hidden');
+    }
+
     getActiveText() {
         if (!this.activeWindowId) return '';
         const info = this.windows.get(this.activeWindowId);
