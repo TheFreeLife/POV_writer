@@ -36,6 +36,11 @@ class WindowManager {
             this.saveActiveWindow();
         });
 
+        // 텍스트 병합 모달 버튼
+        document.getElementById('closeMergeModal')?.addEventListener('click', () => this.hideMergeModal());
+        document.getElementById('cancelMergeBtn')?.addEventListener('click', () => this.hideMergeModal());
+        document.getElementById('confirmMergeBtn')?.addEventListener('click', () => this.confirmMerge());
+
         // 전역 단축키 (저장)
         window.addEventListener('keydown', (e) => {
             if ((e.ctrlKey || e.metaKey) && e.key === 's') {
@@ -1072,22 +1077,33 @@ class WindowManager {
     }
 
     /**
-     * 현재 활성 창의 텍스트 반환 (통계 등에서 사용)
-     */
-    /**
      * 컨텍스트 메뉴 표시
      */
     showContextMenu(x, y, fileId) {
         const menu = document.getElementById('contextMenu');
         if (!menu) return;
 
-        menu.innerHTML = `
+        const isMulti = this.selectedWindowIds.size > 1;
+        let menuHtml = '';
+
+        if (isMulti) {
+            menuHtml += `
+                <div class="context-menu-item" data-action="merge">
+                    <span class="context-menu-icon">🔀</span>
+                    <span>텍스트 병합 (${this.selectedWindowIds.size}개)</span>
+                </div>
+                <div class="context-menu-divider"></div>
+            `;
+        }
+
+        menuHtml += `
             <div class="context-menu-item danger" data-action="delete">
                 <span class="context-menu-icon">🗑️</span>
                 <span>삭제</span>
             </div>
         `;
 
+        menu.innerHTML = menuHtml;
         menu.style.left = `${x}px`;
         menu.style.top = `${y}px`;
         menu.classList.remove('hidden');
@@ -1096,7 +1112,21 @@ class WindowManager {
         const deleteBtn = menu.querySelector('[data-action="delete"]');
         deleteBtn?.addEventListener('click', (e) => {
             e.stopPropagation();
-            this.closeWindow(fileId);
+            if (isMulti) {
+                if (confirm(`선택한 ${this.selectedWindowIds.size}개의 창을 모두 닫을까요?`)) {
+                    const idsToClose = Array.from(this.selectedWindowIds);
+                    idsToClose.forEach(id => this.closeWindow(id));
+                }
+            } else {
+                this.closeWindow(fileId);
+            }
+            this.hideContextMenu();
+        });
+
+        const mergeBtn = menu.querySelector('[data-action="merge"]');
+        mergeBtn?.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.showMergeModal();
             this.hideContextMenu();
         });
     }
@@ -1109,6 +1139,140 @@ class WindowManager {
         if (menu) menu.classList.add('hidden');
     }
 
+    /**
+     * 텍스트 병합 모달 표시
+     */
+    showMergeModal() {
+        const modal = document.getElementById('mergeModal');
+        const list = document.getElementById('mergeOrderList');
+        const input = document.getElementById('mergeFileName');
+        if (!modal || !list || !input) return;
+
+        // 선택된 창들의 정보 수집 및 Y 좌표(상단 기준) 정렬
+        const selectedWindows = Array.from(this.selectedWindowIds).map(id => {
+            const info = this.windows.get(id);
+            return {
+                id,
+                name: info.file.name,
+                y: info.element.offsetTop
+            };
+        }).sort((a, b) => a.y - b.y);
+
+        // 목록 생성
+        list.innerHTML = '';
+        selectedWindows.forEach(win => {
+            const item = document.createElement('div');
+            item.className = 'merge-order-item';
+            item.draggable = true;
+            item.dataset.id = win.id;
+            item.innerHTML = `
+                <span class="handle">☰</span>
+                <span class="name">${this.escapeHtml(win.name)}</span>
+                <span class="y-pos">Y: ${Math.round(win.y)}</span>
+            `;
+
+            // 드래그 앤 드롭 이벤트 바인딩
+            item.addEventListener('dragstart', (e) => {
+                item.classList.add('dragging');
+                e.dataTransfer.setData('text/plain', win.id);
+            });
+            item.addEventListener('dragend', () => item.classList.remove('dragging'));
+            item.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                const dragging = list.querySelector('.dragging');
+                if (!dragging || dragging === item) return;
+                
+                const rect = item.getBoundingClientRect();
+                const midpoint = rect.top + rect.height / 2;
+                if (e.clientY < midpoint) {
+                    list.insertBefore(dragging, item);
+                } else {
+                    list.insertBefore(dragging, item.nextSibling);
+                }
+            });
+
+            list.appendChild(item);
+        });
+
+        // 기본 파일 이름 설정
+        const now = new Date();
+        input.value = `병합된 문서_${now.getMonth() + 1}${now.getDate()}_${now.getHours()}${now.getMinutes()}`;
+        
+        modal.classList.remove('hidden');
+        input.focus();
+    }
+
+    /**
+     * 병합 모달 숨기기
+     */
+    hideMergeModal() {
+        const modal = document.getElementById('mergeModal');
+        if (modal) modal.classList.add('hidden');
+    }
+
+    /**
+     * 실제 병합 실행
+     */
+    async confirmMerge() {
+        const name = document.getElementById('mergeFileName').value.trim();
+        if (!name) return alert('파일 이름을 입력해주세요.');
+
+        const listItems = document.querySelectorAll('#mergeOrderList .merge-order-item');
+        const fileIds = Array.from(listItems).map(item => item.dataset.id);
+
+        if (fileIds.length < 2) return alert('병합할 파일이 부족합니다.');
+
+        let mergedContent = '';
+        for (let i = 0; i < fileIds.length; i++) {
+            const info = this.windows.get(fileIds[i]);
+            if (info) {
+                let content = info.textarea.value;
+                
+                // 첫 번째 파일인 경우 앞쪽 공백 제거
+                if (i === 0) content = content.trimStart();
+                
+                mergedContent += content;
+                
+                // 파일 간에 구분용 줄바꿈 추가 (마지막 파일 제외)
+                if (i < fileIds.length - 1) {
+                    if (!content.endsWith('\n')) {
+                        mergedContent += '\n\n';
+                    } else if (!content.endsWith('\n\n')) {
+                        mergedContent += '\n';
+                    }
+                }
+            }
+        }
+
+        try {
+            // 새 파일 생성 (프로젝트 루트에 생성)
+            const newFile = await storage.createFile({
+                projectId: window.currentProjectId,
+                name: name,
+                type: 'file',
+                content: mergedContent,
+                parentId: null // 루트에 생성
+            });
+
+            if (newFile) {
+                this.hideMergeModal();
+                // 파일 트리 새로고침
+                if (window.fileTreeManager) {
+                    await window.fileTreeManager.loadProjectFiles(window.currentProjectId);
+                }
+                // 새 파일 열기
+                await this.openWindow(newFile.id);
+                window.showToast?.('파일이 성공적으로 병합되었습니다.');
+            }
+        } catch (error) {
+            console.error('병합 실패:', error);
+            alert('병합 중 오류가 발생했습니다.');
+        }
+    }
+
+    /**
+     * 현재 활성 창의 텍스트 반환 (통계 등에서 사용)
+     */
     getActiveText() {
         if (!this.activeWindowId) return '';
         const info = this.windows.get(this.activeWindowId);

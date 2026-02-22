@@ -679,6 +679,61 @@ body {
   }
 }
 
+/* 텍스트 병합 목록 스타일 */
+.merge-order-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: var(--color-bg-tertiary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 8px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.merge-order-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  cursor: grab;
+  user-select: none;
+  transition: all var(--transition-fast);
+}
+
+.merge-order-item:hover {
+  border-color: var(--color-accent-primary);
+  background: var(--color-bg-hover);
+}
+
+.merge-order-item.dragging {
+  opacity: 0.5;
+  border: 1px dashed var(--color-accent-primary);
+}
+
+.merge-order-item .handle {
+  color: var(--color-text-tertiary);
+  font-size: 12px;
+}
+
+.merge-order-item .name {
+  flex: 1;
+  font-size: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.merge-order-item .y-pos {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+}
+
 /* ===================================
    사이드바 토글 버튼
    =================================== */

@@ -291,6 +291,32 @@
     <!-- 컨텍스트 메뉴 항목들이 동적으로 추가됩니다 -->
   </div>
 
+  <!-- 텍스트 병합 모달 -->
+  <div id="mergeModal" class="modal-overlay hidden">
+    <div class="modal" style="width: 500px;">
+      <div class="modal-header">
+        <h2 class="modal-title">텍스트 병합</h2>
+        <button class="modal-close" id="closeMergeModal">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label" for="mergeFileName">새 파일 이름</label>
+          <input type="text" class="input" id="mergeFileName" placeholder="병합된 파일 이름">
+        </div>
+        <div class="form-group">
+          <label class="form-label">병합 순서 (드래그하여 조정)</label>
+          <div id="mergeOrderList" class="merge-order-list">
+            <!-- 병합 대상 파일들이 여기에 드래그 가능한 형태로 추가됩니다 -->
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="cancelMergeBtn">취소</button>
+        <button class="btn btn-primary" id="confirmMergeBtn">병합 실행</button>
+      </div>
+    </div>
+  </div>
+
   <!-- JavaScript 모듈 -->
   <script src="js/storage.js"></script>
   <script src="js/file-tree.js"></script>

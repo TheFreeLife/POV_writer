@@ -453,10 +453,24 @@ class FileTreeManager {
     async deleteItem(file) {
         const msg = file.type === 'folder' ? `"${file.name}" 폴더와 모든 내용이 삭제됩니다. 계속할까요?` : `"${file.name}" 파일을 삭제할까요?`;
         if (confirm(msg)) {
+            // 삭제 전, 해당 파일(또는 폴더 내의 파일들)이 캔버스에 열려 있다면 창 닫기
+            if (window.windowManager) {
+                if (file.type === 'folder') {
+                    // 폴더 삭제 시 하위 파일들도 모두 닫기
+                    const children = this.files.filter(f => f.parentId === file.id || this.isDescendant(f.id, file.id));
+                    for (const child of children) {
+                        if (child.type === 'file') {
+                            await window.windowManager.closeWindow(child.id);
+                        }
+                    }
+                } else {
+                    await window.windowManager.closeWindow(file.id);
+                }
+            }
+
             await storage.deleteFile(file.id);
             if (this.currentFileId === file.id) {
                 this.currentFileId = null;
-                window.editorManager?.hideEditor();
             }
             await this.loadProjectFiles(this.currentProjectId);
         }
