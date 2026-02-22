@@ -470,7 +470,12 @@ class ToolsPanel {
     }
 
     renderSearch() { return `<div class="search-box"><input type="text" class="input" id="searchInput" placeholder="검색어..."><button class="btn btn-primary" style="width: 100%; margin-top: 8px;" id="searchBtn">검색</button></div><div id="searchResults" style="padding-top: 10px;"></div>`; }
-    setupSearchEventListeners() { document.getElementById('searchBtn')?.addEventListener('click', () => this.performSearch()); }
+    setupSearchEventListeners() {
+        document.getElementById('searchBtn')?.addEventListener('click', () => this.performSearch());
+        document.getElementById('searchInput')?.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') this.performSearch();
+        });
+    }
 
     async performSearch() {
         const query = document.getElementById('searchInput')?.value.trim();
