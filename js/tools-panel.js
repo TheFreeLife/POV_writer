@@ -229,7 +229,7 @@ class ToolsPanel {
             }
         }
 
-        const maxVal = Math.max(...data, 100) * 1.25; // 상단 여백 25%로 확대하여 텍스트 공간 확보
+        const maxVal = Math.max(...data, 100) * 1.35; // 상단 텍스트 공간을 위해 여백 확대
         const minVal = Math.min(...data);
         const yMin = Math.max(0, minVal * 0.9);
 
@@ -246,80 +246,60 @@ class ToolsPanel {
         svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
         svg.style.overflow = "visible";
 
-        // 데이터 포인트 계산
-        const points = data.map((val, i) => {
-            const x = (i / 6) * width;
-            const y = height - ((val - yMin) / (maxVal - yMin)) * height;
-            return `${x},${y}`;
-        }).join(' ');
+        // 막대 그래프 계산 (7일 기준)
+        const barCount = 7;
+        const slotWidth = width / barCount;
+        const barWidth = slotWidth * 0.7; // 슬롯의 70% 너비 사용
+        const gap = slotWidth * 0.3;
 
-        // 배경 그라데이션 영역 (Area)
-        const areaPath = document.createElementNS(svgNamespace, "polyline");
-        areaPath.setAttribute("points", `${points} ${width},${height} 0,${height}`);
-        areaPath.setAttribute("fill", "url(#chartGradient)");
-        areaPath.setAttribute("style", "opacity: 0.2;");
-
-        // 선 (Line)
-        const line = document.createElementNS(svgNamespace, "polyline");
-        line.setAttribute("points", points);
-        line.setAttribute("fill", "none");
-        line.setAttribute("stroke", "var(--color-accent-primary)");
-        line.setAttribute("stroke-width", "3");
-        line.setAttribute("stroke-linecap", "round");
-        line.setAttribute("stroke-linejoin", "round");
-
-        // 그라데이션 정의
-        const defs = document.createElementNS(svgNamespace, "defs");
-        defs.innerHTML = `
-            <linearGradient id="chartGradient" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stop-color="var(--color-accent-primary)" />
-                <stop offset="100%" stop-color="transparent" />
-            </linearGradient>
-        `;
-
-        svg.appendChild(defs);
-        svg.appendChild(areaPath);
-        svg.appendChild(line);
-
-        // 포인트 점 및 텍스트 값 표시
         data.forEach((val, i) => {
-            const [px, py] = points.split(' ')[i].split(',');
-            const numX = parseFloat(px);
-            const numY = parseFloat(py);
+            const x = i * slotWidth + gap / 2;
+            const barHeight = Math.max(4, ((val - yMin) / (maxVal - yMin)) * height);
+            const y = height - barHeight;
+            const centerX = x + barWidth / 2;
 
             const prevVal = i > 0 ? data[i - 1] : val;
             const diff = val - prevVal;
 
-            // 1. 점 (Circle)
-            const circle = document.createElementNS(svgNamespace, "circle");
-            circle.setAttribute("cx", numX);
-            circle.setAttribute("cy", numY);
-            circle.setAttribute("r", "4");
-            circle.setAttribute("fill", "var(--color-bg-primary)");
-            circle.setAttribute("stroke", "var(--color-accent-primary)");
-            circle.setAttribute("stroke-width", "2");
+            // 1. 막대 (Rect)
+            const rect = document.createElementNS(svgNamespace, "rect");
+            rect.setAttribute("x", x);
+            rect.setAttribute("y", y);
+            rect.setAttribute("width", barWidth);
+            rect.setAttribute("height", barHeight);
+            rect.setAttribute("rx", "6"); // 부드러운 라운드
+            rect.setAttribute("fill", "var(--color-accent-primary)");
+            rect.style.opacity = "0.75";
+            rect.style.transition = "all 0.2s ease";
+            rect.style.cursor = "pointer";
+            
+            // 호버 효과
+            rect.onmouseover = () => {
+                rect.style.opacity = "1";
+                rect.setAttribute("fill", "var(--color-accent-secondary)");
+            };
+            rect.onmouseout = () => {
+                rect.style.opacity = "0.75";
+                rect.setAttribute("fill", "var(--color-accent-primary)");
+            };
 
             const title = document.createElementNS(svgNamespace, "title");
             const diffText = diff >= 0 ? `(+${diff})` : `(${diff})`;
             title.textContent = `${labels[i]}: ${val.toLocaleString()}자 ${diff !== 0 ? diffText : ''}`;
-            circle.appendChild(title);
+            rect.appendChild(title);
+            svg.appendChild(rect);
 
-            svg.appendChild(circle);
-
-            // 2. 값 표시 (무조건 점 위로 고정)
+            // 2. 값 표시 (막대 위 고정)
             const textGroup = document.createElementNS(svgNamespace, "g");
+            const textY = y - 10;
+            const subTextY = y - 24;
 
-            // 모든 텍스트를 점 위(numY - @)로 고정
-            const textY = numY - 14;      // 총량 위치 (간격 확대)
-            const subTextY = numY - 28;   // 증감량 위치 (간격 확대)
-
-            // 메인 수치 표시 함수
-            const createText = (content, y, color, size, weight) => {
+            const createText = (content, ty, color, size, weight) => {
                 const halo = document.createElementNS(svgNamespace, "text");
                 const txt = document.createElementNS(svgNamespace, "text");
                 [halo, txt].forEach(el => {
-                    el.setAttribute("x", numX);
-                    el.setAttribute("y", y);
+                    el.setAttribute("x", centerX);
+                    el.setAttribute("y", ty);
                     el.setAttribute("text-anchor", "middle");
                     el.setAttribute("font-size", size);
                     el.setAttribute("font-weight", weight);
@@ -327,35 +307,33 @@ class ToolsPanel {
                     el.textContent = content;
                 });
                 halo.setAttribute("stroke", "var(--color-bg-primary)");
-                halo.setAttribute("stroke-width", "4.5"); // 후광도 살짝 확대
-                halo.style.opacity = "0.85";
+                halo.setAttribute("stroke-width", "4");
+                halo.style.opacity = "0.9";
                 txt.setAttribute("fill", color);
                 textGroup.appendChild(halo);
                 textGroup.appendChild(txt);
             };
 
-            // 1) 현재 총량 표시 (12px로 확대)
+            // 총 글자 수
             if (val > 0) {
-                createText(val.toLocaleString(), textY, "var(--color-text-primary)", "12px", "700");
+                createText(val.toLocaleString(), textY, "var(--color-text-primary)", "11px", "700");
             }
-
-            // 2) 증감량 표시 (10px로 확대)
+            // 증감량
             if (i > 0 && diff !== 0) {
                 const diffColor = diff > 0 ? "var(--color-accent-success)" : "var(--color-accent-danger)";
                 const diffSymbol = diff > 0 ? `+${diff.toLocaleString()}` : diff.toLocaleString();
                 createText(diffSymbol, subTextY, diffColor, "10px", "600");
             }
-
             svg.appendChild(textGroup);
         });
 
         container.appendChild(svg);
 
-        // X축 라벨
+        // X축 라벨 (막대 위치에 맞게 균등 배분)
         labels.forEach(label => {
             const labelEl = document.createElement('div');
             labelEl.textContent = label;
-            labelEl.style.width = '30px';
+            labelEl.style.width = slotWidth + 'px';
             labelEl.style.textAlign = 'center';
             labelContainer.appendChild(labelEl);
         });
