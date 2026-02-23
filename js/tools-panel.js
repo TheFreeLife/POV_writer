@@ -229,7 +229,7 @@ class ToolsPanel {
             }
         }
 
-        const maxVal = Math.max(...data, 100) * 1.1; 
+        const maxVal = Math.max(...data, 100) * 1.25; // 상단 여백 25%로 확대하여 텍스트 공간 확보
         const minVal = Math.min(...data);
         const yMin = Math.max(0, minVal * 0.9);
 
@@ -283,9 +283,12 @@ class ToolsPanel {
 
         // 포인트 점 및 텍스트 값 표시
         data.forEach((val, i) => {
-            const [x, y] = points.split(' ')[i].split(',');
-            const numX = parseFloat(x);
-            const numY = parseFloat(y);
+            const [px, py] = points.split(' ')[i].split(',');
+            const numX = parseFloat(px);
+            const numY = parseFloat(py);
+
+            const prevVal = i > 0 ? data[i - 1] : val;
+            const diff = val - prevVal;
 
             // 1. 점 (Circle)
             const circle = document.createElementNS(svgNamespace, "circle");
@@ -295,46 +298,54 @@ class ToolsPanel {
             circle.setAttribute("fill", "var(--color-bg-primary)");
             circle.setAttribute("stroke", "var(--color-accent-primary)");
             circle.setAttribute("stroke-width", "2");
-            
+
             const title = document.createElementNS(svgNamespace, "title");
-            const prevVal = i > 0 ? data[i-1] : val;
-            const diff = val - prevVal;
             const diffText = diff >= 0 ? `(+${diff})` : `(${diff})`;
             title.textContent = `${labels[i]}: ${val.toLocaleString()}자 ${diff !== 0 ? diffText : ''}`;
             circle.appendChild(title);
-            
+
             svg.appendChild(circle);
 
-            // 2. 값 표시 (Text with Halo effect for readability)
+            // 2. 값 표시 (무조건 점 위로 고정)
             const textGroup = document.createElementNS(svgNamespace, "g");
-            
-            // 후광(Halo) 효과: 글자 뒤에 어두운 배경색 외곽선을 그려서 선과 겹쳐도 잘 보이게 함
-            const halo = document.createElementNS(svgNamespace, "text");
-            const text = document.createElementNS(svgNamespace, "text");
-            
-            const textY = numY < 30 ? numY + 20 : numY - 12;
-            
-            [halo, text].forEach(el => {
-                el.setAttribute("x", numX);
-                el.setAttribute("y", textY);
-                el.setAttribute("text-anchor", "middle");
-                el.setAttribute("font-size", "11px");
-                el.setAttribute("font-weight", "700");
-                el.setAttribute("font-family", "var(--font-mono)");
-                el.textContent = val > 0 ? val.toLocaleString() : '';
-            });
 
-            // halo 설정
-            halo.setAttribute("stroke", "var(--color-bg-primary)");
-            halo.setAttribute("stroke-width", "4");
-            halo.setAttribute("stroke-linejoin", "round");
-            halo.style.opacity = "0.8";
+            // 모든 텍스트를 점 위(numY - @)로 고정
+            const textY = numY - 14;      // 총량 위치 (간격 확대)
+            const subTextY = numY - 28;   // 증감량 위치 (간격 확대)
 
-            // text 설정
-            text.setAttribute("fill", "var(--color-text-primary)");
+            // 메인 수치 표시 함수
+            const createText = (content, y, color, size, weight) => {
+                const halo = document.createElementNS(svgNamespace, "text");
+                const txt = document.createElementNS(svgNamespace, "text");
+                [halo, txt].forEach(el => {
+                    el.setAttribute("x", numX);
+                    el.setAttribute("y", y);
+                    el.setAttribute("text-anchor", "middle");
+                    el.setAttribute("font-size", size);
+                    el.setAttribute("font-weight", weight);
+                    el.setAttribute("font-family", "var(--font-mono)");
+                    el.textContent = content;
+                });
+                halo.setAttribute("stroke", "var(--color-bg-primary)");
+                halo.setAttribute("stroke-width", "4.5"); // 후광도 살짝 확대
+                halo.style.opacity = "0.85";
+                txt.setAttribute("fill", color);
+                textGroup.appendChild(halo);
+                textGroup.appendChild(txt);
+            };
 
-            textGroup.appendChild(halo);
-            textGroup.appendChild(text);
+            // 1) 현재 총량 표시 (12px로 확대)
+            if (val > 0) {
+                createText(val.toLocaleString(), textY, "var(--color-text-primary)", "12px", "700");
+            }
+
+            // 2) 증감량 표시 (10px로 확대)
+            if (i > 0 && diff !== 0) {
+                const diffColor = diff > 0 ? "var(--color-accent-success)" : "var(--color-accent-danger)";
+                const diffSymbol = diff > 0 ? `+${diff.toLocaleString()}` : diff.toLocaleString();
+                createText(diffSymbol, subTextY, diffColor, "10px", "600");
+            }
+
             svg.appendChild(textGroup);
         });
 
