@@ -135,6 +135,9 @@ class WindowManager {
 
         // 우클릭 드래그로 캔버스 팬 이동
         canvasArea.addEventListener('mousedown', (e) => {
+            // 창(윈도우) 위에서는 캔버스 팬 이동 방지
+            if (e.target.closest('.editor-window')) return;
+
             if (e.button === 2) {
                 e.preventDefault();
                 this.panState = {
@@ -452,9 +455,11 @@ class WindowManager {
      */
     createWindowDOM(file, x, y, width, height) {
         const isCollapsed = file.windowState?.isCollapsed || false;
+        // 템플릿 속성 확인 또는 콘텐츠가 이미지 데이터(Base64)인 경우
+        const isImage = file.template === 'image' || (file.content && file.content.startsWith('data:image'));
         
         const win = document.createElement('div');
-        win.className = `editor-window${isCollapsed ? ' collapsed' : ''}`;
+        win.className = `editor-window${isCollapsed ? ' collapsed' : ''}${isImage ? ' image-window' : ''}`;
         win.dataset.fileId = file.id;
         win.style.left = `${x}px`;
         win.style.top = `${y}px`;
@@ -465,6 +470,34 @@ class WindowManager {
         // 아이콘 결정
         const icon = file.icon || (file.template ? this.getTemplateIcon(file.template) : '📄');
         const collapseChar = isCollapsed ? '+' : '−';
+
+        let bodyContent = '';
+        if (isImage) {
+            const hasImage = !!file.content;
+            bodyContent = `
+                <div class="window-body image-body">
+                    <div class="window-image-container" id="imageContainer_${file.id}">
+                        ${hasImage ? 
+                            `<img src="${file.content}" class="window-image-viewer" id="imageViewer_${file.id}">` : 
+                            `<div class="image-upload-dropzone" id="dropzone_${file.id}">
+                                <div class="image-upload-icon">🖼️</div>
+                                <div class="image-upload-text">클릭하거나 이미지를 드래그하여 업로드</div>
+                                <input type="file" id="imageInput_${file.id}" accept="image/*" style="display: none;">
+                             </div>`
+                        }
+                    </div>
+                </div>
+            `;
+        } else {
+            bodyContent = `
+                <div class="window-editor">
+                    <div class="window-backdrop"></div>
+                    <textarea class="window-textarea" 
+                        placeholder="여기에 이야기를 작성하세요..." 
+                        spellcheck="false">${this.escapeHtml(file.content || '')}</textarea>
+                </div>
+            `;
+        }
 
         win.innerHTML = `
             <div class="window-titlebar" data-file-id="${file.id}">
@@ -478,12 +511,8 @@ class WindowManager {
                     <button class="window-btn window-btn-close" data-action="close" title="닫기">✕</button>
                 </div>
             </div>
-            <div class="window-editor">
-                <div class="window-backdrop"></div>
-                <textarea class="window-textarea" 
-                    placeholder="여기에 이야기를 작성하세요..." 
-                    spellcheck="false">${this.escapeHtml(file.content || '')}</textarea>
-            </div>
+            ${bodyContent}
+            ${!isImage ? `
             <div class="window-statusbar">
                 <div class="window-status-left" data-stats="${file.id}">
                     <span class="stat-item total">0자</span>
@@ -495,6 +524,7 @@ class WindowManager {
                     <span class="window-status-saved" data-saved="${file.id}"></span>
                 </div>
             </div>
+            ` : ''}
             <div class="window-edge edge-n" data-dir="n"></div>
             <div class="window-edge edge-s" data-dir="s"></div>
             <div class="window-edge edge-e" data-dir="e"></div>
@@ -516,8 +546,10 @@ class WindowManager {
         // 이벤트 바인딩
         this.bindWindowEvents(win, file.id);
 
-        // 초기 글자수 업데이트
-        this.updateCharCount(file.id, file.content || '', win);
+        // 초기 글자수 업데이트 (이미지가 아닐 때만)
+        if (!isImage) {
+            this.updateCharCount(file.id, file.content || '', win);
+        }
 
         return win;
     }
@@ -526,7 +558,9 @@ class WindowManager {
         const editor = win.querySelector('.window-editor');
         const textarea = win.querySelector('.window-textarea');
         const backdrop = win.querySelector('.window-backdrop');
-        if (!textarea || !editor) return;
+        
+        // 이미지 창 등 에디터가 없는 경우 스킵
+        if (!editor || !textarea) return;
 
         // 1. 에디터 배경색 적용
         editor.style.backgroundColor = s.backgroundColor;
@@ -678,6 +712,37 @@ class WindowManager {
             });
         });
 
+        // 이미지 업로드 이벤트 (이미지 파일인 경우)
+        const dropzone = win.querySelector(`#dropzone_${fileId}`);
+        const input = win.querySelector(`#imageInput_${fileId}`);
+        
+        if (dropzone && input) {
+            dropzone.addEventListener('click', () => input.click());
+            
+            input.addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (file) this.handleImageUpload(fileId, file);
+            });
+
+            dropzone.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                dropzone.classList.add('dragover');
+            });
+
+            dropzone.addEventListener('dragleave', () => {
+                dropzone.classList.remove('dragover');
+            });
+
+            dropzone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                dropzone.classList.remove('dragover');
+                const file = e.dataTransfer.files[0];
+                if (file && file.type.startsWith('image/')) {
+                    this.handleImageUpload(fileId, file);
+                }
+            });
+        }
+
         // 8방향 리사이즈 핸들
         win.querySelectorAll('.window-edge').forEach(edge => {
             edge.addEventListener('mousedown', (e) => {
@@ -712,8 +777,10 @@ class WindowManager {
             });
         });
 
-        // 텍스트 편집
+        // 텍스트 편집 (에디터가 있는 경우에만)
         const textarea = win.querySelector('.window-textarea');
+        if (!textarea) return;
+
         textarea.addEventListener('input', () => {
             this.onTextChange(fileId, textarea.value);
             this.updateHighlighter(fileId);
@@ -1500,8 +1567,32 @@ class WindowManager {
         return info ? info.textarea.value : '';
     }
 
+    /**
+     * 이미지 업로드 처리
+     */
+    async handleImageUpload(fileId, file) {
+        if (!file) return;
+        
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+            const base64 = e.target.result;
+            
+            // 1. 저장소 업데이트 (콘텐츠에 base64 저장)
+            await storage.updateFile(fileId, { content: base64 });
+            
+            // 2. UI 업데이트
+            const container = document.getElementById(`imageContainer_${fileId}`);
+            if (container) {
+                container.innerHTML = `<img src="${base64}" class="window-image-viewer" id="imageViewer_${fileId}">`;
+            }
+            
+            window.showToast?.('이미지가 업로드되었습니다.');
+        };
+        reader.readAsDataURL(file);
+    }
+
     getTemplateIcon(template) {
-        const icons = { item: '📦', place: '🗺️', character: '👤' };
+        const icons = { item: '📦', place: '🗺️', character: '👤', image: '🖼️' };
         return icons[template] || '📄';
     }
 

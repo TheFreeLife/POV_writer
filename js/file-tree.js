@@ -20,11 +20,19 @@ class FileTreeManager {
 
     setupEventListeners() {
         document.getElementById('newFolderBtn')?.addEventListener('click', () => this.showNewItemModal('folder'));
+        document.getElementById('newImageBtn')?.addEventListener('click', () => this.showNewImageModal());
         document.getElementById('newFileBtn')?.addEventListener('click', () => this.showNewItemModal('file'));
         document.getElementById('cancelNewFileBtn')?.addEventListener('click', () => this.hideNewItemModal());
         document.getElementById('closeNewFileModal')?.addEventListener('click', () => this.hideNewItemModal());
         document.getElementById('createFileBtn')?.addEventListener('click', () => this.saveItem());
         
+        // 새 이미지 모달 이벤트
+        document.getElementById('cancelNewImageBtn')?.addEventListener('click', () => this.hideNewImageModal());
+        document.getElementById('closeNewImageModal')?.addEventListener('click', () => this.hideNewImageModal());
+        document.getElementById('imageUploadWrapper')?.addEventListener('click', () => document.getElementById('imageFileInput').click());
+        document.getElementById('imageFileInput')?.addEventListener('change', (e) => this.handleImagePreview(e));
+        document.getElementById('createImageItemBtn')?.addEventListener('click', () => this.saveImageItem());
+
         // 폴더 설정 모달 관련 리스너
         document.getElementById('cancelFolderSettingsBtn')?.addEventListener('click', () => this.hideFolderSettingsModal());
         document.getElementById('closeFolderSettingsModal')?.addEventListener('click', () => this.hideFolderSettingsModal());
@@ -35,6 +43,77 @@ class FileTreeManager {
         document.getElementById('closeFolderStatsBtn')?.addEventListener('click', () => this.hideFolderStatsModal());
 
         document.addEventListener('click', () => this.hideContextMenu());
+    }
+
+    /**
+     * 이미지 생성 모달 표시
+     */
+    showNewImageModal() {
+        const modal = document.getElementById('newImageModal');
+        if (!modal) return;
+
+        document.getElementById('imageFileNameInput').value = '';
+        document.getElementById('imageFileInput').value = '';
+        document.getElementById('imageFilePreview').classList.add('hidden');
+        document.getElementById('imageFilePlaceholder').classList.remove('hidden');
+
+        modal.classList.remove('hidden');
+        document.getElementById('imageFileNameInput').focus();
+    }
+
+    hideNewImageModal() {
+        document.getElementById('newImageModal')?.classList.add('hidden');
+    }
+
+    handleImagePreview(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            const preview = document.getElementById('imageFilePreview');
+            const placeholder = document.getElementById('imageFilePlaceholder');
+            preview.src = event.target.result;
+            preview.classList.remove('hidden');
+            placeholder.classList.add('hidden');
+        };
+        reader.readAsDataURL(file);
+    }
+
+    async saveImageItem() {
+        const name = document.getElementById('imageFileNameInput').value.trim();
+        const fileInput = document.getElementById('imageFileInput');
+        const file = fileInput.files[0];
+
+        if (!name) return alert('이미지 이름을 입력해주세요.');
+        if (!file) return alert('이미지를 선택해주세요.');
+
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+            const base64 = e.target.result;
+            try {
+                const siblings = this.files.filter(f => !f.parentId); // 일단 루트에 생성
+                const maxOrder = siblings.length > 0 ? Math.max(...siblings.map(f => f.order)) : -1;
+
+                await storage.createFile({
+                    projectId: this.currentProjectId,
+                    name,
+                    type: 'file',
+                    parentId: null,
+                    content: base64,
+                    template: 'image',
+                    order: maxOrder + 1
+                });
+
+                await this.loadProjectFiles(this.currentProjectId);
+                this.hideNewImageModal();
+                window.showToast?.('이미지 파일이 생성되었습니다.');
+            } catch (error) {
+                console.error('이미지 파일 생성 실패:', error);
+                alert('생성 중 오류가 발생했습니다.');
+            }
+        };
+        reader.readAsDataURL(file);
     }
 
     async loadProjectFiles(projectId) {
@@ -84,7 +163,13 @@ class FileTreeManager {
         item.setAttribute('draggable', 'true');
 
         const chevron = hasChildren ? `<span class="tree-chevron ${isExpanded ? 'active' : ''}">▶</span>` : '';
-        const icon = isFolder ? (hasChildren && isExpanded ? '📂' : '📁') : '📄';
+        
+        let icon = '📄';
+        if (isFolder) {
+            icon = (hasChildren && isExpanded ? '📂' : '📁');
+        } else if (file.template === 'image' || (file.content && file.content.startsWith('data:image'))) {
+            icon = '🖼️';
+        }
 
         item.innerHTML = `
             ${chevron}
@@ -356,6 +441,7 @@ class FileTreeManager {
                 type: this.newItemType,
                 parentId: this.newItemParentId,
                 content,
+                template: template === 'blank' ? null : template, // 템플릿 정보 저장
                 defaultTemplate,
                 order: maxOrder + 1
             });
@@ -381,6 +467,8 @@ class FileTreeManager {
         }
 
         switch (template) {
+            case 'image':
+                return ''; // 이미지는 콘텐츠가 base64로 채워질 것이므로 비워둠
             case 'item':
                 return `# 아이템 이름: \n\n## 1. 개요\n- 아이템 분류: \n- 현재 소유자: \n\n## 2. 특징\n- 형태: \n- 능력/기능: \n- 희귀도: \n\n## 3. 배경 및 역사\n- 제작자: \n- 발견 장소: \n- 관련 전설: \n\n## 4. 기타 메모\n- `;
             case 'place':

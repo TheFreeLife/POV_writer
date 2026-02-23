@@ -56,6 +56,7 @@
           <span class="file-tree-title">파일</span>
           <div class="file-tree-actions">
             <button class="btn btn-icon btn-secondary" id="newFolderBtn" title="새 폴더">📁</button>
+            <button class="btn btn-icon btn-secondary" id="newImageBtn" title="새 이미지">🖼️</button>
             <button class="btn btn-icon btn-secondary" id="newFileBtn" title="새 파일">📄</button>
           </div>
         </div>
@@ -178,6 +179,7 @@
           <label class="form-label" for="fileTemplate">템플릿 선택</label>
           <select class="input" id="fileTemplate">
             <option value="blank">빈 파일</option>
+            <option value="image">🖼️ 이미지 (갤러리/참조용)</option>
             <option value="item">📦 아이템 설정 (이름, 특징, 소유자 등)</option>
             <option value="place">🗺️ 장소/배경 설정 (위치, 분위기, 역사 등)</option>
           </select>
@@ -383,6 +385,37 @@
       </div>
       <div class="modal-footer">
         <button class="btn btn-primary" id="closeFolderStatsBtn" style="width: 100%;">닫기</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 새 이미지 생성 모달 -->
+  <div id="newImageModal" class="modal-overlay hidden">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 class="modal-title">새 이미지 파일</h2>
+        <button class="modal-close" id="closeNewImageModal">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label" for="imageFileNameInput">이름</label>
+          <input type="text" class="input" id="imageFileNameInput" placeholder="이미지 이름">
+        </div>
+        <div class="form-group">
+          <label class="form-label">이미지 선택</label>
+          <div class="thumbnail-upload" id="imageUploadWrapper" style="height: 200px; cursor: pointer;">
+            <input type="file" id="imageFileInput" accept="image/*" style="display: none;">
+            <img id="imageFilePreview" class="thumbnail-preview hidden" alt="미리보기" style="max-height: 100%; object-fit: contain;">
+            <div class="thumbnail-placeholder" id="imageFilePlaceholder">
+              <div class="thumbnail-placeholder-icon">🖼️</div>
+              <div>클릭하여 이미지를 선택하세요</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="cancelNewImageBtn">취소</button>
+        <button class="btn btn-primary" id="createImageItemBtn">생성</button>
       </div>
     </div>
   </div>

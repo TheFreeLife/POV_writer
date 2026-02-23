@@ -142,10 +142,16 @@ class ToolsPanel {
                     folderCount++;
                     continue;
                 }
+
+                // 이미지 파일은 통계에서 제외
+                if (file.template === 'image' || (file.content && file.content.startsWith('data:image'))) {
+                    continue;
+                }
                 
                 fileCount++;
                 const openWindow = window.windowManager?.windows.get(file.id);
-                const content = openWindow ? openWindow.textarea.value : (file.content || '');
+                // 에디터가 열려있다면(이미지 창이 아닐 경우) 그 내용을 사용
+                const content = (openWindow && openWindow.textarea) ? openWindow.textarea.value : (file.content || '');
                 totalText += content + '\n';
             }
 

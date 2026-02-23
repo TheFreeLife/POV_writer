@@ -201,6 +201,7 @@ class StorageManager {
       parentId: file.parentId || null,
       content: file.content || '',
       defaultTemplate: file.defaultTemplate || null,
+      template: file.template || null, // 템플릿 정보 저장
       order: file.order || 0,
       createdAt: Date.now(),
       updatedAt: Date.now(),
