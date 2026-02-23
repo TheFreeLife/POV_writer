@@ -504,16 +504,12 @@
     -webkit-text-fill-color: transparent; /* 웹킷 브라우저 대응 */
 }
 
-/* 문장 성분별 강조 색상 */
-.hl-dialogue {
+/* 문장 성분별 강조 색상 (대사/생각 통합) */
+.hl-dialogue, .hl-thought {
     color: var(--color-highlight, #2563eb) !important;
-    font-weight: 600;
-}
-
-.hl-thought {
-    color: var(--color-text-muted, #6e7681);
-    font-style: italic;
-    opacity: 0.8;
+    font-weight: 400; /* 굵게 하지 않음 */
+    font-style: normal;
+    opacity: 1;
 }
 
 .hl-link {

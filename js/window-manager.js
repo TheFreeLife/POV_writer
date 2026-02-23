@@ -586,10 +586,10 @@ class WindowManager {
             }
         }
 
-        // 2. 다이얼로그 및 생각 강조
-        html = html.replace(/"([^"]*)"/g, '<span class="hl-dialogue">"$1"</span>');
-        html = html.replace(/'([^']*)'/g, '<span class="hl-thought">\'$1\'</span>');
-        html = html.replace(/\(([^)]*)\)/g, '<span class="hl-thought">($1)</span>');
+        // 2. 다이얼로그 및 생각 강조 (줄바꿈 방지)
+        html = html.replace(/"([^"\n]*)"/g, '<span class="hl-dialogue">"$1"</span>');
+        html = html.replace(/'([^'\n]*)'/g, '<span class="hl-thought">\'$1\'</span>');
+        html = html.replace(/\(([^)\n]*)\)/g, '<span class="hl-thought">($1)</span>');
 
         // 3. 임시 마커를 실제 하이퍼링크 span으로 변환
         html = html.replace(/\u0001/g, '<span class="hl-link">').replace(/\u0002/g, '</span>');
@@ -721,6 +721,46 @@ class WindowManager {
 
         textarea.addEventListener('scroll', () => {
             this.updateHighlighter(fileId);
+        });
+
+        // 따옴표 자동 닫기 및 괄호 처리 (스마트 버전)
+        textarea.addEventListener('keydown', (e) => {
+            const settings = window.toolsPanel?.settings || {};
+            if (!settings.autoCloseQuotes) return;
+
+            const charMap = { '"': '"', "'": "'", "(": ")", "[": "]", "{": "}" };
+            const openChar = e.key;
+            const closeChar = charMap[openChar];
+            const start = textarea.selectionStart;
+            const end = textarea.selectionEnd;
+            const text = textarea.value;
+
+            // 1. 오버타이핑 처리: 닫는 문자가 바로 앞에 있고 똑같은 문자를 치면 커서만 이동
+            if (start === end && text[start] === openChar && (openChar === "'" || openChar === '"' || openChar === ')' || openChar === ']' || openChar === '}')) {
+                e.preventDefault();
+                textarea.selectionStart = textarea.selectionEnd = start + 1;
+                return;
+            }
+
+            // 2. 자동 닫기 및 감싸기
+            if (closeChar) {
+                e.preventDefault();
+                
+                if (start !== end) {
+                    // 선택된 텍스트가 있으면 감싸기
+                    const selected = text.substring(start, end);
+                    textarea.value = text.substring(0, start) + openChar + selected + closeChar + text.substring(end);
+                    textarea.selectionStart = start + 1;
+                    textarea.selectionEnd = end + 1;
+                } else {
+                    // 선택된 텍스트가 없으면 자동 닫고 가운데로
+                    textarea.value = text.substring(0, start) + openChar + closeChar + text.substring(end);
+                    textarea.selectionStart = textarea.selectionEnd = start + 1;
+                }
+                
+                this.onTextChange(fileId, textarea.value);
+                this.updateHighlighter(fileId);
+            }
         });
 
         // 텍스트 영역에서 드래그 방지 및 포커스 처리
