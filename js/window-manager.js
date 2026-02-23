@@ -578,19 +578,17 @@ class WindowManager {
                 if (!name) continue;
                 const escapedName = name.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
                 const regexSafeName = escapedName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-                const regex = new RegExp(`(?<![a-zA-Z가-힣0-9])${regexSafeName}(?![a-zA-Z가-힣0-9])`, 'g');
                 
-                // 임시로 마커를 사용하여 감쌈 (\u0001/\u0002)
+                // 경계 확인 제거: 문장 내 어디에 있든 파일명이 포함되어 있으면 매칭
+                const regex = new RegExp(`${regexSafeName}`, 'g');
+                
                 html = html.replace(regex, (match) => `\u0001${match}\u0002`);
             }
         }
 
         // 2. 다이얼로그 및 생각 강조
-        // 대사(") - 내부에 마커가 포함될 수 있으므로 주의하여 처리
         html = html.replace(/"([^"]*)"/g, '<span class="hl-dialogue">"$1"</span>');
-        // 생각(')
         html = html.replace(/'([^']*)'/g, '<span class="hl-thought">\'$1\'</span>');
-        // 생각(())
         html = html.replace(/\(([^)]*)\)/g, '<span class="hl-thought">($1)</span>');
 
         // 3. 임시 마커를 실제 하이퍼링크 span으로 변환
@@ -743,20 +741,13 @@ class WindowManager {
                 for (const name of sortedNames) {
                     let index = text.indexOf(name);
                     while (index !== -1) {
-                        // 정확히 클릭한 위치가 파일명 범위 내인지 확인
+                        // 경계 확인 제거: 해당 영역을 클릭했는지만 확인
                         if (pos >= index && pos <= index + name.length) {
-                            const charBefore = text[index - 1];
-                            const charAfter = text[index + name.length];
-                            const isBoundaryBefore = !charBefore || !/[a-zA-Z가-힣0-9]/.test(charBefore);
-                            const isBoundaryAfter = !charAfter || !/[a-zA-Z가-힣0-9]/.test(charAfter);
-
-                            if (isBoundaryBefore && isBoundaryAfter) {
-                                e.preventDefault();
-                                const targetId = this.hyperlinkMap.get(name);
-                                if (targetId) {
-                                    this.openWindow(targetId);
-                                    return;
-                                }
+                            e.preventDefault();
+                            const targetId = this.hyperlinkMap.get(name);
+                            if (targetId) {
+                                this.openWindow(targetId);
+                                return;
                             }
                         }
                         index = text.indexOf(name, index + 1);
@@ -781,14 +772,10 @@ class WindowManager {
                 for (const name of this.hyperlinkMap.keys()) {
                     let index = text.indexOf(name);
                     while (index !== -1) {
+                        // 경계 확인 제거: 해당 글자 위에 마우스가 있는지만 확인
                         if (pos >= index && pos <= index + name.length) {
-                            const charBefore = text[index - 1];
-                            const charAfter = text[index + name.length];
-                            if ((!charBefore || !/[a-zA-Z가-힣0-9]/.test(charBefore)) && 
-                                (!charAfter || !/[a-zA-Z가-힣0-9]/.test(charAfter))) {
-                                found = true;
-                                break;
-                            }
+                            found = true;
+                            break;
                         }
                         index = text.indexOf(name, index + 1);
                     }
