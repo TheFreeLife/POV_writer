@@ -30,6 +30,10 @@ class FileTreeManager {
         document.getElementById('closeFolderSettingsModal')?.addEventListener('click', () => this.hideFolderSettingsModal());
         document.getElementById('saveFolderSettingsBtn')?.addEventListener('click', () => this.saveFolderSettings());
 
+        // 폴더 통계 모달 관련 리스너
+        document.getElementById('closeFolderStatsModal')?.addEventListener('click', () => this.hideFolderStatsModal());
+        document.getElementById('closeFolderStatsBtn')?.addEventListener('click', () => this.hideFolderStatsModal());
+
         document.addEventListener('click', () => this.hideContextMenu());
     }
 
@@ -395,6 +399,7 @@ class FileTreeManager {
                 <div class="context-menu-item" id="ctx-new-file"><span class="context-menu-icon">📄</span> 새 파일</div>
                 <div class="context-menu-item" id="ctx-new-folder"><span class="context-menu-icon">📁</span> 새 폴더</div>
                 <div class="context-menu-divider"></div>
+                <div class="context-menu-item" id="ctx-folder-stats"><span class="context-menu-icon">📊</span> 통계</div>
                 <div class="context-menu-item" id="ctx-folder-settings"><span class="context-menu-icon">⚙️</span> 폴더 설정</div>
             ` : `
                 <div class="context-menu-item" id="ctx-rename"><span class="context-menu-icon">✏️</span> 이름 변경</div>
@@ -408,9 +413,100 @@ class FileTreeManager {
 
         document.getElementById('ctx-new-file')?.addEventListener('click', () => this.showNewItemModal('file', file.id));
         document.getElementById('ctx-new-folder')?.addEventListener('click', () => this.showNewItemModal('folder', file.id));
+        document.getElementById('ctx-folder-stats')?.addEventListener('click', () => this.showFolderStatsModal(file));
         document.getElementById('ctx-folder-settings')?.addEventListener('click', () => this.showFolderSettingsModal(file));
         document.getElementById('ctx-rename')?.addEventListener('click', () => this.showNewItemModal(file.type, file.parentId, file));
         document.getElementById('ctx-delete')?.addEventListener('click', () => this.deleteItem(file));
+    }
+
+    async showFolderStatsModal(file) {
+        const modal = document.getElementById('folderStatsModal');
+        const nameEl = document.getElementById('statsFolderName');
+        const totalCharsEl = document.getElementById('totalFolderChars');
+        const totalFilesEl = document.getElementById('totalFolderFiles');
+        const mentionListEl = document.getElementById('fileMentionList');
+
+        if (!modal) return;
+
+        nameEl.textContent = file.name;
+        totalCharsEl.textContent = '계산 중...';
+        totalFilesEl.textContent = '계산 중...';
+        mentionListEl.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--color-text-tertiary);">데이터 분석 중...</div>';
+
+        modal.classList.remove('hidden');
+
+        // 통계 데이터 수집 및 계산
+        try {
+            const allProjectFiles = await storage.getProjectFiles(this.currentProjectId);
+            
+            // 1. 해당 폴더 내부의 모든 파일 찾기 (재귀적)
+            const getChildrenRecursive = (parentId) => {
+                let children = allProjectFiles.filter(f => f.parentId === parentId);
+                let allChildren = [...children];
+                children.forEach(c => {
+                    if (c.type === 'folder') {
+                        allChildren = [...allChildren, ...getChildrenRecursive(c.id)];
+                    }
+                });
+                return allChildren;
+            };
+
+            const folderContent = getChildrenRecursive(file.id);
+            const filesOnly = folderContent.filter(f => f.type === 'file');
+            
+            // 2. 총 글자 수 계산 (실시간 창 텍스트 반영)
+            let totalChars = 0;
+            filesOnly.forEach(f => {
+                const openWin = window.windowManager?.windows.get(f.id);
+                const content = openWin ? openWin.textarea.value : (f.content || '');
+                totalChars += content.length;
+            });
+
+            totalCharsEl.textContent = `${totalChars.toLocaleString()}자`;
+            totalFilesEl.textContent = `${filesOnly.length}개`;
+
+            // 3. 파일별 언급 횟수 계산 (프로젝트 전체 기준)
+            // 전체 텍스트 수집 (실시간 창 반영)
+            let fullProjectText = '';
+            allProjectFiles.forEach(f => {
+                if (f.type === 'file') {
+                    const openWin = window.windowManager?.windows.get(f.id);
+                    fullProjectText += (openWin ? openWin.textarea.value : (f.content || '')) + '\n';
+                }
+            });
+
+            const mentionStats = filesOnly.map(f => {
+                if (!f.name) return { name: '이름 없음', count: 0 };
+                // 정규표현식으로 언급 횟수 계산
+                const regexSafeName = f.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                const regex = new RegExp(regexSafeName, 'g');
+                const matches = fullProjectText.match(regex);
+                return {
+                    name: f.name,
+                    count: matches ? matches.length : 0
+                };
+            }).sort((a, b) => b.count - a.count);
+
+            // 4. 목록 렌더링
+            if (mentionStats.length === 0) {
+                mentionListEl.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--color-text-tertiary);">파일이 없습니다.</div>';
+            } else {
+                mentionListEl.innerHTML = mentionStats.map(s => `
+                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-bottom: 1px solid var(--color-border);">
+                        <span style="font-size: 13px; color: var(--color-text-primary);">${this.escapeHtml(s.name)}</span>
+                        <span style="font-size: 12px; font-weight: 600; color: var(--color-accent-primary); background: var(--color-surface-3); padding: 4px 10px; border-radius: 20px;">${s.count}회 언급</span>
+                    </div>
+                `).join('');
+            }
+
+        } catch (error) {
+            console.error('폴더 통계 계산 실패:', error);
+            mentionListEl.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--color-accent-danger);">데이터를 불러오는데 실패했습니다.</div>';
+        }
+    }
+
+    hideFolderStatsModal() {
+        document.getElementById('folderStatsModal')?.classList.add('hidden');
     }
 
     async showFolderSettingsModal(file) {
