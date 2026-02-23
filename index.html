@@ -317,28 +317,39 @@
     </div>
   </div>
 
-  <!-- 폴더 설정 모달 -->
+  <!-- 폴더 설정 모달 (통합 버전) -->
   <div id="folderSettingsModal" class="modal-overlay hidden">
     <div class="modal">
       <div class="modal-header">
-        <h2 class="modal-title">폴더 설정</h2>
+        <h2 class="modal-title">폴더 설정 및 정보</h2>
         <button class="modal-close" id="closeFolderSettingsModal">✕</button>
       </div>
       <div class="modal-body">
         <div class="form-group">
+          <label class="form-label" for="folderNameInput">폴더 이름</label>
+          <input type="text" class="input" id="folderNameInput" placeholder="폴더 이름">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="folderTemplateSelect">기본 템플릿 (해당 폴더 내 새 파일에 적용)</label>
+          <select class="input" id="folderTemplateSelect">
+            <option value="blank">빈 파일</option>
+            <option value="item">📦 아이템 설정</option>
+            <option value="place">🗺️ 장소/배경 설정</option>
+          </select>
+        </div>
+        <div class="form-group" style="margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--color-border);">
           <label class="form-label" style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
             <input type="checkbox" id="hyperlinkEnabled" style="width: 18px; height: 18px;">
             <span>하이퍼링크 활성화</span>
           </label>
           <p style="font-size: 12px; color: var(--color-text-tertiary); margin-top: 8px; margin-left: 26px;">
-            이 폴더 내 파일명들이 다른 문서에서 언급되면 하이퍼링크로 작동합니다.<br>
-            클릭 시 해당 파일이 즉시 열립니다.
+            이 폴더 내 파일명들이 다른 문서에서 언급되면 하이퍼링크로 작동합니다.
           </p>
         </div>
       </div>
       <div class="modal-footer">
         <button class="btn btn-secondary" id="cancelFolderSettingsBtn">취소</button>
-        <button class="btn btn-primary" id="saveFolderSettingsBtn">저장</button>
+        <button class="btn btn-primary" id="saveFolderSettingsBtn">설정 저장</button>
       </div>
     </div>
   </div>

@@ -259,6 +259,11 @@ class FileTreeManager {
     }
 
     async showNewItemModal(type, parentId = null, itemToEdit = null) {
+        // 폴더 수정인 경우 폴더 설정 모달로 리다이렉트
+        if (itemToEdit && itemToEdit.type === 'folder') {
+            return this.showFolderSettingsModal(itemToEdit);
+        }
+
         this.newItemType = type;
         this.newItemParentId = parentId;
         this.editingItem = itemToEdit;
@@ -267,39 +272,26 @@ class FileTreeManager {
         const title = document.getElementById('newFileModalTitle');
         const templateGroup = document.getElementById('templateGroup');
         const templateSelect = document.getElementById('fileTemplate');
-        const templateLabel = templateGroup?.querySelector('.form-label');
         const submitBtn = document.getElementById('createFileBtn');
 
         if (modal && title) {
             if (this.editingItem) {
-                title.textContent = this.editingItem.type === 'folder' ? '폴더 정보 수정' : '파일 이름 변경';
+                title.textContent = '파일 이름 변경';
                 submitBtn.textContent = '수정';
                 document.getElementById('fileName').value = this.editingItem.name;
+                if (templateGroup) templateGroup.style.display = 'none'; // 파일 수정 시 템플릿 숨김
             } else {
                 title.textContent = type === 'folder' ? '새 폴더 생성' : '새 파일 생성';
                 submitBtn.textContent = '생성';
                 document.getElementById('fileName').value = '';
-            }
-
-            if (templateGroup && templateLabel) {
-                // 폴더이거나 새 파일인 경우 템플릿 영역 표시
-                if (type === 'folder' || !this.editingItem) {
-                    templateGroup.style.display = 'block';
-                    templateLabel.textContent = type === 'folder' ? '기본 템플릿 (해당 폴더 내 새 파일에 적용)' : '파일 템플릿 선택';
-                } else {
-                    // 파일 수정 시에는 템플릿 선택 숨기기 (내용이 날아갈 수 있으므로)
-                    templateGroup.style.display = 'none';
-                }
+                if (templateGroup) templateGroup.style.display = 'block';
             }
 
             // 커스텀 템플릿 로드
-            if (templateSelect) {
-                await this.refreshTemplateOptions();
+            if (templateSelect && templateGroup?.style.display !== 'none') {
+                await this.refreshTemplateOptions('fileTemplate');
 
-                if (this.editingItem && this.editingItem.type === 'folder') {
-                    templateSelect.value = this.editingItem.defaultTemplate || 'blank';
-                } else if (parentId && !this.editingItem) {
-                    // 새 아이템 생성 시 부모 템플릿 상속
+                if (parentId && !this.editingItem) {
                     const parentFolder = this.files.find(f => f.id === parentId);
                     templateSelect.value = (parentFolder && parentFolder.defaultTemplate) ? parentFolder.defaultTemplate : 'blank';
                 } else {
@@ -309,29 +301,6 @@ class FileTreeManager {
 
             modal.classList.remove('hidden');
             document.getElementById('fileName').focus();
-        }
-    }
-
-    async refreshTemplateOptions() {
-        const select = document.getElementById('fileTemplate');
-        if (!select) return;
-
-        // 기본 템플릿
-        select.innerHTML = `
-            <option value="blank">빈 파일</option>
-            <option value="item">📦 아이템 설정 (이름, 특징, 소유자 등)</option>
-            <option value="place">🗺️ 장소/배경 설정 (위치, 분위기, 역사 등)</option>
-        `;
-
-        // DB에서 커스텀 템플릿 가져오기
-        const customTemplates = await window.storage?.getAllTemplates();
-        if (customTemplates && customTemplates.length > 0) {
-            customTemplates.forEach(tpl => {
-                const opt = document.createElement('option');
-                opt.value = `custom-${tpl.id}`;
-                opt.textContent = `${tpl.icon} ${tpl.name}`;
-                select.appendChild(opt);
-            });
         }
     }
 
@@ -427,9 +396,9 @@ class FileTreeManager {
                 <div class="context-menu-item" id="ctx-new-folder"><span class="context-menu-icon">📁</span> 새 폴더</div>
                 <div class="context-menu-divider"></div>
                 <div class="context-menu-item" id="ctx-folder-settings"><span class="context-menu-icon">⚙️</span> 폴더 설정</div>
-                <div class="context-menu-divider"></div>
-            ` : ''}
-            <div class="context-menu-item" id="ctx-rename"><span class="context-menu-icon">✏️</span> ${file.type === 'folder' ? '폴더 정보 수정' : '이름 변경'}</div>
+            ` : `
+                <div class="context-menu-item" id="ctx-rename"><span class="context-menu-icon">✏️</span> 이름 변경</div>
+            `}
             <div class="context-menu-divider"></div>
             <div class="context-menu-item danger" id="ctx-delete"><span class="context-menu-icon">🗑️</span> 삭제</div>
         `;
@@ -447,11 +416,44 @@ class FileTreeManager {
     async showFolderSettingsModal(file) {
         this.editingItem = file;
         const modal = document.getElementById('folderSettingsModal');
+        const nameInput = document.getElementById('folderNameInput');
+        const templateSelect = document.getElementById('folderTemplateSelect');
         const checkbox = document.getElementById('hyperlinkEnabled');
         
-        if (modal && checkbox) {
-            checkbox.checked = !!file.hyperlinkEnabled;
+        if (modal) {
+            if (nameInput) nameInput.value = file.name;
+            if (checkbox) checkbox.checked = !!file.hyperlinkEnabled;
+            
+            // 템플릿 목록 로드 및 선택
+            if (templateSelect) {
+                await this.refreshTemplateOptions('folderTemplateSelect');
+                templateSelect.value = file.defaultTemplate || 'blank';
+            }
+            
             modal.classList.remove('hidden');
+            if (nameInput) nameInput.focus();
+        }
+    }
+
+    // 템플릿 옵션 새로고침 유틸리티
+    async refreshTemplateOptions(selectId) {
+        const select = document.getElementById(selectId);
+        if (!select) return;
+
+        select.innerHTML = `
+            <option value="blank">빈 파일</option>
+            <option value="item">📦 아이템 설정</option>
+            <option value="place">🗺️ 장소/배경 설정</option>
+        `;
+
+        const customTemplates = await window.storage?.getAllTemplates();
+        if (customTemplates && customTemplates.length > 0) {
+            customTemplates.forEach(tpl => {
+                const opt = document.createElement('option');
+                opt.value = `custom-${tpl.id}`;
+                opt.textContent = `${tpl.icon} ${tpl.name}`;
+                select.appendChild(opt);
+            });
         }
     }
 
@@ -463,13 +465,20 @@ class FileTreeManager {
     async saveFolderSettings() {
         if (!this.editingItem) return;
         
+        const name = document.getElementById('folderNameInput').value.trim();
+        const template = document.getElementById('folderTemplateSelect').value;
         const enabled = document.getElementById('hyperlinkEnabled').checked;
         
+        if (!name) return alert('이름을 입력해주세요.');
+
         try {
-            await storage.updateFile(this.editingItem.id, { hyperlinkEnabled: enabled });
+            await storage.updateFile(this.editingItem.id, { 
+                name, 
+                defaultTemplate: template === 'blank' ? null : template,
+                hyperlinkEnabled: enabled 
+            });
             await this.loadProjectFiles(this.currentProjectId);
             
-            // 전역 하이라이터 갱신 요청 (하이퍼링크 캐시 갱신을 위해)
             if (window.windowManager && window.windowManager.updateAllHighlighters) {
                 await window.windowManager.updateAllHighlighters();
             }
