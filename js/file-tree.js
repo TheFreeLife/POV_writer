@@ -24,6 +24,12 @@ class FileTreeManager {
         document.getElementById('cancelNewFileBtn')?.addEventListener('click', () => this.hideNewItemModal());
         document.getElementById('closeNewFileModal')?.addEventListener('click', () => this.hideNewItemModal());
         document.getElementById('createFileBtn')?.addEventListener('click', () => this.saveItem());
+        
+        // 폴더 설정 모달 관련 리스너
+        document.getElementById('cancelFolderSettingsBtn')?.addEventListener('click', () => this.hideFolderSettingsModal());
+        document.getElementById('closeFolderSettingsModal')?.addEventListener('click', () => this.hideFolderSettingsModal());
+        document.getElementById('saveFolderSettingsBtn')?.addEventListener('click', () => this.saveFolderSettings());
+
         document.addEventListener('click', () => this.hideContextMenu());
     }
 
@@ -32,6 +38,11 @@ class FileTreeManager {
         this.files = await storage.getProjectFiles(projectId);
         this.renderFileTree();
         this.setupRootDropZone();
+        
+        // 하이퍼링크 정보 갱신 (비동기)
+        if (window.windowManager && window.windowManager.updateAllHighlighters) {
+            window.windowManager.updateAllHighlighters();
+        }
     }
 
     renderFileTree() {
@@ -415,6 +426,8 @@ class FileTreeManager {
                 <div class="context-menu-item" id="ctx-new-file"><span class="context-menu-icon">📄</span> 새 파일</div>
                 <div class="context-menu-item" id="ctx-new-folder"><span class="context-menu-icon">📁</span> 새 폴더</div>
                 <div class="context-menu-divider"></div>
+                <div class="context-menu-item" id="ctx-folder-settings"><span class="context-menu-icon">⚙️</span> 폴더 설정</div>
+                <div class="context-menu-divider"></div>
             ` : ''}
             <div class="context-menu-item" id="ctx-rename"><span class="context-menu-icon">✏️</span> ${file.type === 'folder' ? '폴더 정보 수정' : '이름 변경'}</div>
             <div class="context-menu-divider"></div>
@@ -426,8 +439,46 @@ class FileTreeManager {
 
         document.getElementById('ctx-new-file')?.addEventListener('click', () => this.showNewItemModal('file', file.id));
         document.getElementById('ctx-new-folder')?.addEventListener('click', () => this.showNewItemModal('folder', file.id));
+        document.getElementById('ctx-folder-settings')?.addEventListener('click', () => this.showFolderSettingsModal(file));
         document.getElementById('ctx-rename')?.addEventListener('click', () => this.showNewItemModal(file.type, file.parentId, file));
         document.getElementById('ctx-delete')?.addEventListener('click', () => this.deleteItem(file));
+    }
+
+    async showFolderSettingsModal(file) {
+        this.editingItem = file;
+        const modal = document.getElementById('folderSettingsModal');
+        const checkbox = document.getElementById('hyperlinkEnabled');
+        
+        if (modal && checkbox) {
+            checkbox.checked = !!file.hyperlinkEnabled;
+            modal.classList.remove('hidden');
+        }
+    }
+
+    hideFolderSettingsModal() {
+        document.getElementById('folderSettingsModal')?.classList.add('hidden');
+        this.editingItem = null;
+    }
+
+    async saveFolderSettings() {
+        if (!this.editingItem) return;
+        
+        const enabled = document.getElementById('hyperlinkEnabled').checked;
+        
+        try {
+            await storage.updateFile(this.editingItem.id, { hyperlinkEnabled: enabled });
+            await this.loadProjectFiles(this.currentProjectId);
+            
+            // 전역 하이라이터 갱신 요청 (하이퍼링크 캐시 갱신을 위해)
+            if (window.windowManager && window.windowManager.updateAllHighlighters) {
+                await window.windowManager.updateAllHighlighters();
+            }
+            
+            this.hideFolderSettingsModal();
+        } catch (error) {
+            console.error('폴더 설정 저장 실패:', error);
+            alert('저장 중 오류가 발생했습니다.');
+        }
     }
 
     hideContextMenu() {

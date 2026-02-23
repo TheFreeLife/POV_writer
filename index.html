@@ -317,6 +317,32 @@
     </div>
   </div>
 
+  <!-- 폴더 설정 모달 -->
+  <div id="folderSettingsModal" class="modal-overlay hidden">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 class="modal-title">폴더 설정</h2>
+        <button class="modal-close" id="closeFolderSettingsModal">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label" style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+            <input type="checkbox" id="hyperlinkEnabled" style="width: 18px; height: 18px;">
+            <span>하이퍼링크 활성화</span>
+          </label>
+          <p style="font-size: 12px; color: var(--color-text-tertiary); margin-top: 8px; margin-left: 26px;">
+            이 폴더 내 파일명들이 다른 문서에서 언급되면 하이퍼링크로 작동합니다.<br>
+            클릭 시 해당 파일이 즉시 열립니다.
+          </p>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="cancelFolderSettingsBtn">취소</button>
+        <button class="btn btn-primary" id="saveFolderSettingsBtn">저장</button>
+      </div>
+    </div>
+  </div>
+
   <!-- JavaScript 모듈 -->
   <script src="js/storage.js"></script>
   <script src="js/file-tree.js"></script>

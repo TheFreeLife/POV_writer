@@ -14,6 +14,9 @@ class WindowManager {
         this.selectionState = null; // 영역 선택 상태
         this.autoSaveTimers = new Map();
 
+        // 하이퍼링크 맵 (파일명 -> fileId)
+        this.hyperlinkMap = new Map();
+
         // 캔버스 줌/팬 상태
         this.scale = 1;
         this.panX = 0;
@@ -54,6 +57,40 @@ class WindowManager {
 
         // 캔버스 줌/팬 초기화 (DOM 로드 후)
         setTimeout(() => this.setupCanvasZoom(), 0);
+    }
+
+    /**
+     * 하이퍼링크 맵 업데이트 (활성화된 폴더 내 파일명 수집)
+     */
+    async updateHyperlinkMap() {
+        if (!window.currentProjectId) return;
+        
+        try {
+            const files = await storage.getProjectFiles(window.currentProjectId);
+            const enabledFolders = files.filter(f => f.type === 'folder' && f.hyperlinkEnabled);
+            
+            this.hyperlinkMap.clear();
+            
+            for (const folder of enabledFolders) {
+                // 해당 폴더의 직계 자식 파일들만 수집 (또는 하위 모두 수집할지 결정 - 여기서는 직계)
+                const children = files.filter(f => f.parentId === folder.id && f.type === 'file');
+                for (const child of children) {
+                    this.hyperlinkMap.set(child.name, child.id);
+                }
+            }
+        } catch (error) {
+            console.error('하이퍼링크 맵 업데이트 실패:', error);
+        }
+    }
+
+    /**
+     * 모든 열린 창의 하이라이터 갱신
+     */
+    async updateAllHighlighters() {
+        await this.updateHyperlinkMap();
+        for (const [fileId] of this.windows) {
+            this.updateHighlighter(fileId);
+        }
     }
 
     /**
@@ -251,6 +288,9 @@ class WindowManager {
 
     async restoreSession() {
         if (!window.currentProjectId) return;
+
+        // 하이퍼링크 정보 미리 로드
+        await this.updateHyperlinkMap();
 
         const project = await storage.getProject(window.currentProjectId);
         if (project && project.canvasState) {
@@ -483,10 +523,15 @@ class WindowManager {
     }
 
     applySettingsToWindow(win, s) {
+        const editor = win.querySelector('.window-editor');
         const textarea = win.querySelector('.window-textarea');
         const backdrop = win.querySelector('.window-backdrop');
-        if (!textarea) return;
+        if (!textarea || !editor) return;
 
+        // 1. 에디터 배경색 적용
+        editor.style.backgroundColor = s.backgroundColor;
+
+        // 2. 텍스트 스타일 및 색상 적용
         [textarea, backdrop].forEach(el => {
             if (!el) return;
             el.style.fontFamily = s.fontFamily;
@@ -494,28 +539,67 @@ class WindowManager {
             el.style.lineHeight = s.lineHeight;
             el.style.letterSpacing = s.letterSpacing + 'px';
         });
+
+        // 3. 텍스트 색상 및 투명도 처리 (에디터 전용 설정값 사용)
+        const editorTextColor = s.textColor || '#e6edf3';
+        textarea.style.color = 'transparent';
+        textarea.style.webkitTextFillColor = 'transparent';
+        textarea.style.caretColor = editorTextColor;
+        
+        if (backdrop) {
+            backdrop.style.color = editorTextColor;
+        }
     }
 
     /**
-     * 하이라이터 업데이트 (다이얼로그/생각 강조)
+     * 하이라이터 업데이트 (다이얼로그/생각/하이퍼링크 강조)
      */
     updateHighlighter(fileId) {
         const info = this.windows.get(fileId);
         if (!info || !info.backdrop) return;
 
-        const text = info.textarea.value;
-        const highlighted = text
+        let text = info.textarea.value;
+        if (!text) {
+            info.backdrop.innerHTML = '';
+            return;
+        }
+
+        let html = text
             .replace(/&/g, '&amp;')
             .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"([^"]*)"/g, '<span class="hl-dialogue">"$1"</span>')
-            .replace(/'([^']*)'/g, '<span class="hl-thought">\'$1\'</span>')
-            .replace(/\(([^)]*)\)/g, '<span class="hl-thought">($1)</span>')
-            .replace(/\n/g, '<br>');
+            .replace(/>/g, '&gt;');
 
-        info.backdrop.innerHTML = highlighted + (text.endsWith('\n') ? '<br>' : '');
+        // 1. 하이퍼링크 (파일명) 강조 - 특수 마커를 사용하여 중복 매칭 방지
+        if (this.hyperlinkMap.size > 0) {
+            const sortedNames = Array.from(this.hyperlinkMap.keys())
+                .sort((a, b) => b.length - a.length);
 
-        // 스크롤 동기화
+            for (const name of sortedNames) {
+                if (!name) continue;
+                const escapedName = name.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                const regexSafeName = escapedName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                const regex = new RegExp(`(?<![a-zA-Z가-힣0-9])${regexSafeName}(?![a-zA-Z가-힣0-9])`, 'g');
+                
+                // 임시로 마커를 사용하여 감쌈 (\u0001/\u0002)
+                html = html.replace(regex, (match) => `\u0001${match}\u0002`);
+            }
+        }
+
+        // 2. 다이얼로그 및 생각 강조
+        // 대사(") - 내부에 마커가 포함될 수 있으므로 주의하여 처리
+        html = html.replace(/"([^"]*)"/g, '<span class="hl-dialogue">"$1"</span>');
+        // 생각(')
+        html = html.replace(/'([^']*)'/g, '<span class="hl-thought">\'$1\'</span>');
+        // 생각(())
+        html = html.replace(/\(([^)]*)\)/g, '<span class="hl-thought">($1)</span>');
+
+        // 3. 임시 마커를 실제 하이퍼링크 span으로 변환
+        html = html.replace(/\u0001/g, '<span class="hl-link">').replace(/\u0002/g, '</span>');
+
+        // 4. 줄바꿈 처리 및 렌더링
+        info.backdrop.innerHTML = html.replace(/\n/g, '<br>') + (text.endsWith('\n') ? '<br>' : '');
+
+        // 5. 스크롤 동기화
         info.backdrop.scrollTop = info.textarea.scrollTop;
     }
 
@@ -647,9 +731,91 @@ class WindowManager {
             e.stopPropagation();
         });
 
+        textarea.addEventListener('click', (e) => {
+            // Ctrl + 좌클릭 시에만 하이퍼링크 작동
+            if (!(e.ctrlKey || e.metaKey)) return;
+
+            const pos = textarea.selectionStart;
+            const text = textarea.value;
+
+            if (this.hyperlinkMap.size > 0) {
+                const sortedNames = Array.from(this.hyperlinkMap.keys()).sort((a, b) => b.length - a.length);
+                for (const name of sortedNames) {
+                    let index = text.indexOf(name);
+                    while (index !== -1) {
+                        // 정확히 클릭한 위치가 파일명 범위 내인지 확인
+                        if (pos >= index && pos <= index + name.length) {
+                            const charBefore = text[index - 1];
+                            const charAfter = text[index + name.length];
+                            const isBoundaryBefore = !charBefore || !/[a-zA-Z가-힣0-9]/.test(charBefore);
+                            const isBoundaryAfter = !charAfter || !/[a-zA-Z가-힣0-9]/.test(charAfter);
+
+                            if (isBoundaryBefore && isBoundaryAfter) {
+                                e.preventDefault();
+                                const targetId = this.hyperlinkMap.get(name);
+                                if (targetId) {
+                                    this.openWindow(targetId);
+                                    return;
+                                }
+                            }
+                        }
+                        index = text.indexOf(name, index + 1);
+                    }
+                }
+            }
+        });
+
+        // Ctrl 키를 누른 채 하이퍼링크 위에 마우스를 올리면 커서 변경
+        textarea.addEventListener('mousemove', (e) => {
+            if (!(e.ctrlKey || e.metaKey)) {
+                if (textarea.style.cursor === 'pointer') textarea.style.cursor = 'text';
+                return;
+            }
+
+            // 커서 아래에 파일명이 있는지 확인
+            const pos = this.getTextOffsetFromPoint(textarea, e.clientX, e.clientY);
+            const text = textarea.value;
+            let found = false;
+
+            if (pos !== -1 && this.hyperlinkMap.size > 0) {
+                for (const name of this.hyperlinkMap.keys()) {
+                    let index = text.indexOf(name);
+                    while (index !== -1) {
+                        if (pos >= index && pos <= index + name.length) {
+                            const charBefore = text[index - 1];
+                            const charAfter = text[index + name.length];
+                            if ((!charBefore || !/[a-zA-Z가-힣0-9]/.test(charBefore)) && 
+                                (!charAfter || !/[a-zA-Z가-힣0-9]/.test(charAfter))) {
+                                found = true;
+                                break;
+                            }
+                        }
+                        index = text.indexOf(name, index + 1);
+                    }
+                    if (found) break;
+                }
+            }
+            textarea.style.cursor = found ? 'pointer' : 'text';
+        });
+
         textarea.addEventListener('focus', () => {
             this.focusWindow(fileId);
         });
+    }
+
+    /**
+     * 마우스 좌표로부터 텍스트 오프셋(인덱스) 계산
+     */
+    getTextOffsetFromPoint(textarea, x, y) {
+        // 브라우저 지원 확인 (현대 브라우저 표준)
+        if (document.caretPositionFromPoint) {
+            const range = document.caretPositionFromPoint(x, y);
+            return range ? range.offset : -1;
+        } else if (document.caretRangeFromPoint) {
+            const range = document.caretRangeFromPoint(x, y);
+            return range ? range.startOffset : -1;
+        }
+        return -1;
     }
 
     /**

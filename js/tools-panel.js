@@ -365,9 +365,6 @@ class ToolsPanel {
         }
 
         // 모달 버튼들 (한번만 등록되도록 혹은 클론 처리)
-        // 여기서는 이 리스너들이 모달 HTML이 바뀌지 않는 한 유지되므로 처음 한번만 등록하거나 클론함.
-        // renderTab('memos')가 호출될 때마다 이 요소들이 새로 그려지지 않으므로(모달은 외부에 있음)
-        // 하지만 안전을 위해 클론 처리 유지
         ['closeMemoModal', 'cancelMemoBtn', 'saveMemoBtn', 'deleteMemoBtn'].forEach(id => {
             const btn = getEl(id);
             if (btn) {
@@ -487,11 +484,7 @@ class ToolsPanel {
         else resDiv.innerHTML = results.map(r => `<div class="search-result-item" onclick="window.fileTreeManager.selectFile('${r.id}')"><div style="font-size:11px; color:gray;">${r.name}:${r.line}</div><div>${r.text}</div></div>`).join('');
     }
 
-    /**
-     * 설정 탭 - 저장 버튼 명시적 추가 버전
-     */
     renderSettings() {
-        // 렌더링 시 현재 저장된 설정을 템플릿에 로드
         this.tempSettings = { ...this.settings };
         const s = this.tempSettings;
 
@@ -507,7 +500,7 @@ class ToolsPanel {
               <input type="color" class="input" id="editorTextColor" value="${s.textColor}" style="height: 40px; padding: 4px;">
             </div>
             <div class="form-group">
-              <label class="form-label">에디터 너비 <span>${s.editorWidth}px</span></label>
+              <label class="form-label">에디터 너비 <span id="editorWidthValue">${s.editorWidth}px</span></label>
               <input type="range" class="input-range" id="editorWidth" min="400" max="2000" step="50" value="${s.editorWidth}">
             </div>
           </div>
@@ -524,11 +517,11 @@ class ToolsPanel {
               </select>
             </div>
             <div class="form-group">
-              <label class="form-label">폰트 크기 <span>${s.fontSize}px</span></label>
+              <label class="form-label">폰트 크기 <span id="fontSizeValue">${s.fontSize}px</span></label>
               <input type="range" class="input-range" id="editorFontSize" min="12" max="48" value="${s.fontSize}">
             </div>
             <div class="form-group">
-              <label class="form-label">행간 (Line Height) <span>${s.lineHeight}</span></label>
+              <label class="form-label">행간 (Line Height) <span id="lineHeightValue">${s.lineHeight}</span></label>
               <input type="range" class="input-range" id="editorLineHeight" min="1.0" max="3.0" step="0.1" value="${s.lineHeight}">
             </div>
           </div>
@@ -539,6 +532,10 @@ class ToolsPanel {
               <label class="form-label">대사/생각 강조색</label>
               <input type="color" class="input" id="highlightColor" value="${s.highlightColor || '#2563eb'}" style="height: 40px; padding: 4px;">
             </div>
+            <div class="form-group">
+              <label class="form-label">하이퍼링크 색상</label>
+              <input type="color" class="input" id="hyperlinkColor" value="${s.hyperlinkColor || '#58a6ff'}" style="height: 40px; padding: 4px;">
+            </div>
             <div class="form-group" style="flex-direction: row; align-items: center; justify-content: space-between; padding: 8px 0;">
               <label for="autoSaveToggle" style="cursor: pointer; font-size: 14px; font-weight: 500;">실시간 자동 저장</label>
               <input type="checkbox" id="autoSaveToggle" ${s.autoSave !== false ? 'checked' : ''} style="width: 20px; height: 20px; cursor: pointer;">
@@ -546,17 +543,6 @@ class ToolsPanel {
             <div class="form-group" style="flex-direction: row; align-items: center; justify-content: space-between; padding: 8px 0;">
               <label for="autoCloseQuotes" style="cursor: pointer; font-size: 14px; font-weight: 500;">따옴표 자동 닫기</label>
               <input type="checkbox" id="autoCloseQuotes" ${s.autoCloseQuotes ? 'checked' : ''} style="width: 20px; height: 20px; cursor: pointer;">
-            </div>
-            <div style="margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--color-border);">
-              <button class="btn btn-secondary" id="manageTemplatesBtn" style="width: 100%; height: 44px; justify-content: center; font-weight: 600; background: var(--color-bg-primary);">✨ 템플릿 마스터 관리</button>
-            </div>
-          </div>
-
-          <div class="settings-section">
-            <h3 class="settings-section-title">트리거 설정</h3>
-            <div class="form-group">
-              <label class="form-label">장소 표시 트리거 (예: 장소:)</label>
-              <input type="text" class="input" id="triggerLocation" value="${s.triggerLocation || '장소:'}" placeholder="장소:">
             </div>
           </div>
 
@@ -572,7 +558,6 @@ class ToolsPanel {
     setupSettingsEventListeners() {
         const getEl = id => document.getElementById(id);
 
-        // 실시간 미리보기 (저장은 안 함)
         const updatePreview = (key, val) => {
             this.tempSettings[key] = val;
             this.applySettings(this.tempSettings);
@@ -583,31 +568,28 @@ class ToolsPanel {
         getEl('editorFontFamily')?.addEventListener('change', (e) => updatePreview('fontFamily', e.target.value));
 
         getEl('editorFontSize')?.addEventListener('input', (e) => {
-            getEl('fontSizeValue').textContent = e.target.value + 'px';
+            const valEl = getEl('fontSizeValue');
+            if (valEl) valEl.textContent = e.target.value + 'px';
             updatePreview('fontSize', parseInt(e.target.value));
         });
 
         getEl('editorLineHeight')?.addEventListener('input', (e) => {
-            getEl('lineHeightValue').textContent = e.target.value;
+            const valEl = getEl('lineHeightValue');
+            if (valEl) valEl.textContent = e.target.value;
             updatePreview('lineHeight', parseFloat(e.target.value));
         });
 
-        getEl('editorLetterSpacing')?.addEventListener('input', (e) => {
-            getEl('letterSpacingValue').textContent = e.target.value + 'px';
-            updatePreview('letterSpacing', parseFloat(e.target.value));
-        });
-
         getEl('highlightColor')?.addEventListener('input', (e) => updatePreview('highlightColor', e.target.value));
+        getEl('hyperlinkColor')?.addEventListener('input', (e) => updatePreview('hyperlinkColor', e.target.value));
         getEl('autoCloseQuotes')?.addEventListener('change', (e) => updatePreview('autoCloseQuotes', e.target.checked));
         getEl('autoSaveToggle')?.addEventListener('change', (e) => updatePreview('autoSave', e.target.checked));
-        getEl('triggerLocation')?.addEventListener('input', (e) => updatePreview('triggerLocation', e.target.value));
 
         getEl('editorWidth')?.addEventListener('input', (e) => {
-            getEl('editorWidthValue').textContent = e.target.value + 'px';
+            const valEl = getEl('editorWidthValue');
+            if (valEl) valEl.textContent = e.target.value + 'px';
             updatePreview('editorWidth', parseInt(e.target.value));
         });
 
-        // 실제 저장 버튼
         getEl('saveSettingsBtn')?.addEventListener('click', () => {
             this.settings = { ...this.tempSettings };
             localStorage.setItem('editorSettings', JSON.stringify(this.settings));
@@ -637,6 +619,7 @@ class ToolsPanel {
             lineHeight: 1.75,
             letterSpacing: 0,
             highlightColor: '#2563eb',
+            hyperlinkColor: '#58a6ff',
             autoCloseQuotes: true,
             autoSave: true,
             editorWidth: 900,
@@ -651,38 +634,43 @@ class ToolsPanel {
     }
 
     applySettings(s) {
-        // 다중 창 시스템: 모든 열린 창의 textarea에 설정 적용
-        document.documentElement.style.setProperty('--color-highlight', s.highlightColor || '#58a6ff');
+        const root = document.documentElement;
+        root.style.setProperty('--color-highlight', s.highlightColor || '#2563eb');
+        root.style.setProperty('--color-hyperlink', s.hyperlinkColor || '#58a6ff');
+        
+        // UI 전체 색상이 아닌 에디터 내부용 텍스트 색상 변수만 설정
+        root.style.setProperty('--color-editor-text', s.textColor || '#e6edf3');
 
         const textareas = document.querySelectorAll('.window-textarea');
-        textareas.forEach(textarea => {
-            textarea.style.fontFamily = s.fontFamily;
-            textarea.style.fontSize = s.fontSize + 'px';
-            textarea.style.lineHeight = s.lineHeight;
-            textarea.style.letterSpacing = s.letterSpacing + 'px';
+        const backdrops = document.querySelectorAll('.window-backdrop');
+        const editors = document.querySelectorAll('.window-editor');
+        
+        editors.forEach(ed => {
+            ed.style.backgroundColor = s.backgroundColor;
         });
 
-        // 레거시 호환 (단일 에디터 요소가 있는 경우)
-        const textarea = document.getElementById('editorTextarea');
-        const backdrop = document.getElementById('editorBackdrop');
-        const wrapper = document.getElementById('editorWrapper');
-        if (textarea) {
-            textarea.style.backgroundColor = s.backgroundColor;
-            textarea.style.color = 'transparent';
-            textarea.style.caretColor = s.textColor;
-            textarea.style.fontFamily = s.fontFamily;
-            textarea.style.fontSize = s.fontSize + 'px';
-            textarea.style.lineHeight = s.lineHeight;
-            textarea.style.letterSpacing = s.letterSpacing + 'px';
-        }
-        if (wrapper) wrapper.style.maxWidth = s.editorWidth + 'px';
-        if (backdrop) {
-            backdrop.style.backgroundColor = s.backgroundColor;
-            backdrop.style.color = s.textColor;
-            backdrop.style.fontFamily = s.fontFamily;
-            backdrop.style.fontSize = s.fontSize + 'px';
-            backdrop.style.lineHeight = s.lineHeight;
-            backdrop.style.letterSpacing = s.letterSpacing + 'px';
+        [...textareas, ...backdrops].forEach(el => {
+            if (!el) return;
+            el.style.fontFamily = s.fontFamily;
+            el.style.fontSize = s.fontSize + 'px';
+            el.style.lineHeight = s.lineHeight;
+            el.style.letterSpacing = s.letterSpacing + 'px';
+        });
+
+        textareas.forEach(ta => {
+            ta.style.color = 'transparent';
+            ta.style.webkitTextFillColor = 'transparent';
+            // 커서 색상은 에디터 텍스트 설정색을 따름
+            ta.style.caretColor = s.textColor || '#e6edf3';
+        });
+
+        backdrops.forEach(bd => {
+            // 강조창 글자색은 에디터 텍스트 설정색을 따름
+            bd.style.color = s.textColor || '#e6edf3';
+        });
+
+        if (window.windowManager && window.windowManager.updateAllHighlighters) {
+            window.windowManager.updateAllHighlighters();
         }
     }
 
@@ -691,6 +679,7 @@ class ToolsPanel {
         this.memos = await storage.getProjectMemos(projectId);
         this.updateStats();
     }
+
     formatDate(t) { return new Date(t).toLocaleDateString(); }
     escapeHtml(t) { const d = document.createElement('div'); d.textContent = t; return d.innerHTML; }
 }

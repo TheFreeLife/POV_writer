@@ -489,30 +489,38 @@
 }
 
 .window-backdrop {
-    color: transparent;
+    color: var(--color-editor-text, #e6edf3); /* 에디터 전용 텍스트 색상 변수 사용 */
     z-index: 1;
     pointer-events: none;
     background: transparent;
 }
 
 .window-textarea {
-    color: var(--color-text-primary);
+    color: transparent !important; /* 입력창의 원본 텍스트는 투명하게 처리 */
     background: transparent;
     z-index: 2;
-    caret-color: var(--color-accent-primary);
+    caret-color: var(--color-editor-text, #e6edf3); /* 커서 색상도 에디터 전용 색상 사용 */
     resize: none;
+    -webkit-text-fill-color: transparent; /* 웹킷 브라우저 대응 */
 }
 
 /* 문장 성분별 강조 색상 */
 .hl-dialogue {
-    color: #79c0ff;
-    /* 연한 파랑 (대사) */
+    color: var(--color-highlight, #2563eb) !important;
+    font-weight: 600;
 }
 
 .hl-thought {
-    color: var(--color-text-muted);
-    /* 흐린 가독성 (생각) */
+    color: var(--color-text-muted, #6e7681);
     font-style: italic;
+    opacity: 0.8;
+}
+
+.hl-link {
+    color: var(--color-hyperlink, #58a6ff) !important;
+    text-decoration: underline;
+    text-underline-offset: 4px;
+    font-weight: 600;
 }
 
 .window-textarea::placeholder {
