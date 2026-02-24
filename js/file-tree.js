@@ -392,6 +392,16 @@ class FileTreeManager {
         const container = document.getElementById('fileTree');
         if (!container || this.rootDropSet) return;
 
+        // 빈 공간 우클릭 처리
+        container.addEventListener('contextmenu', (e) => {
+            // 트리 아이템 위가 아닌 순수 컨테이너 위일 때만 작동
+            if (e.target === container || e.target.classList.contains('text-muted')) {
+                e.preventDefault();
+                e.stopPropagation();
+                this.showRootContextMenu(e);
+            }
+        });
+
         container.addEventListener('dragover', (e) => {
             if (e.target === container || e.target.classList.contains('text-muted')) {
                 e.preventDefault();
@@ -595,7 +605,16 @@ class FileTreeManager {
 
         menu.innerHTML = `
             ${file.type === 'folder' ? `
-                <div class="context-menu-item" id="ctx-new-file"><span class="context-menu-icon">📄</span> 새 파일</div>
+                <div class="context-menu-item has-submenu" id="ctx-new-file-group">
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <span class="context-menu-icon">📄</span> 새 파일
+                    </div>
+                    <div class="context-submenu">
+                        <div class="context-menu-item" id="ctx-new-file-text"><span class="context-menu-icon">📄</span> 텍스트 파일</div>
+                        <div class="context-menu-item" id="ctx-new-file-image"><span class="context-menu-icon">🖼️</span> 이미지 파일</div>
+                        <div class="context-menu-item" id="ctx-new-file-stat"><span class="context-menu-icon">📊</span> 수치 계산기</div>
+                    </div>
+                </div>
                 <div class="context-menu-item" id="ctx-new-folder"><span class="context-menu-icon">📁</span> 새 폴더</div>
                 <div class="context-menu-divider"></div>
                 <div class="context-menu-item" id="ctx-folder-stats"><span class="context-menu-icon">📊</span> 통계</div>
@@ -610,7 +629,11 @@ class FileTreeManager {
         menu.style.top = `${e.pageY}px`;
         menu.classList.remove('hidden');
 
-        document.getElementById('ctx-new-file')?.addEventListener('click', () => this.showNewItemModal('file', file.id));
+        // 이벤트 리스너 바인딩
+        document.getElementById('ctx-new-file-text')?.addEventListener('click', () => this.showNewItemModal('file', file.id));
+        document.getElementById('ctx-new-file-image')?.addEventListener('click', () => this.showNewImageModal()); // Note: showNewImageModal은 현재 parentId 지원 안함
+        document.getElementById('ctx-new-file-stat')?.addEventListener('click', () => this.showNewStatModal(file.id));
+        
         document.getElementById('ctx-new-folder')?.addEventListener('click', () => this.showNewItemModal('folder', file.id));
         document.getElementById('ctx-folder-stats')?.addEventListener('click', () => this.showFolderStatsModal(file));
         document.getElementById('ctx-folder-settings')?.addEventListener('click', () => this.showFolderSettingsModal(file));
@@ -665,25 +688,38 @@ class FileTreeManager {
             totalFilesEl.textContent = `${filesOnly.length}개`;
 
             // 3. 파일별 언급 횟수 계산 (프로젝트 전체 기준)
-            // 전체 텍스트 수집 (실시간 창 반영)
+            // 전체 텍스트 수집 (실시간 창 반영, 이미지는 제외)
             let fullProjectText = '';
             allProjectFiles.forEach(f => {
                 if (f.type === 'file') {
+                    // 이미지 파일이나 수치 계산기 파일은 검색 대상 텍스트에서 제외 (성능 및 정확도)
+                    if (f.template === 'image' || (f.content && f.content.startsWith('data:image'))) return;
+                    
                     const openWin = window.windowManager?.windows.get(f.id);
-                    fullProjectText += (openWin ? openWin.textarea.value : (f.content || '')) + '\n';
+                    let content = (openWin && openWin.textarea) ? openWin.textarea.value : (f.content || '');
+                    
+                    // 수치 계산기 데이터인 경우 JSON이므로 텍스트 검색에서 제외하거나 이름만 포함
+                    if (f.template === 'stat') return;
+
+                    fullProjectText += content + '\n';
                 }
             });
 
             const mentionStats = filesOnly.map(f => {
-                if (!f.name) return { name: '이름 없음', count: 0 };
-                // 정규표현식으로 언급 횟수 계산
-                const regexSafeName = f.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-                const regex = new RegExp(regexSafeName, 'g');
-                const matches = fullProjectText.match(regex);
-                return {
-                    name: f.name,
-                    count: matches ? matches.length : 0
-                };
+                if (!f.name || f.name.trim() === '') return { name: '이름 없음', count: 0 };
+                
+                // 정규표현식으로 언급 횟수 계산 (특수문자 보호)
+                try {
+                    const regexSafeName = f.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                    const regex = new RegExp(regexSafeName, 'g');
+                    const matches = fullProjectText.match(regex);
+                    return {
+                        name: f.name,
+                        count: matches ? matches.length : 0
+                    };
+                } catch (e) {
+                    return { name: f.name, count: 0 };
+                }
             }).sort((a, b) => b.count - a.count);
 
             // 4. 목록 렌더링
@@ -851,6 +887,33 @@ class FileTreeManager {
         this.expandedFolders.clear();
         const container = document.getElementById('fileTree');
         if (container) container.innerHTML = '';
+    }
+
+    showRootContextMenu(e) {
+        const menu = document.getElementById('contextMenu');
+        if (!menu) return;
+
+        menu.innerHTML = `
+            <div class="context-menu-item has-submenu" id="ctx-root-new-file-group">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <span class="context-menu-icon">📄</span> 새 파일
+                </div>
+                <div class="context-submenu">
+                    <div class="context-menu-item" id="ctx-root-new-file-text"><span class="context-menu-icon">📄</span> 텍스트 파일</div>
+                    <div class="context-menu-item" id="ctx-root-new-file-image"><span class="context-menu-icon">🖼️</span> 이미지 파일</div>
+                    <div class="context-menu-item" id="ctx-root-new-file-stat"><span class="context-menu-icon">📊</span> 수치 계산기</div>
+                </div>
+            </div>
+            <div class="context-menu-item" id="ctx-root-new-folder"><span class="context-menu-icon">📁</span> 새 폴더</div>
+        `;
+        menu.style.left = `${e.pageX}px`;
+        menu.style.top = `${e.pageY}px`;
+        menu.classList.remove('hidden');
+
+        document.getElementById('ctx-root-new-file-text')?.addEventListener('click', () => this.showNewItemModal('file', null));
+        document.getElementById('ctx-root-new-file-image')?.addEventListener('click', () => this.showNewImageModal());
+        document.getElementById('ctx-root-new-file-stat')?.addEventListener('click', () => this.showNewStatModal(null));
+        document.getElementById('ctx-root-new-folder')?.addEventListener('click', () => this.showNewItemModal('folder', null));
     }
 
     escapeHtml(text) {

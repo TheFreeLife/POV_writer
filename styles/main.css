@@ -522,6 +522,37 @@ body {
   transform: translateX(2px);
 }
 
+/* 하위 메뉴 스타일 추가 */
+.context-menu-item.has-submenu {
+  position: relative;
+  justify-content: space-between;
+}
+
+.context-menu-item.has-submenu::after {
+  content: '▶';
+  font-size: 8px;
+  opacity: 0.5;
+}
+
+.context-submenu {
+  position: absolute;
+  top: -6px;
+  left: 100%;
+  background: rgba(28, 33, 40, 0.98);
+  backdrop-filter: blur(16px);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  box-shadow: var(--shadow-lg);
+  padding: 6px;
+  min-width: 140px;
+  display: none;
+  z-index: 1001;
+}
+
+.context-menu-item.has-submenu:hover > .context-submenu {
+  display: block;
+}
+
 .context-menu-item.danger {
   color: var(--color-accent-danger);
 }
