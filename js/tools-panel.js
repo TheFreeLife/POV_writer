@@ -755,6 +755,14 @@ class ToolsPanel {
               <label class="form-label">폰트 색상</label>
               <input type="color" class="input" id="editorTextColor" value="${s.textColor}" style="height: 40px; padding: 4px;">
             </div>
+            <div class="form-group" style="margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--color-border);">
+              <label class="form-label">새 창 기본 너비 <span id="winWidthValue">${s.defaultWinWidth}px</span></label>
+              <input type="range" class="input-range" id="defaultWinWidth" min="360" max="1200" step="10" value="${s.defaultWinWidth}">
+            </div>
+            <div class="form-group">
+              <label class="form-label">새 창 기본 높이 <span id="winHeightValue">${s.defaultWinHeight}px</span></label>
+              <input type="range" class="input-range" id="defaultWinHeight" min="280" max="1000" step="10" value="${s.defaultWinHeight}">
+            </div>
           </div>
 
           <div class="settings-section">
@@ -836,6 +844,18 @@ class ToolsPanel {
         getEl('autoCloseQuotes')?.addEventListener('change', (e) => updatePreview('autoCloseQuotes', e.target.checked));
         getEl('autoSaveToggle')?.addEventListener('change', (e) => updatePreview('autoSave', e.target.checked));
 
+        getEl('defaultWinWidth')?.addEventListener('input', (e) => {
+            const valEl = getEl('winWidthValue');
+            if (valEl) valEl.textContent = e.target.value + 'px';
+            updatePreview('defaultWinWidth', parseInt(e.target.value));
+        });
+
+        getEl('defaultWinHeight')?.addEventListener('input', (e) => {
+            const valEl = getEl('winHeightValue');
+            if (valEl) valEl.textContent = e.target.value + 'px';
+            updatePreview('defaultWinHeight', parseInt(e.target.value));
+        });
+
         getEl('saveSettingsBtn')?.addEventListener('click', () => {
             this.settings = { ...this.tempSettings };
             localStorage.setItem('editorSettings', JSON.stringify(this.settings));
@@ -870,7 +890,9 @@ class ToolsPanel {
             autoSave: true,
             triggerLocation: '장소:',
             triggerStatOpen: '{{',
-            triggerStatClose: '}}'
+            triggerStatClose: '}}',
+            defaultWinWidth: 520,
+            defaultWinHeight: 400
         };
         try {
             const saved = localStorage.getItem('editorSettings');

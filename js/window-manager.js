@@ -344,14 +344,19 @@ class WindowManager {
         const canvasArea = document.getElementById('canvasArea');
         if (!container) return;
 
-        let x, y, width = 520, height = 400;
+        // 설정에서 기본 창 크기 불러오기
+        const settings = window.toolsPanel?.settings || window.toolsPanel?.loadSettings() || {};
+        const defW = settings.defaultWinWidth || 520;
+        const defH = settings.defaultWinHeight || 400;
+
+        let x, y, width = defW, height = defH;
 
         // 세션 복구(최초 로드 등)일 때만 저장된 상태를 사용
         if (restoreState && typeof restoreState.x === 'number') {
             x = restoreState.x;
             y = restoreState.y;
-            width = restoreState.width || 520;
-            height = restoreState.height || 400;
+            width = restoreState.width || defW;
+            height = restoreState.height || defH;
         } else {
             // 수동으로 여는 경우 현재 보고 있는 화면의 중앙 좌표 계산
             const center = this.calculateViewCenter(width, height);
