@@ -256,6 +256,13 @@
     flex-shrink: 0;
 }
 
+/* 색상이 지정된 이모지에 색상을 입히는 트릭 */
+.tree-icon[style*="--icon-color"] {
+    text-shadow: 0 0 0 var(--icon-color);
+    -webkit-text-fill-color: transparent;
+    filter: saturate(1.5) brightness(1.2);
+}
+
 .tree-name {
     font-size: 13px;
     white-space: nowrap;
@@ -1148,4 +1155,53 @@
     background: rgba(88, 166, 255, 0.1);
     pointer-events: none;
     z-index: 10000;
+}
+
+/* 폴더 색상 선택기 스타일 - 가로 스크롤 버전 */
+.color-picker-grid {
+    display: flex;
+    overflow-x: auto;
+    gap: 12px;
+    padding: 10px 4px;
+    margin-top: 8px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-border) transparent;
+    cursor: grab;
+    user-select: none; /* 드래그 중 텍스트 선택 방지 */
+}
+
+.color-picker-grid.grabbing {
+    cursor: grabbing;
+}
+
+.color-picker-grid::-webkit-scrollbar {
+    height: 4px;
+}
+
+.color-picker-grid::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.color-picker-grid::-webkit-scrollbar-thumb {
+    background: var(--color-border);
+    border-radius: 10px;
+}
+
+.color-swatch {
+    flex: 0 0 32px; /* 크기 고정 */
+    height: 32px;
+    border-radius: 50%;
+    border: 2px solid transparent;
+    cursor: pointer;
+    transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275), border-color 0.2s ease;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+.color-swatch:hover {
+    transform: scale(1.1);
+}
+
+.color-swatch.active {
+    border-color: var(--color-text-primary);
+    transform: scale(1.1);
 }

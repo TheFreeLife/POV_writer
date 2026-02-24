@@ -42,6 +42,48 @@ class FileTreeManager {
         document.getElementById('closeFolderStatsModal')?.addEventListener('click', () => this.hideFolderStatsModal());
         document.getElementById('closeFolderStatsBtn')?.addEventListener('click', () => this.hideFolderStatsModal());
 
+        // 색상 선택기 리스너
+        const colorPicker = document.getElementById('folderColorPicker');
+        if (colorPicker) {
+            colorPicker.addEventListener('click', (e) => {
+                const swatch = e.target.closest('.color-swatch');
+                if (swatch) {
+                    document.querySelectorAll('#folderColorPicker .color-swatch').forEach(s => s.classList.remove('active'));
+                    swatch.classList.add('active');
+                }
+            });
+
+            // 드래그 스크롤 기능 추가
+            let isDown = false;
+            let startX;
+            let scrollLeft;
+
+            colorPicker.addEventListener('mousedown', (e) => {
+                isDown = true;
+                colorPicker.classList.add('grabbing');
+                startX = e.pageX - colorPicker.offsetLeft;
+                scrollLeft = colorPicker.scrollLeft;
+            });
+
+            colorPicker.addEventListener('mouseleave', () => {
+                isDown = false;
+                colorPicker.classList.remove('grabbing');
+            });
+
+            colorPicker.addEventListener('mouseup', () => {
+                isDown = false;
+                colorPicker.classList.remove('grabbing');
+            });
+
+            colorPicker.addEventListener('mousemove', (e) => {
+                if (!isDown) return;
+                e.preventDefault();
+                const x = e.pageX - colorPicker.offsetLeft;
+                const walk = (x - startX) * 2; // 스크롤 속도 조절
+                colorPicker.scrollLeft = scrollLeft - walk;
+            });
+        }
+
         document.addEventListener('click', () => this.hideContextMenu());
     }
 
@@ -171,9 +213,12 @@ class FileTreeManager {
             icon = '🖼️';
         }
 
+        const iconColor = file.iconColor || '';
+        const iconStyle = iconColor ? `style="--icon-color: ${iconColor};"` : '';
+
         item.innerHTML = `
             ${chevron}
-            <span class="tree-icon">${icon}</span>
+            <span class="tree-icon" ${iconStyle}>${icon}</span>
             <span class="tree-name">${this.escapeHtml(file.name)}</span>
         `;
 
@@ -603,11 +648,20 @@ class FileTreeManager {
         const nameInput = document.getElementById('folderNameInput');
         const templateSelect = document.getElementById('folderTemplateSelect');
         const checkbox = document.getElementById('hyperlinkEnabled');
+        const colorPicker = document.getElementById('folderColorPicker');
         
         if (modal) {
             if (nameInput) nameInput.value = file.name;
             if (checkbox) checkbox.checked = !!file.hyperlinkEnabled;
             
+            // 색상 설정 반영
+            if (colorPicker) {
+                const color = file.iconColor || '';
+                document.querySelectorAll('#folderColorPicker .color-swatch').forEach(s => {
+                    s.classList.toggle('active', s.dataset.color === color);
+                });
+            }
+
             // 템플릿 목록 로드 및 선택
             if (templateSelect) {
                 await this.refreshTemplateOptions('folderTemplateSelect');
@@ -653,13 +707,18 @@ class FileTreeManager {
         const template = document.getElementById('folderTemplateSelect').value;
         const enabled = document.getElementById('hyperlinkEnabled').checked;
         
+        // 선택된 색상 가져오기
+        const activeSwatch = document.querySelector('#folderColorPicker .color-swatch.active');
+        const iconColor = activeSwatch ? activeSwatch.dataset.color : '';
+        
         if (!name) return alert('이름을 입력해주세요.');
 
         try {
             await storage.updateFile(this.editingItem.id, { 
                 name, 
                 defaultTemplate: template === 'blank' ? null : template,
-                hyperlinkEnabled: enabled 
+                hyperlinkEnabled: enabled,
+                iconColor: iconColor || null
             });
             await this.loadProjectFiles(this.currentProjectId);
             
