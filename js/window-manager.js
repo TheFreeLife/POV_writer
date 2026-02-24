@@ -882,8 +882,22 @@ class WindowManager {
                 if (statFile) {
                     try {
                         const data = JSON.parse(statFile.content);
-                        const statStrings = data.stats.map(s => `[${s.name}: ${s.value}]`).join(' ');
-                        const resultText = `《 ${statName} 상태창 》\n${statStrings}`;
+                        let resultText = data.outputTemplate || "";
+                        
+                        // 템플릿이 비어있으면 기본형 제공
+                        if (!resultText) {
+                            const statStrings = data.stats.map(s => `[${s.name}: ${s.value}]`).join(' ');
+                            resultText = `《 ${statName} 상태창 》\n${statStrings}`;
+                        } else {
+                            // 변수 치환 ({$이름$} 및 {$스탯명$})
+                            resultText = resultText.replace(/\{\$이름\$\}/g, statName);
+                            data.stats.forEach(s => {
+                                // 특수문자 이스케이프 후 {$스탯명$} 정규표현식 생성
+                                const escapedName = s.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                                const regex = new RegExp(`\\{\\$${escapedName}\\$\\}`, 'g');
+                                resultText = resultText.replace(regex, s.value);
+                            });
+                        }
                         
                         const newText = text.substring(0, lastOpen) + resultText + text.substring(fullEndIdx);
                         textarea.value = newText;
@@ -1671,7 +1685,7 @@ class WindowManager {
     }
 
     /**
-     * 수치 계산기 렌더링
+     * 수치 계산기 렌더링 (탭 인터페이스 및 출력 템플릿 추가)
      */
     renderStatCalculator(fileId) {
         const info = this.windows.get(fileId);
@@ -1680,57 +1694,118 @@ class WindowManager {
 
         let data;
         try {
-            data = JSON.parse(info.file.content || '{"stats":[], "history":[]}');
+            data = JSON.parse(info.file.content || '{"stats":[], "history":[], "outputTemplate":""}');
             if (!data.stats) data.stats = [];
             if (!data.history) data.history = [];
+            if (data.currentTab === undefined) data.currentTab = 'manage';
+            // 기본 템플릿 제공
+            if (!data.outputTemplate) {
+                data.outputTemplate = "《 {{이름}} 상태창 》\n" + 
+                                     data.stats.map(s => `[${s.name}: {{${s.name}}}]`).join(' ');
+            }
         } catch (e) {
-            data = { stats: [], history: [] };
+            data = { stats: [], history: [], outputTemplate: "", currentTab: 'manage' };
         }
 
+        const tab = data.currentTab;
+
         container.innerHTML = `
-            <div class="stat-header">
-                <span style="font-size: 13px; font-weight: 700;">상태창 매니저</span>
-                <button class="btn btn-icon btn-secondary" onclick="window.windowManager.addStatItem('${fileId}')" title="항목 추가">＋</button>
+            <div class="stat-tabs">
+                <div class="stat-tab ${tab === 'manage' ? 'active' : ''}" onclick="window.windowManager.switchStatTab('${fileId}', 'manage')">⚙️ 스탯 관리</div>
+                <div class="stat-tab ${tab === 'template' ? 'active' : ''}" onclick="window.windowManager.switchStatTab('${fileId}', 'template')">📝 출력 양식</div>
+                <div class="stat-tab ${tab === 'history' ? 'active' : ''}" onclick="window.windowManager.switchStatTab('${fileId}', 'history')">📜 변경 기록</div>
             </div>
+            
             <div class="stat-content" id="statContent_${fileId}">
-                ${data.stats.map((s, idx) => `
-                    <div class="stat-item-row">
-                        <input type="text" class="stat-name-input" value="${this.escapeHtml(s.name)}" 
-                            onchange="window.windowManager.onStatNameChange('${fileId}', ${idx}, this.value)" placeholder="항목명">
-                        <div class="stat-controls">
-                            <button class="stat-btn" onclick="window.windowManager.updateStat('${fileId}', ${idx}, -1)">-</button>
-                            <span class="stat-value">${s.value}</span>
-                            <button class="stat-btn" onclick="window.windowManager.updateStat('${fileId}', ${idx}, 1)">+</button>
-                        </div>
-                        <div style="display: flex; gap: 4px;">
-                            <input type="number" class="stat-input-small" placeholder="값" 
-                                onkeypress="if(event.key==='Enter') window.windowManager.updateStat('${fileId}', ${idx}, parseInt(this.value) || 0, true)">
-                        </div>
-                        <button class="btn btn-icon" style="color: var(--color-text-muted);" 
-                            onclick="window.windowManager.removeStatItem('${fileId}', ${idx})">✕</button>
+                ${tab === 'manage' ? `
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                        <span style="font-size: 15px; font-weight: 700; color: var(--color-text-secondary);">캐릭터 스탯 설정</span>
+                        <button class="btn btn-icon btn-secondary" onclick="window.windowManager.addStatItem('${fileId}')" title="항목 추가" style="width: 32px; height: 32px; font-size: 18px;">＋</button>
                     </div>
-                `).join('')}
-                ${data.stats.length === 0 ? '<div style="text-align: center; padding: 40px; color: var(--color-text-tertiary); font-size: 13px;">등록된 스탯이 없습니다.<br>상단 + 버튼을 눌러 추가하세요.</div>' : ''}
-                <button class="stat-add-btn" onclick="window.windowManager.addStatItem('${fileId}')">+ 새 항목 추가</button>
-            </div>
-            <div class="stat-inner-resizer" onmousedown="window.windowManager.startStatResizing(event, '${fileId}')"></div>
-            <div class="stat-history" id="statHistory_${fileId}" style="height: ${data.historyHeight || 150}px">
-                <div class="history-title">
-                    <span>변경 기록 (최근 30개)</span>
-                    <span style="cursor: pointer; font-weight: normal; opacity: 0.6;" onclick="window.windowManager.clearStatHistory('${fileId}')">기록 삭제</span>
-                </div>
-                ${data.history.slice(-30).reverse().map(h => `
-                    <div class="history-item">
-                        <span class="history-time">${new Date(h.time).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second:'2-digit'})}</span>
-                        <span style="font-weight: 600;">${this.escapeHtml(h.name)}</span>: 
-                        <span>${h.prev} → ${h.curr}</span>
-                        <span class="${h.diff >= 0 ? 'history-diff-plus' : 'history-diff-minus'}">
-                            (${h.diff >= 0 ? '+' : ''}${h.diff})
-                        </span>
+                    ${data.stats.map((s, idx) => `
+                        <div class="stat-item-row">
+                            <input type="text" class="stat-name-input" value="${this.escapeHtml(s.name)}" 
+                                onchange="window.windowManager.onStatNameChange('${fileId}', ${idx}, this.value)" placeholder="항목명">
+                            <div class="stat-controls">
+                                <button class="stat-btn" onclick="window.windowManager.updateStat('${fileId}', ${idx}, -1)">-</button>
+                                <span class="stat-value">${s.value}</span>
+                                <button class="stat-btn" onclick="window.windowManager.updateStat('${fileId}', ${idx}, 1)">+</button>
+                            </div>
+                            <div style="display: flex; gap: 4px;">
+                                <input type="number" class="stat-input-small" placeholder="값" 
+                                    onkeypress="if(event.key==='Enter') window.windowManager.updateStat('${fileId}', ${idx}, parseInt(this.value) || 0, true)">
+                            </div>
+                            <button class="btn btn-icon" style="color: var(--color-text-muted); font-size: 16px;" 
+                                onclick="window.windowManager.removeStatItem('${fileId}', ${idx})">✕</button>
+                        </div>
+                    `).join('')}
+                    ${data.stats.length === 0 ? '<div style="text-align: center; padding: 40px; color: var(--color-text-tertiary); font-size: 14px;">등록된 스탯이 없습니다.<br>항목을 추가하세요.</div>' : ''}
+                    <button class="stat-add-btn" onclick="window.windowManager.addStatItem('${fileId}')">+ 새 항목 추가</button>
+                ` : ''}
+
+                ${tab === 'template' ? `
+                    <div style="height: 100%; display: flex; flex-direction: column; gap: 16px;">
+                        <div style="font-size: 16px; font-weight: 700; color: var(--color-text-secondary); letter-spacing: -0.02em;">출력 양식 커스텀</div>
+                        <div style="font-size: 14px; color: #fff; line-height: 1.8; background: #1a1f26; padding: 16px; border-radius: 10px; border: 1px solid rgba(88, 166, 255, 0.3); box-shadow: inset 0 0 20px rgba(0,0,0,0.2);">
+                            <b style="color: var(--color-accent-primary); font-size: 15px; display: block; margin-bottom: 8px;">💡 작성 가이드</b>
+                            변수는 <code style="color: #ffffff; background: #30363d; padding: 2px 8px; border-radius: 4px; font-family: inherit; font-weight: 700; border: 1px solid rgba(255, 255, 255, 0.1);">{$스탯이름$}</code> 형태로 넣으세요.<br>
+                            <code style="color: #ffffff; background: #30363d; padding: 2px 8px; border-radius: 4px; font-family: inherit; font-weight: 700; border: 1px solid rgba(255, 255, 255, 0.1);">{$이름$}</code>은 파일명으로 자동 치환됩니다.
+                        </div>
+                        <textarea class="input" id="statTemplateEditor_${fileId}" style="flex: 1; font-family: inherit; font-size: 18px; line-height: 1.7; padding: 20px; resize: none; background: var(--color-bg-primary); color: #e6edf3; border: 1px solid var(--color-border); letter-spacing: 0.01em;"
+                            placeholder="본문에 불러올 때 사용될 양식을 작성하세요...">${this.escapeHtml(data.outputTemplate)}</textarea>
+                        
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 4px;">
+                            <div style="font-size: 12px; color: var(--color-text-tertiary); font-weight: 500; display: flex; flex-wrap: wrap; gap: 8px; align-items: center;">
+                                <span style="color: var(--color-accent-primary);">변수:</span> 
+                                <span style="background: var(--color-surface-3); padding: 2px 8px; border-radius: 4px;">{$이름$}</span>
+                                ${data.stats.map(s => `<span style="background: var(--color-surface-3); padding: 2px 8px; border-radius: 4px;">{$${s.name}$}</span>`).join('')}
+                            </div>
+                            <button class="btn btn-primary" style="padding: 8px 24px; font-weight: 700;" 
+                                onclick="window.windowManager.updateStatTemplate('${fileId}', document.getElementById('statTemplateEditor_${fileId}').value)">저장</button>
+                        </div>
                     </div>
-                `).join('')}
+                ` : ''}
+
+                ${tab === 'history' ? `
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                        <span style="font-size: 15px; font-weight: 700; color: var(--color-text-secondary);">변경 기록 (최근 100개)</span>
+                        <span style="cursor: pointer; font-size: 12px; color: var(--color-accent-danger); opacity: 0.8; font-weight: 600;" onclick="window.windowManager.clearStatHistory('${fileId}')">기록 삭제</span>
+                    </div>
+                    <div style="font-family: var(--font-mono); font-size: 13px;">
+                        ${data.history.slice().reverse().map(h => `
+                            <div class="history-item">
+                                <span class="history-time">${new Date(h.time).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second:'2-digit'})}</span>
+                                <span style="font-weight: 600;">${this.escapeHtml(h.name)}</span>: 
+                                <span>${h.prev} → ${h.curr}</span>
+                                <span class="${h.diff >= 0 ? 'history-diff-plus' : 'history-diff-minus'}">
+                                    (${h.diff >= 0 ? '+' : ''}${h.diff})
+                                </span>
+                            </div>
+                        `).join('')}
+                        ${data.history.length === 0 ? '<div style="text-align: center; padding: 40px; color: var(--color-text-tertiary);">기록이 없습니다.</div>' : ''}
+                    </div>
+                ` : ''}
             </div>
+            
+            <div class="stat-inner-resizer" onmousedown="window.windowManager.startStatResizing(event, '${fileId}')" style="display: none;"></div>
         `;
+    }
+
+    async switchStatTab(fileId, tab) {
+        const info = this.windows.get(fileId);
+        if (!info) return;
+        let data = JSON.parse(info.file.content || '{}');
+        data.currentTab = tab;
+        await this.saveStatData(fileId, data);
+    }
+
+    async updateStatTemplate(fileId, template) {
+        const info = this.windows.get(fileId);
+        if (!info) return;
+        let data = JSON.parse(info.file.content || '{}');
+        data.outputTemplate = template;
+        await this.saveStatData(fileId, data);
+        window.showToast?.('출력 양식이 저장되었습니다.');
     }
 
     async updateStat(fileId, index, delta, isAbsolute = false) {

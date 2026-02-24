@@ -496,7 +496,8 @@ class FileTreeManager {
                             { name: '근력', value: 10 },
                             { name: '민첩', value: 10 }
                         ],
-                        history: []
+                        history: [],
+                        outputTemplate: "《 {$이름$} 상태창 》\n[레벨: {$레벨$}]\n[경험치: {$경험치$}]\n[근력: {$근력$}]\n[민첩: {$민첩$}]"
                     }),
                     template: 'stat',
                     order: maxOrder + 1

@@ -143,9 +143,12 @@ class ToolsPanel {
                     continue;
                 }
 
-                // 이미지 파일은 통계에서 제외
-                if (file.template === 'image' || (file.content && file.content.startsWith('data:image'))) {
-                    continue;
+                // [수정] 일반 텍스트 파일만 통계에 포함 (stat, image 등 특수 템플릿 제외)
+                const isSpecialFile = ['stat', 'image'].includes(file.template) || 
+                                     (file.content && file.content.startsWith('data:image'));
+                
+                if (isSpecialFile) {
+                    continue; 
                 }
                 
                 fileCount++;
