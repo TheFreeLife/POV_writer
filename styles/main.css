@@ -819,3 +819,60 @@ body.zen-mode #zenModeBtn {
   color: #0d1117;
   border-color: var(--color-accent-primary);
 }
+
+/* 퀵 뷰 카드 (Quick View Card) */
+.quick-view-card {
+  position: fixed;
+  z-index: 5000;
+  width: 320px; /* 너비 약간 확장 */
+  max-height: 500px; /* 전체 높이 대폭 확장 */
+  background: rgba(22, 27, 34, 0.95);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.5);
+  padding: 16px;
+  pointer-events: none; /* 마우스 방해 금지 */
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  animation: quickViewIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  overflow: hidden;
+}
+
+@keyframes quickViewIn {
+  from { opacity: 0; transform: translateY(10px) scale(0.95); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.qv-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  padding-bottom: 8px;
+}
+
+.qv-icon { font-size: 18px; }
+.qv-name { font-size: 15px; font-weight: 700; color: var(--color-accent-primary); }
+
+.qv-content {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--color-text-secondary);
+  display: -webkit-box;
+  -webkit-line-clamp: 10; /* 최대 10줄 제한 */
+  -webkit-box-orient: vertical;
+  overflow: hidden; /* 스크롤 제거 */
+  text-overflow: ellipsis;
+  position: relative;
+  max-height: calc(13px * 1.6 * 10); /* 10줄 높이로 제한 */
+}
+
+.qv-footer {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  font-style: italic;
+  margin-top: auto;
+  padding-top: 4px;
+}

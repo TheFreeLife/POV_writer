@@ -13,6 +13,11 @@ class WindowManager {
         this.resizeState = null;
         this.selectionState = null; // 영역 선택 상태
         this.autoSaveTimers = new Map();
+        
+        // 퀵 뷰 관련 상태
+        this.quickViewCard = null;
+        this.quickViewTimer = null;
+        this.currentQuickViewId = null;
 
         // 하이퍼링크 맵 (파일명 -> fileId)
         this.hyperlinkMap = new Map();
@@ -952,20 +957,19 @@ class WindowManager {
             }
         });
 
-        // Ctrl 키를 누른 채 하이퍼링크 위에 마우스를 올리면 커서 변경
+        // Ctrl 키를 누른 채 하이퍼링크 위에 마우스를 올리면 커서 변경 및 퀵 뷰 표시
         textarea.addEventListener('mousemove', (e) => {
-            if (!(e.ctrlKey || e.metaKey)) {
-                if (textarea.style.cursor === 'pointer') textarea.style.cursor = 'text';
-                return;
-            }
-
+            const isCtrl = e.ctrlKey || e.metaKey;
+            
             // 커서 아래에 파일명이나 상태창 트리거가 있는지 확인
             const pos = this.getTextOffsetFromPoint(textarea, e.clientX, e.clientY);
             const text = textarea.value;
-            let found = false;
+            let foundLink = false;
+            let foundStat = false;
+            let targetFileId = null;
 
             if (pos !== -1) {
-                // 상태창 트리거 확인
+                // 1. 상태창 트리거 확인
                 const settings = window.toolsPanel?.settings || window.toolsPanel?.loadSettingsSync() || {};
                 const tOpen = settings.triggerStatOpen || '{{';
                 const tClose = settings.triggerStatClose || '}}';
@@ -973,25 +977,44 @@ class WindowManager {
                 const firstClose = text.indexOf(tClose, Math.max(0, pos - tClose.length));
                 
                 if (lastOpen !== -1 && firstClose !== -1 && lastOpen < firstClose && pos >= lastOpen && pos <= firstClose + tClose.length) {
-                    found = true;
+                    foundStat = true;
                 }
 
-                // 하이퍼링크 확인 (트리거가 아닐 때만)
-                if (!found && this.hyperlinkMap.size > 0) {
-                    for (const name of this.hyperlinkMap.keys()) {
+                // 2. 하이퍼링크 확인 (트리거가 아닐 때만)
+                if (!foundStat && this.hyperlinkMap.size > 0) {
+                    for (const [name, id] of this.hyperlinkMap.entries()) {
                         let index = text.indexOf(name);
                         while (index !== -1) {
                             if (pos >= index && pos <= index + name.length) {
-                                found = true;
+                                foundLink = true;
+                                targetFileId = id;
                                 break;
                             }
                             index = text.indexOf(name, index + 1);
                         }
-                        if (found) break;
+                        if (foundLink) break;
                     }
                 }
             }
-            textarea.style.cursor = found ? 'pointer' : 'text';
+
+            // 커서 스타일 변경 (Ctrl 누른 상태에서만 포인터)
+            textarea.style.cursor = (isCtrl && (foundLink || foundStat)) ? 'pointer' : 'text';
+
+            // 퀵 뷰 처리 (Ctrl 여부와 상관없이 이름 위에 있으면 표시)
+            if (foundLink && targetFileId) {
+                clearTimeout(this.quickViewTimer);
+                this.quickViewTimer = setTimeout(() => {
+                    this.showQuickView(targetFileId, e.clientX, e.clientY);
+                }, 300); // 300ms 호버 대기
+            } else {
+                clearTimeout(this.quickViewTimer);
+                this.hideQuickView();
+            }
+        });
+
+        textarea.addEventListener('mouseleave', () => {
+            clearTimeout(this.quickViewTimer);
+            this.hideQuickView();
         });
 
         textarea.addEventListener('focus', () => {
@@ -2044,6 +2067,102 @@ class WindowManager {
         if (!confirm('이 스냅샷을 삭제할까요?')) return;
         await storage.deleteVersion(versionId);
         this.showVersionHistory(fileId);
+    }
+
+    /**
+     * 퀵 뷰 카드 표시
+     */
+    async showQuickView(fileId, x, y) {
+        if (this.currentQuickViewId === fileId) return; // 이미 같은 파일 표시 중
+        
+        // 이전 카드 제거
+        this.hideQuickView();
+        
+        const file = await storage.getFile(fileId);
+        if (!file) return;
+
+        this.currentQuickViewId = fileId;
+        
+        // 카드 엘리먼트 생성
+        const card = document.createElement('div');
+        card.className = 'quick-view-card';
+        
+        const settings = window.toolsPanel?.settings || window.toolsPanel?.loadSettingsSync() || {};
+        const trigger = settings.quickViewTrigger || '## 요약:';
+        const summary = this.extractSummary(file.content || '', trigger);
+        
+        const icon = file.template ? this.getTemplateIcon(file.template) : '📄';
+        
+        card.innerHTML = `
+            <div class="qv-header">
+                <span class="qv-icon">${icon}</span>
+                <span class="qv-name">${this.escapeHtml(file.name)}</span>
+            </div>
+            <div class="qv-content">${this.escapeHtml(summary)}</div>
+            <div class="qv-footer">자세히 보려면 Ctrl + 클릭</div>
+        `;
+        
+        document.body.appendChild(card);
+        this.quickViewCard = card;
+        
+        // 위치 조정 (화면 밖으로 나가지 않게)
+        const cardRect = card.getBoundingClientRect();
+        let posX = x + 20;
+        let posY = y + 20;
+        
+        if (posX + cardRect.width > window.innerWidth) posX = x - cardRect.width - 20;
+        if (posY + cardRect.height > window.innerHeight) posY = y - cardRect.height - 20;
+        
+        card.style.left = `${posX}px`;
+        card.style.top = `${posY}px`;
+    }
+
+    /**
+     * 퀵 뷰 카드 숨김
+     */
+    hideQuickView() {
+        if (this.quickViewCard) {
+            this.quickViewCard.remove();
+            this.quickViewCard = null;
+        }
+        this.currentQuickViewId = null;
+    }
+
+    /**
+     * 본문에서 요약문 추출 로직
+     */
+    extractSummary(content, trigger) {
+        if (!content) return '내용이 없습니다.';
+        
+        // 1. 트리거 검색
+        const triggerIdx = content.indexOf(trigger);
+        if (triggerIdx !== -1) {
+            const startIdx = triggerIdx + trigger.length;
+            
+            // 트리거 뒤의 내용에서 첫 번째 줄바꿈(엔터) 위치 찾기
+            let lineBreakIdx = content.indexOf('\n', startIdx);
+            if (lineBreakIdx === -1) lineBreakIdx = content.length;
+            
+            // 줄바꿈 전까지만 추출
+            const summary = content.substring(startIdx, lineBreakIdx).trim();
+            if (summary) {
+                return summary.length > 800 ? summary.substring(0, 800) + '...' : summary;
+            }
+        }
+        
+        // 2. 폴백: 첫 10줄 추출
+        const allLines = content.split('\n').filter(l => l.trim().length > 0);
+        const hasMoreLines = allLines.length > 10;
+        const lines = allLines.slice(0, 10);
+        let fallbackText = lines.join('\n');
+        
+        if (hasMoreLines) {
+            fallbackText += '...';
+        } else if (fallbackText.length > 500) {
+            fallbackText = fallbackText.substring(0, 500) + '...';
+        }
+        
+        return fallbackText;
     }
 
     escapeHtml(text) {

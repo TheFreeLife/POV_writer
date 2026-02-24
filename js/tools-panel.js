@@ -482,6 +482,12 @@ class ToolsPanel {
                         </div>
                         <p style="font-size: 11px; color: var(--color-text-tertiary); margin-top: 6px;">괄호 사이에 상태창 이름을 넣고 Ctrl+우클릭 하세요.</p>
                     </div>
+
+                    <div class="form-group" style="margin-top: 12px;">
+                        <label class="form-label">퀵 뷰 요약 트리거</label>
+                        <input type="text" class="input" id="quickViewTrigger" value="${this.settings.quickViewTrigger || '## 요약:'}" placeholder="예: ## 요약:">
+                        <p style="font-size: 11px; color: var(--color-text-tertiary); margin-top: 6px;">이 문구 뒤의 내용이 하이퍼링크 호버 시 카드로 표시됩니다.</p>
+                    </div>
                 </div>
             </div>
         `;
@@ -525,6 +531,7 @@ class ToolsPanel {
         document.getElementById('triggerLocation')?.addEventListener('input', (e) => saveTrigger('triggerLocation', e.target.value));
         document.getElementById('triggerStatOpen')?.addEventListener('input', (e) => saveTrigger('triggerStatOpen', e.target.value));
         document.getElementById('triggerStatClose')?.addEventListener('input', (e) => saveTrigger('triggerStatClose', e.target.value));
+        document.getElementById('quickViewTrigger')?.addEventListener('input', (e) => saveTrigger('quickViewTrigger', e.target.value));
     }
 
     setTimerMode(mode) {
@@ -1123,6 +1130,7 @@ class ToolsPanel {
             triggerLocation: '장소:',
             triggerStatOpen: '{{',
             triggerStatClose: '}}',
+            quickViewTrigger: '## 요약:',
             defaultWinWidth: 520,
             defaultWinHeight: 400
         };
