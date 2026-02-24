@@ -94,6 +94,20 @@ document.addEventListener('click', (e) => {
         e.preventDefault();
         goBackToProjects();
     }
+
+    const zenBtn = e.target.closest('#zenModeBtn');
+    if (zenBtn) {
+        e.preventDefault();
+        document.body.classList.toggle('zen-mode');
+        
+        const isZen = document.body.classList.contains('zen-mode');
+        zenBtn.innerHTML = isZen ? '🧘 몰입 중...' : '🧘 몰입 모드';
+        
+        // 몰입 모드 진입 시 현재 활성 창이 있다면 중앙으로 이동 (선택 사항)
+        if (isZen && window.windowManager && window.windowManager.activeWindowId) {
+            window.windowManager.moveWindowToViewCenter(window.windowManager.activeWindowId);
+        }
+    }
 });
 
 // 앱 실행 및 기본 메뉴 차단

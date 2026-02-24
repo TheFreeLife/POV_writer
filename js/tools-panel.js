@@ -63,6 +63,22 @@ class ToolsPanel {
         
         this.renderTab(tabName);
 
+        // [추가] 통계 탭에서 목표 입력창 이벤트 바인딩
+        if (tabName === 'stats') {
+            const goalInput = document.getElementById('dailyGoalInput');
+            if (goalInput) {
+                goalInput.addEventListener('change', async (e) => {
+                    const newVal = parseInt(e.target.value) || 1000;
+                    this.settings.dailyGoal = newVal;
+                    localStorage.setItem('editorSettings', JSON.stringify(this.settings));
+                    if (window.storage) {
+                        await window.storage.saveGlobalSettings('editorSettings', this.settings);
+                    }
+                    this.updateStats(); // 즉시 갱신
+                });
+            }
+        }
+
         // 통계 탭으로 전환될 때 관찰 시작
         const chartContainer = document.getElementById('statsChartContainer');
         if (tabName === 'stats' && chartContainer && this.resizeObserver) {
@@ -101,6 +117,10 @@ class ToolsPanel {
                 content.innerHTML = this.renderSearch();
                 this.setupSearchEventListeners();
                 break;
+            case 'timeline':
+                content.innerHTML = await this.renderTimeline();
+                this.setupTimelineEventListeners();
+                break;
             case 'settings':
                 content.innerHTML = await this.renderSettings();
                 this.setupSettingsEventListeners();
@@ -117,6 +137,25 @@ class ToolsPanel {
                 <div class="stats-item"><span class="stats-label">단락 수</span><span class="stats-value" id="paragraphCount">0</span></div>
                 <div class="stats-item"><span class="stats-label">파일 / 폴더</span><span class="stats-value" id="fileFolderCount">0 / 0</span></div>
                 <div class="stats-item"><span class="stats-label">대사(큰따옴표)</span><span class="stats-value" id="dialogueCount">0회</span></div>
+            </div>
+
+            <!-- 집필 목표 영역 -->
+            <div class="stats-section-title" style="margin-top: 24px; margin-bottom: 12px; font-size: 13px; font-weight: 700; color: var(--color-text-secondary); display: flex; justify-content: space-between; align-items: center;">
+                <span>🎯 오늘의 집필 목표</span>
+                <div style="display: flex; align-items: center; gap: 4px;">
+                    <input type="number" id="dailyGoalInput" value="${this.settings.dailyGoal || 1000}" 
+                        style="width: 60px; height: 24px; font-size: 11px; padding: 0 6px; border-radius: 4px; border: 1px solid var(--color-border); background: var(--color-bg-primary); color: var(--color-text-primary); text-align: right;">
+                    <span style="font-size: 11px; color: var(--color-text-tertiary);">자</span>
+                </div>
+            </div>
+            <div style="background: var(--color-surface-2); padding: 16px; border-radius: 12px; border: 1px solid var(--color-border);">
+                <div style="display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 8px;">
+                    <span id="goalProgressText" style="font-weight: 600; color: var(--color-accent-success);">진행률: 0%</span>
+                    <span id="todayWordCountText" style="color: var(--color-text-tertiary);">0 / ${this.settings.dailyGoal || 1000}자</span>
+                </div>
+                <div style="width: 100%; height: 8px; background: var(--color-bg-tertiary); border-radius: 4px; overflow: hidden;">
+                    <div id="goalProgressBar" style="width: 0%; height: 100%; background: var(--gradient-success); transition: width 0.3s ease;"></div>
+                </div>
             </div>
 
             <div class="stats-section-title" style="margin-top: 24px; margin-bottom: 16px; font-size: 13px; font-weight: 700; color: var(--color-text-secondary); display: flex; align-items: center; gap: 8px;">
@@ -182,6 +221,9 @@ class ToolsPanel {
             if (getEl('fileFolderCount')) getEl('fileFolderCount').textContent = `${fileCount} / ${folderCount}`;
             if (getEl('dialogueCount')) getEl('dialogueCount').textContent = `${dialogueCount.toLocaleString()}회`;
 
+            // 1-1. 집필 목표 업데이트
+            this.updateGoalProgress(charCount);
+
             // 2. 날짜별 기록 업데이트 및 추이 계산
             this.updateStatsHistory(charCount);
 
@@ -190,6 +232,41 @@ class ToolsPanel {
 
         } catch (error) {
             console.error('통계 갱신 실패:', error);
+        }
+    }
+
+    /**
+     * 오늘의 집필 목표 진행률 계산
+     */
+    updateGoalProgress(currentCharCount) {
+        const historyKey = `statsHistory_${this.currentProjectId}`;
+        let history = {};
+        try {
+            history = JSON.parse(localStorage.getItem(historyKey) || '{}');
+        } catch (e) { history = {}; }
+
+        // 어제 날짜 구하기
+        const now = new Date();
+        const yesterday = new Date(now);
+        yesterday.setDate(now.getDate() - 1);
+        const yesterdayStr = yesterday.toISOString().split('T')[0];
+
+        // 어제까지의 누적 글자수 (기록이 없으면 현재 글자수와 동일하다고 가정 -> 오늘 작업량 0)
+        const yesterdayCount = history[yesterdayStr] !== undefined ? history[yesterdayStr] : currentCharCount;
+        
+        // 오늘 작업량 = 현재 전체 글자수 - 어제 전체 글자수
+        const todayCount = Math.max(0, currentCharCount - yesterdayCount);
+        const goal = this.settings.dailyGoal || 1000;
+        const percent = Math.min(100, Math.round((todayCount / goal) * 100));
+
+        const getEl = id => document.getElementById(id);
+        if (getEl('goalProgressText')) getEl('goalProgressText').textContent = `진행률: ${percent}%`;
+        if (getEl('todayWordCountText')) getEl('todayWordCountText').textContent = `${todayCount.toLocaleString()} / ${goal.toLocaleString()}자`;
+        if (getEl('goalProgressBar')) getEl('goalProgressBar').style.width = `${percent}%`;
+        
+        // 100% 달성 시 색상 강조
+        if (percent >= 100 && getEl('goalProgressBar')) {
+            getEl('goalProgressBar').style.background = 'var(--gradient-primary)';
         }
     }
 
@@ -728,6 +805,81 @@ class ToolsPanel {
         } catch (error) {
             console.error('메모 삭제 실패:', error);
         }
+    }
+
+    async renderTimeline() {
+        const events = await window.storage?.getGlobalSettings(`timeline_${this.currentProjectId}`) || [];
+        
+        return `
+            <div style="margin-bottom: 16px;">
+                <button class="btn btn-primary" style="width: 100%; height: 44px; font-weight: 600;" id="addEventBtn">+ 새 사건 추가</button>
+            </div>
+            
+            <div class="timeline-list" id="timelineList" style="position: relative; padding-left: 20px; border-left: 2px solid var(--color-border); margin-left: 10px;">
+                ${events.length === 0 ? '<div class="text-muted" style="padding: 20px 0; font-size: 13px;">등록된 사건이 없습니다.</div>' :
+                events.map((ev, idx) => `
+                    <div class="timeline-item" style="position: relative; margin-bottom: 24px;">
+                        <!-- 도트 -->
+                        <div style="position: absolute; left: -27px; top: 4px; width: 12px; height: 12px; border-radius: 50%; background: var(--color-accent-primary); border: 2px solid var(--color-bg-primary);"></div>
+                        
+                        <div style="background: var(--color-surface-2); padding: 12px; border-radius: 10px; border: 1px solid var(--color-border); cursor: pointer;" onclick="window.toolsPanel.editEvent(${idx})">
+                            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 4px;">
+                                <span style="font-size: 11px; font-weight: 700; color: var(--color-accent-primary); font-family: var(--font-mono);">${this.escapeHtml(ev.time || '시간 미지정')}</span>
+                                <button class="btn-icon" style="width: 20px; height: 20px; font-size: 10px; color: var(--color-text-muted); border: none; background: transparent;" onclick="event.stopPropagation(); window.toolsPanel.deleteEvent(${idx})">✕</button>
+                            </div>
+                            <div style="font-size: 14px; font-weight: 600; color: var(--color-text-primary); margin-bottom: 4px;">${this.escapeHtml(ev.title)}</div>
+                            ${ev.desc ? `<div style="font-size: 12px; color: var(--color-text-tertiary); line-height: 1.5;">${this.escapeHtml(ev.desc)}</div>` : ''}
+                        </div>
+                    </div>`).join('')}
+            </div>
+        `;
+    }
+
+    setupTimelineEventListeners() {
+        document.getElementById('addEventBtn')?.addEventListener('click', () => this.showEventModal());
+    }
+
+    async showEventModal(eventData = null, index = null) {
+        const title = eventData ? '사건 수정' : '새 사건 추가';
+        const evTitle = eventData ? eventData.title : '';
+        const evTime = eventData ? eventData.time : '';
+        const evDesc = eventData ? eventData.desc : '';
+
+        // 간단한 prompt/confirm 대신 커스텀 모달이 필요하지만, 여기서는 핵심 로직 구현을 위해 prompt를 우선 사용하거나 메모 모달을 재활용할 수 있습니다.
+        // 여기서는 새 모달을 index.html에 추가하는 대신, 일단 로직만 준비합니다.
+        const newTitle = prompt('사건 제목:', evTitle);
+        if (newTitle === null) return;
+        
+        const newTime = prompt('시간/시기 (예: 1일차 오전, 1990년):', evTime);
+        const newDesc = prompt('내용 요약:', evDesc);
+
+        const events = await window.storage?.getGlobalSettings(`timeline_${this.currentProjectId}`) || [];
+        const newEvent = { title: newTitle, time: newTime, desc: newDesc };
+
+        if (index !== null) {
+            events[index] = newEvent;
+        } else {
+            events.push(newEvent);
+        }
+
+        // 시간순 정렬 (단순 텍스트 정렬이므로 한계가 있지만 기본적인 순서 제공)
+        // events.sort((a, b) => a.time.localeCompare(b.time));
+
+        await window.storage?.saveGlobalSettings(`timeline_${this.currentProjectId}`, events);
+        this.renderTab('timeline');
+    }
+
+    async editEvent(idx) {
+        const events = await window.storage?.getGlobalSettings(`timeline_${this.currentProjectId}`) || [];
+        this.showEventModal(events[idx], idx);
+    }
+
+    async deleteEvent(idx) {
+        if (!confirm('이 사건을 삭제할까요?')) return;
+        const events = await window.storage?.getGlobalSettings(`timeline_${this.currentProjectId}`) || [];
+        events.splice(idx, 1);
+        await window.storage?.saveGlobalSettings(`timeline_${this.currentProjectId}`, events);
+        this.renderTab('timeline');
     }
 
     renderSearch() { return `<div class="search-box"><input type="text" class="input" id="searchInput" placeholder="검색어..."><button class="btn btn-primary" style="width: 100%; margin-top: 8px;" id="searchBtn">검색</button></div><div id="searchResults" style="padding-top: 10px;"></div>`; }

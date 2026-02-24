@@ -3,13 +3,14 @@
  */
 
 const DB_NAME = 'NovelEditorDB';
-const DB_VERSION = 7;
+const DB_VERSION = 9;
 const PROJECTS_STORE = 'projects';
 const FILES_STORE = 'files';
 const CHARACTERS_STORE = 'characters';
 const MEMOS_STORE = 'memos';
 const TEMPLATES_STORE = 'templates';
 const SETTINGS_STORE = 'settings';
+const VERSIONS_STORE = 'versions';
 
 class StorageManager {
   constructor() {
@@ -27,6 +28,10 @@ class StorageManager {
         }
 
         const request = indexedDB.open(DB_NAME, DB_VERSION);
+
+        request.onblocked = () => {
+          alert('데이터베이스 업데이트를 위해 다른 탭에 열린 이 사이트를 모두 닫아주세요.');
+        };
 
         request.onerror = () => {
           console.error('IndexedDB 열기 실패:', request.error);
@@ -63,7 +68,8 @@ class StorageManager {
             { name: CHARACTERS_STORE, key: 'id', indexes: [{ name: 'projectId', path: 'projectId', unique: false }] },
             { name: MEMOS_STORE, key: 'id', indexes: [{ name: 'projectId', path: 'projectId', unique: false }] },
             { name: TEMPLATES_STORE, key: 'id', indexes: [] },
-            { name: SETTINGS_STORE, key: 'id', indexes: [] }
+            { name: SETTINGS_STORE, key: 'id', indexes: [] },
+            { name: VERSIONS_STORE, key: 'id', indexes: [{ name: 'fileId', path: 'fileId', unique: false }] }
           ];
 
           stores.forEach(s => {
@@ -398,6 +404,40 @@ class StorageManager {
 
     localStorage.setItem('idb_migration_complete', 'true');
     console.log('데이터 이전 완료');
+  }
+
+  // 버전(스냅샷) 관리 메서드
+  async createVersion(version) {
+    const newVersion = {
+      id: this.generateId(),
+      fileId: version.fileId,
+      name: version.name || `${new Date().toLocaleString()} 스냅샷`,
+      content: version.content,
+      createdAt: Date.now()
+    };
+    await this._transaction([VERSIONS_STORE], 'readwrite', (tx) => {
+      tx.objectStore(VERSIONS_STORE).add(newVersion);
+    });
+    return newVersion;
+  }
+
+  async getFileVersions(fileId) {
+    return this._transaction([VERSIONS_STORE], 'readonly', (tx) => {
+      return new Promise((resolve) => {
+        const index = tx.objectStore(VERSIONS_STORE).index('fileId');
+        const req = index.getAll(fileId);
+        req.onsuccess = () => {
+          const res = req.result || [];
+          resolve(res.sort((a, b) => b.createdAt - a.createdAt)); // 최신순
+        };
+      });
+    });
+  }
+
+  async deleteVersion(id) {
+    await this._transaction([VERSIONS_STORE], 'readwrite', (tx) => {
+      tx.objectStore(VERSIONS_STORE).delete(id);
+    });
   }
 
   // 유틸리티

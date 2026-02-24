@@ -50,6 +50,10 @@ class WindowManager {
         document.getElementById('cancelMergeBtn')?.addEventListener('click', () => this.hideMergeModal());
         document.getElementById('confirmMergeBtn')?.addEventListener('click', () => this.confirmMerge());
 
+        // 버전 히스토리 모달 버튼
+        document.getElementById('closeVersionModal')?.addEventListener('click', () => document.getElementById('versionModal').classList.add('hidden'));
+        document.getElementById('cancelVersionBtn')?.addEventListener('click', () => document.getElementById('versionModal').classList.add('hidden'));
+
         // 전역 단축키 (저장)
         window.addEventListener('keydown', (e) => {
             if ((e.ctrlKey || e.metaKey) && e.key === 's') {
@@ -544,6 +548,7 @@ class WindowManager {
                     <span class="stat-item paragraphs">0단락</span>
                 </div>
                 <div class="window-status-right">
+                    <button class="window-status-btn" data-action="version" title="버전 관리(스냅샷)" style="background:transparent; border:none; color:inherit; cursor:pointer; font-size:12px; padding:0 4px; opacity:0.7;">🕒</button>
                     <span class="window-status-saved" data-saved="${file.id}"></span>
                 </div>
             </div>
@@ -732,6 +737,15 @@ class WindowManager {
                 const action = btn.dataset.action;
                 if (action === 'close') this.closeWindow(fileId);
                 if (action === 'collapse') this.toggleCollapse(fileId);
+            });
+        });
+
+        // 상태바 버튼 (버전 관리)
+        win.querySelectorAll('.window-status-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const action = btn.dataset.action;
+                if (action === 'version') this.showVersionHistory(fileId);
             });
         });
 
@@ -1946,6 +1960,90 @@ class WindowManager {
         this.statResizeState = null;
         document.body.style.cursor = '';
         document.body.style.userSelect = '';
+    }
+
+    /**
+     * 버전 히스토리 표시
+     */
+    async showVersionHistory(fileId) {
+        const modal = document.getElementById('versionModal');
+        const list = document.getElementById('versionList');
+        const saveBtn = document.getElementById('saveSnapshotBtn');
+        if (!modal || !list) return;
+
+        // 저장 버튼 이벤트 교체
+        const newSaveBtn = saveBtn.cloneNode(true);
+        saveBtn.parentNode.replaceChild(newSaveBtn, saveBtn);
+        newSaveBtn.addEventListener('click', () => this.saveVersionSnapshot(fileId));
+
+        const versions = await storage.getFileVersions(fileId);
+        list.innerHTML = '';
+
+        if (versions.length === 0) {
+            list.innerHTML = '<div style="text-align:center; padding:20px; color:var(--color-text-tertiary); font-size:13px;">저장된 스냅샷이 없습니다.</div>';
+        } else {
+            versions.forEach(v => {
+                const item = document.createElement('div');
+                item.className = 'version-item';
+                item.style.cssText = 'display:flex; justify-content:space-between; align-items:center; padding:12px; background:var(--color-surface-2); border:1px solid var(--color-border); border-radius:8px; margin-bottom:4px; transition:all 0.2s;';
+                
+                item.innerHTML = `
+                    <div style="flex:1;">
+                        <div style="font-size:13px; font-weight:600; color:var(--color-text-primary); margin-bottom:2px;">${this.escapeHtml(v.name)}</div>
+                        <div style="font-size:11px; color:var(--color-text-tertiary);">${new Date(v.createdAt).toLocaleString()} (${v.content.length}자)</div>
+                    </div>
+                    <div style="display:flex; gap:6px;">
+                        <button class="btn btn-secondary" data-action="restore" style="padding:4px 8px; font-size:11px; height:28px;">되돌리기</button>
+                        <button class="btn btn-icon" data-action="delete" style="width:28px; height:28px; font-size:12px; color:var(--color-text-muted);">✕</button>
+                    </div>
+                `;
+
+                item.querySelector('[data-action="restore"]').onclick = () => this.restoreVersion(fileId, v);
+                item.querySelector('[data-action="delete"]').onclick = () => this.deleteVersion(fileId, v.id);
+                
+                list.appendChild(item);
+            });
+        }
+
+        modal.classList.remove('hidden');
+    }
+
+    async saveVersionSnapshot(fileId) {
+        const info = this.windows.get(fileId);
+        if (!info) return;
+
+        const content = info.textarea.value;
+        const name = prompt('스냅샷 이름을 입력하세요 (비워두면 현재 시간으로 저장):');
+        if (name === null) return; // 취소
+
+        await storage.createVersion({
+            fileId,
+            name: name.trim() || null,
+            content
+        });
+
+        window.showToast?.('새 스냅샷이 저장되었습니다.');
+        this.showVersionHistory(fileId); // 목록 갱신
+    }
+
+    async restoreVersion(fileId, version) {
+        if (!confirm(`"${version.name}" 버전으로 본문을 되돌릴까요?\n(현재 작성 중인 내용은 사라지므로 미리 스냅샷을 저장하는 것을 추천합니다.)`)) return;
+
+        const info = this.windows.get(fileId);
+        if (!info || !info.textarea) return;
+
+        info.textarea.value = version.content;
+        this.onTextChange(fileId, version.content);
+        this.updateHighlighter(fileId);
+        
+        document.getElementById('versionModal').classList.add('hidden');
+        window.showToast?.('선택한 버전으로 복구되었습니다.');
+    }
+
+    async deleteVersion(fileId, versionId) {
+        if (!confirm('이 스냅샷을 삭제할까요?')) return;
+        await storage.deleteVersion(versionId);
+        this.showVersionHistory(fileId);
     }
 
     escapeHtml(text) {

@@ -802,3 +802,20 @@ body {
   border-radius: 6px 0 0 6px;
   border-right: none;
 }
+
+/* 몰입 모드 (Zen Mode) */
+body.zen-mode .file-tree-panel,
+body.zen-mode .tools-panel,
+body.zen-mode .resizer {
+  display: none !important;
+}
+
+body.zen-mode .canvas-area {
+  background: #05070a !important; /* 더 어두운 배경 */
+}
+
+body.zen-mode #zenModeBtn {
+  background: var(--color-accent-primary);
+  color: #0d1117;
+  border-color: var(--color-accent-primary);
+}
