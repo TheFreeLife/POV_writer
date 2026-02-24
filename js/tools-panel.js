@@ -53,6 +53,11 @@ class ToolsPanel {
             tab.classList.toggle('active', tab.getAttribute('data-tab') === tabName);
         });
         
+        // 설정 탭으로 진입할 때만 임시 설정을 현재 설정으로 동기화
+        if (tabName === 'settings') {
+            this.tempSettings = { ...this.settings };
+        }
+        
         this.renderTab(tabName);
 
         // 통계 탭으로 전환될 때 관찰 시작
@@ -741,8 +746,8 @@ class ToolsPanel {
     }
 
     renderSettings() {
-        this.tempSettings = { ...this.settings };
         const s = this.tempSettings;
+        const presets = this.loadColorPresets();
 
         return `
           <div class="settings-section">
@@ -755,6 +760,26 @@ class ToolsPanel {
               <label class="form-label">폰트 색상</label>
               <input type="color" class="input" id="editorTextColor" value="${s.textColor}" style="height: 40px; padding: 4px;">
             </div>
+            
+            <div style="margin-top: 16px; padding-top: 16px; border-top: 1px dashed var(--color-border);">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                    <span style="font-size: 13px; font-weight: 600; color: var(--color-text-primary);">색상 프리셋</span>
+                    <button class="btn btn-secondary" id="savePresetBtn" style="padding: 4px 10px; font-size: 11px; height: 28px;">현재 조합 저장</button>
+                </div>
+                
+                <div id="presetsGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(40px, 1fr)); gap: 10px;">
+                    ${presets.map((p, idx) => `
+                        <div class="color-preset-item" data-idx="${idx}" title="배경: ${p.bg}, 글자: ${p.text}"
+                            style="width: 40px; height: 40px; border-radius: 8px; cursor: pointer; border: 2px solid var(--color-border); position: relative; overflow: hidden; background: ${p.bg};">
+                            <div style="position: absolute; bottom: 4px; right: 4px; width: 12px; height: 12px; border-radius: 2px; background: ${p.text}; border: 1px solid rgba(0,0,0,0.1);"></div>
+                            <button class="delete-preset-btn" data-idx="${idx}" 
+                                style="position: absolute; top: 0; right: 0; width: 16px; height: 16px; background: rgba(0,0,0,0.5); color: white; border: none; font-size: 10px; display: none; align-items: center; justify-content: center; border-bottom-left-radius: 6px;">✕</button>
+                        </div>
+                    `).join('')}
+                    ${presets.length === 0 ? '<div style="grid-column: 1/-1; font-size: 11px; color: var(--color-text-tertiary); text-align: center; padding: 10px;">저장된 프리셋이 없습니다.</div>' : ''}
+                </div>
+            </div>
+
             <div class="form-group" style="margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--color-border);">
               <label class="form-label">새 창 기본 너비 <span id="winWidthValue">${s.defaultWinWidth}px</span></label>
               <input type="range" class="input-range" id="defaultWinWidth" min="360" max="1200" step="10" value="${s.defaultWinWidth}">
@@ -856,6 +881,50 @@ class ToolsPanel {
             updatePreview('defaultWinHeight', parseInt(e.target.value));
         });
 
+        // 프리셋 관련 이벤트
+        getEl('savePresetBtn')?.addEventListener('click', () => {
+            this.saveColorPreset(this.tempSettings.backgroundColor, this.tempSettings.textColor);
+            this.renderTab('settings');
+        });
+
+        const presetsGrid = getEl('presetsGrid');
+        if (presetsGrid) {
+            presetsGrid.addEventListener('click', (e) => {
+                const item = e.target.closest('.color-preset-item');
+                const deleteBtn = e.target.closest('.delete-preset-btn');
+                
+                if (deleteBtn) {
+                    e.stopPropagation();
+                    const idx = parseInt(deleteBtn.dataset.idx);
+                    this.deleteColorPreset(idx);
+                    this.renderTab('settings');
+                    return;
+                }
+
+                if (item) {
+                    const idx = parseInt(item.dataset.idx);
+                    const presets = this.loadColorPresets();
+                    const p = presets[idx];
+                    if (p) {
+                        getEl('editorBgColor').value = p.bg;
+                        getEl('editorTextColor').value = p.text;
+                        updatePreview('backgroundColor', p.bg);
+                        updatePreview('textColor', p.text);
+                    }
+                }
+            });
+
+            // 마우스 우클릭 시 삭제 버튼 토글 (또는 호버 처리 CSS로 가능하지만 여기선 간단히)
+            presetsGrid.addEventListener('contextmenu', (e) => {
+                const item = e.target.closest('.color-preset-item');
+                if (item) {
+                    e.preventDefault();
+                    const btn = item.querySelector('.delete-preset-btn');
+                    if (btn) btn.style.display = btn.style.display === 'none' ? 'flex' : 'none';
+                }
+            });
+        }
+
         getEl('saveSettingsBtn')?.addEventListener('click', () => {
             this.settings = { ...this.tempSettings };
             localStorage.setItem('editorSettings', JSON.stringify(this.settings));
@@ -900,6 +969,30 @@ class ToolsPanel {
         } catch (e) {
             return defaults;
         }
+    }
+
+    loadColorPresets() {
+        try {
+            return JSON.parse(localStorage.getItem('editorColorPresets') || '[]');
+        } catch (e) { return []; }
+    }
+
+    saveColorPreset(bg, text) {
+        const presets = this.loadColorPresets();
+        // 중복 체크
+        if (presets.some(p => p.bg === bg && p.text === text)) {
+            window.showToast?.('이미 저장된 조합입니다.');
+            return;
+        }
+        presets.push({ bg, text });
+        localStorage.setItem('editorColorPresets', JSON.stringify(presets));
+        window.showToast?.('새 색상 프리셋이 저장되었습니다.');
+    }
+
+    deleteColorPreset(idx) {
+        const presets = this.loadColorPresets();
+        presets.splice(idx, 1);
+        localStorage.setItem('editorColorPresets', JSON.stringify(presets));
     }
 
     applySettings(s) {
