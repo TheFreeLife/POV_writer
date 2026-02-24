@@ -403,6 +403,26 @@ class WindowManager {
 
         // 초기 하이라이트 적용
         this.updateHighlighter(fileId);
+
+        // 이미지 창인 경우 원본 크기 표시
+        const isImage = file.template === 'image' || (file.content && file.content.startsWith('data:image'));
+        if (isImage && file.content) {
+            this.updateImageSizeInfo(fileId, file.content);
+        }
+    }
+
+    /**
+     * 이미지 원본 크기 정보 업데이트
+     */
+    updateImageSizeInfo(fileId, base64) {
+        const sizeEl = document.getElementById(`imageSize_${fileId}`);
+        if (!sizeEl || !base64) return;
+
+        const img = new Image();
+        img.onload = () => {
+            sizeEl.textContent = `(${img.naturalWidth}x${img.naturalHeight})`;
+        };
+        img.src = base64;
     }
 
     /**
@@ -536,6 +556,7 @@ class WindowManager {
                 <div class="window-titlebar-left">
                     <span class="window-titlebar-icon">${icon}</span>
                     <span class="window-titlebar-name">${this.escapeHtml(file.name)}</span>
+                    ${isImage ? `<span class="window-image-size" id="imageSize_${file.id}"></span>` : ''}
                     <span class="window-modified" data-indicator="${file.id}"></span>
                 </div>
                 <div class="window-titlebar-actions">
@@ -1468,6 +1489,8 @@ class WindowManager {
         const menu = document.getElementById('contextMenu');
         if (!menu) return;
 
+        const info = this.windows.get(fileId);
+        const isImage = info && (info.file.template === 'image' || (info.file.content && info.file.content.startsWith('data:image')));
         const isMulti = this.selectedWindowIds.size > 1;
         let menuHtml = '';
 
@@ -1476,6 +1499,16 @@ class WindowManager {
                 <div class="context-menu-item" data-action="merge">
                     <span class="context-menu-icon">🔀</span>
                     <span>텍스트 병합 (${this.selectedWindowIds.size}개)</span>
+                </div>
+                <div class="context-menu-divider"></div>
+            `;
+        }
+
+        if (isImage && !isMulti) {
+            menuHtml += `
+                <div class="context-menu-item" data-action="fit-image">
+                    <span class="context-menu-icon">🖼️</span>
+                    <span>이미지 비율에 맞추기</span>
                 </div>
                 <div class="context-menu-divider"></div>
             `;
@@ -1512,6 +1545,18 @@ class WindowManager {
         mergeBtn?.addEventListener('click', (e) => {
             e.stopPropagation();
             this.showMergeModal();
+            this.hideContextMenu();
+        });
+
+        const fitBtn = menu.querySelector('[data-action="fit-image"]');
+        fitBtn?.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const img = document.getElementById(`imageViewer_${fileId}`);
+            if (img && img.naturalWidth) {
+                this.fitWindowToImage(fileId, img.naturalWidth, img.naturalHeight);
+            } else {
+                window.showToast?.('이미지가 아직 로드되지 않았습니다.');
+            }
             this.hideContextMenu();
         });
     }
@@ -1709,11 +1754,49 @@ class WindowManager {
             const container = document.getElementById(`imageContainer_${fileId}`);
             if (container) {
                 container.innerHTML = `<img src="${base64}" class="window-image-viewer" id="imageViewer_${fileId}">`;
+                
+                // 3. 이미지 정보 업데이트 (비율 및 크기 텍스트)
+                const img = new Image();
+                img.onload = () => {
+                    this.fitWindowToImage(fileId, img.naturalWidth, img.naturalHeight);
+                    this.updateImageSizeInfo(fileId, base64);
+                };
+                img.src = base64;
             }
             
             window.showToast?.('이미지가 업로드되었습니다.');
         };
         reader.readAsDataURL(file);
+    }
+
+    /**
+     * 이미지 비율에 맞춰 창 크기 조정
+     */
+    fitWindowToImage(fileId, naturalWidth, naturalHeight) {
+        const info = this.windows.get(fileId);
+        if (!info) return;
+
+        const win = info.element;
+        const currentWidth = win.offsetWidth;
+        const currentHeight = win.offsetHeight;
+        
+        // 현재 너비를 기준으로 높이를 계산하거나, 너무 크면 조절
+        let newWidth = Math.min(naturalWidth, 800);
+        let newHeight = (newWidth * naturalHeight) / naturalWidth;
+
+        // 높이가 너무 크면 높이 기준으로 다시 계산
+        if (newHeight > 600) {
+            newHeight = 600;
+            newWidth = (newHeight * naturalWidth) / naturalHeight;
+        }
+
+        win.style.width = `${newWidth}px`;
+        win.style.height = `${newHeight + 36}px`; // 타이틀바 높이(36px) 고려
+
+        this.updateFileWindowState(fileId, {
+            width: newWidth,
+            height: newHeight + 36
+        });
     }
 
     getTemplateIcon(template) {
