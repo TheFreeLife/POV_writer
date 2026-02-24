@@ -975,11 +975,6 @@ class WindowManager {
             textarea.style.cursor = found ? 'pointer' : 'text';
         });
 
-        textarea.addEventListener('contextmenu', async (e) => {
-            // 기존 Ctrl + 우클릭 로직 제거 (일반 우클릭 메뉴 사용 가능하도록)
-            if (!(e.ctrlKey || e.metaKey)) return;
-        });
-
         textarea.addEventListener('focus', () => {
             this.focusWindow(fileId);
         });
@@ -1786,8 +1781,6 @@ class WindowManager {
                     </div>
                 ` : ''}
             </div>
-            
-            <div class="stat-inner-resizer" onmousedown="window.windowManager.startStatResizing(event, '${fileId}')" style="display: none;"></div>
         `;
     }
 

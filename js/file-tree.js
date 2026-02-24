@@ -746,7 +746,6 @@ class FileTreeManager {
 
         select.innerHTML = `
             <option value="blank">빈 파일</option>
-            <option value="status">🛡️ 상태창/스테이터스 (수치 계산기)</option>
             <option value="item">📦 아이템 설정</option>
             <option value="place">🗺️ 장소/배경 설정</option>
         `;

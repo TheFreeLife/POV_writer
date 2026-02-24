@@ -755,10 +755,6 @@ class ToolsPanel {
               <label class="form-label">폰트 색상</label>
               <input type="color" class="input" id="editorTextColor" value="${s.textColor}" style="height: 40px; padding: 4px;">
             </div>
-            <div class="form-group">
-              <label class="form-label">에디터 너비 <span id="editorWidthValue">${s.editorWidth}px</span></label>
-              <input type="range" class="input-range" id="editorWidth" min="400" max="2000" step="50" value="${s.editorWidth}">
-            </div>
           </div>
 
           <div class="settings-section">
@@ -840,12 +836,6 @@ class ToolsPanel {
         getEl('autoCloseQuotes')?.addEventListener('change', (e) => updatePreview('autoCloseQuotes', e.target.checked));
         getEl('autoSaveToggle')?.addEventListener('change', (e) => updatePreview('autoSave', e.target.checked));
 
-        getEl('editorWidth')?.addEventListener('input', (e) => {
-            const valEl = getEl('editorWidthValue');
-            if (valEl) valEl.textContent = e.target.value + 'px';
-            updatePreview('editorWidth', parseInt(e.target.value));
-        });
-
         getEl('saveSettingsBtn')?.addEventListener('click', () => {
             this.settings = { ...this.tempSettings };
             localStorage.setItem('editorSettings', JSON.stringify(this.settings));
@@ -878,7 +868,6 @@ class ToolsPanel {
             hyperlinkColor: '#58a6ff',
             autoCloseQuotes: true,
             autoSave: true,
-            editorWidth: 900,
             triggerLocation: '장소:',
             triggerStatOpen: '{{',
             triggerStatClose: '}}'
