@@ -16,7 +16,7 @@ class ToolsPanel {
         this.customMinutes = 10;
 
         // 설정 저장소
-        this.settings = this.loadSettings();
+        this.settings = this.loadSettingsSync(); // 즉시 반영을 위한 동기 로드 (백업용)
         this.tempSettings = { ...this.settings };
         this.editingMemoId = null;
         this.isSelectionMode = false;
@@ -24,7 +24,10 @@ class ToolsPanel {
         this.init();
     }
 
-    init() {
+    async init() {
+        // IndexedDB에서 정식 설정 로드
+        await this.loadSettingsAsync();
+        
         this.setupEventListeners();
         this.renderTab('stats');
     }
@@ -69,7 +72,7 @@ class ToolsPanel {
         }
     }
 
-    renderTab(tabName) {
+    async renderTab(tabName) {
         const content = document.getElementById('toolsContent');
         if (!content) return;
 
@@ -99,7 +102,7 @@ class ToolsPanel {
                 this.setupSearchEventListeners();
                 break;
             case 'settings':
-                content.innerHTML = this.renderSettings();
+                content.innerHTML = await this.renderSettings();
                 this.setupSettingsEventListeners();
                 break;
         }
@@ -745,9 +748,9 @@ class ToolsPanel {
         else resDiv.innerHTML = results.map(r => `<div class="search-result-item" onclick="window.fileTreeManager.selectFile('${r.id}')"><div style="font-size:11px; color:gray;">${r.name}:${r.line}</div><div>${r.text}</div></div>`).join('');
     }
 
-    renderSettings() {
+    async renderSettings() {
         const s = this.tempSettings;
-        const presets = this.loadColorPresets();
+        const presets = await this.loadColorPresets();
 
         return `
           <div class="settings-section">
@@ -882,28 +885,28 @@ class ToolsPanel {
         });
 
         // 프리셋 관련 이벤트
-        getEl('savePresetBtn')?.addEventListener('click', () => {
-            this.saveColorPreset(this.tempSettings.backgroundColor, this.tempSettings.textColor);
+        getEl('savePresetBtn')?.addEventListener('click', async () => {
+            await this.saveColorPreset(this.tempSettings.backgroundColor, this.tempSettings.textColor);
             this.renderTab('settings');
         });
 
         const presetsGrid = getEl('presetsGrid');
         if (presetsGrid) {
-            presetsGrid.addEventListener('click', (e) => {
+            presetsGrid.addEventListener('click', async (e) => {
                 const item = e.target.closest('.color-preset-item');
                 const deleteBtn = e.target.closest('.delete-preset-btn');
                 
                 if (deleteBtn) {
                     e.stopPropagation();
                     const idx = parseInt(deleteBtn.dataset.idx);
-                    this.deleteColorPreset(idx);
+                    await this.deleteColorPreset(idx);
                     this.renderTab('settings');
                     return;
                 }
 
                 if (item) {
                     const idx = parseInt(item.dataset.idx);
-                    const presets = this.loadColorPresets();
+                    const presets = await this.loadColorPresets();
                     const p = presets[idx];
                     if (p) {
                         getEl('editorBgColor').value = p.bg;
@@ -925,16 +928,24 @@ class ToolsPanel {
             });
         }
 
-        getEl('saveSettingsBtn')?.addEventListener('click', () => {
+        getEl('saveSettingsBtn')?.addEventListener('click', async () => {
             this.settings = { ...this.tempSettings };
+            // LocalStorage와 IndexedDB 둘 다 저장 (이중 안전)
             localStorage.setItem('editorSettings', JSON.stringify(this.settings));
+            if (window.storage) {
+                await window.storage.saveGlobalSettings('editorSettings', this.settings);
+            }
             alert('설정이 안전하게 저장되었습니다.');
         });
 
-        getEl('resetSettingsBtn')?.addEventListener('click', () => {
+        getEl('resetSettingsBtn')?.addEventListener('click', async () => {
             if (confirm('모든 설정을 기본값으로 되돌릴까요?')) {
                 localStorage.removeItem('editorSettings');
-                this.tempSettings = this.loadSettings();
+                if (window.storage) {
+                    // IndexedDB에서도 제거 (기본값으로 덮어씌움)
+                    await window.storage.saveGlobalSettings('editorSettings', null);
+                }
+                this.tempSettings = this.loadSettingsSync();
                 this.applySettings(this.tempSettings);
                 this.renderTab('settings');
             }
@@ -945,7 +956,7 @@ class ToolsPanel {
         });
     }
 
-    loadSettings() {
+    loadSettingsSync() {
         const defaults = {
             backgroundColor: '#ffffff',
             textColor: '#1f2937',
@@ -971,28 +982,54 @@ class ToolsPanel {
         }
     }
 
-    loadColorPresets() {
+    async loadSettingsAsync() {
+        if (!window.storage) return;
+        const idbSettings = await window.storage.getGlobalSettings('editorSettings');
+        if (idbSettings) {
+            this.settings = { ...this.loadSettingsSync(), ...idbSettings };
+            this.tempSettings = { ...this.settings };
+            this.applySettings(this.settings);
+        }
+    }
+
+    async loadColorPresets() {
+        // IndexedDB 우선 시도
+        if (window.storage) {
+            const idbPresets = await window.storage.getGlobalSettings('editorColorPresets');
+            if (idbPresets) return idbPresets;
+        }
+        // 없으면 LocalStorage (하위 호환)
         try {
             return JSON.parse(localStorage.getItem('editorColorPresets') || '[]');
         } catch (e) { return []; }
     }
 
-    saveColorPreset(bg, text) {
-        const presets = this.loadColorPresets();
+    async saveColorPreset(bg, text) {
+        const presets = await this.loadColorPresets();
         // 중복 체크
         if (presets.some(p => p.bg === bg && p.text === text)) {
             window.showToast?.('이미 저장된 조합입니다.');
             return;
         }
         presets.push({ bg, text });
+        
+        // 이중 저장
         localStorage.setItem('editorColorPresets', JSON.stringify(presets));
+        if (window.storage) {
+            await window.storage.saveGlobalSettings('editorColorPresets', presets);
+        }
         window.showToast?.('새 색상 프리셋이 저장되었습니다.');
     }
 
-    deleteColorPreset(idx) {
-        const presets = this.loadColorPresets();
+    async deleteColorPreset(idx) {
+        const presets = await this.loadColorPresets();
         presets.splice(idx, 1);
+        
+        // 이중 저장
         localStorage.setItem('editorColorPresets', JSON.stringify(presets));
+        if (window.storage) {
+            await window.storage.saveGlobalSettings('editorColorPresets', presets);
+        }
     }
 
     applySettings(s) {

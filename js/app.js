@@ -77,7 +77,7 @@ async function initApp() {
         // 설정 적용 (지연 실행)
         setTimeout(() => {
             if (window.toolsPanel) {
-                const settings = window.toolsPanel.loadSettings();
+                const settings = window.toolsPanel.loadSettingsSync();
                 window.toolsPanel.applySettings(settings);
             }
         }, 100);

@@ -3,12 +3,13 @@
  */
 
 const DB_NAME = 'NovelEditorDB';
-const DB_VERSION = 6;
+const DB_VERSION = 7;
 const PROJECTS_STORE = 'projects';
 const FILES_STORE = 'files';
 const CHARACTERS_STORE = 'characters';
 const MEMOS_STORE = 'memos';
 const TEMPLATES_STORE = 'templates';
+const SETTINGS_STORE = 'settings';
 
 class StorageManager {
   constructor() {
@@ -42,6 +43,9 @@ class StorageManager {
           };
 
           resolve();
+          
+          // DB가 열린 후(resolve 이후) 데이터 이전 실행 (데드락 방지)
+          this.migrateLocalStorage().catch(err => console.error('Migration failed:', err));
         };
 
         request.onupgradeneeded = (event) => {
@@ -58,7 +62,8 @@ class StorageManager {
             },
             { name: CHARACTERS_STORE, key: 'id', indexes: [{ name: 'projectId', path: 'projectId', unique: false }] },
             { name: MEMOS_STORE, key: 'id', indexes: [{ name: 'projectId', path: 'projectId', unique: false }] },
-            { name: TEMPLATES_STORE, key: 'id', indexes: [] }
+            { name: TEMPLATES_STORE, key: 'id', indexes: [] },
+            { name: SETTINGS_STORE, key: 'id', indexes: [] }
           ];
 
           stores.forEach(s => {
@@ -347,6 +352,52 @@ class StorageManager {
         store.put(data);
       };
     });
+  }
+
+  // 설정 관리 메서드 (IndexedDB)
+  async getGlobalSettings(key) {
+    return this._transaction([SETTINGS_STORE], 'readonly', (tx) => {
+      return new Promise((resolve) => {
+        const req = tx.objectStore(SETTINGS_STORE).get(key);
+        req.onsuccess = () => resolve(req.result ? req.result.value : null);
+        req.onerror = () => resolve(null);
+      });
+    });
+  }
+
+  async saveGlobalSettings(key, value) {
+    await this._transaction([SETTINGS_STORE], 'readwrite', (tx) => {
+      // 명시적으로 키(key)를 두 번째 인자로 전달하여 out-of-line key 에러 방지
+      tx.objectStore(SETTINGS_STORE).put({ id: key, value: value, updatedAt: Date.now() }, key);
+    });
+  }
+
+  /**
+   * LocalStorage에 있는 데이터를 IndexedDB로 이전 (최초 1회)
+   */
+  async migrateLocalStorage() {
+    const migrationFlag = localStorage.getItem('idb_migration_complete');
+    if (migrationFlag) return;
+
+    console.log('LocalStorage -> IndexedDB 데이터 이전 시작...');
+
+    // 1. 에디터 환경 설정
+    const savedSettings = localStorage.getItem('editorSettings');
+    if (savedSettings) {
+      await this.saveGlobalSettings('editorSettings', JSON.parse(savedSettings));
+    }
+
+    // 2. 색상 프리셋
+    const savedPresets = localStorage.getItem('editorColorPresets');
+    if (savedPresets) {
+      await this.saveGlobalSettings('editorColorPresets', JSON.parse(savedPresets));
+    }
+
+    // 통계 히스토리는 양이 많고 복잡할 수 있으므로, 필요 시 프로젝트별로 처리하도록 확장 가능
+    // 여기서는 가장 핵심인 설정과 프리셋만 우선 이전
+
+    localStorage.setItem('idb_migration_complete', 'true');
+    console.log('데이터 이전 완료');
   }
 
   // 유틸리티

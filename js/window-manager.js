@@ -345,7 +345,7 @@ class WindowManager {
         if (!container) return;
 
         // 설정에서 기본 창 크기 불러오기
-        const settings = window.toolsPanel?.settings || window.toolsPanel?.loadSettings() || {};
+        const settings = window.toolsPanel?.settings || window.toolsPanel?.loadSettingsSync() || {};
         const defW = settings.defaultWinWidth || 520;
         const defH = settings.defaultWinHeight || 400;
 
@@ -561,7 +561,7 @@ class WindowManager {
         // 설정 적용 지연 실행 (글꼴 등 동기화)
         setTimeout(() => {
             if (window.toolsPanel) {
-                const settings = window.toolsPanel.loadSettings();
+                const settings = window.toolsPanel.loadSettingsSync();
                 this.applySettingsToWindow(win, settings);
             }
         }, 0);
@@ -867,7 +867,7 @@ class WindowManager {
             const text = textarea.value;
 
             // 1. 상태창 불러오기 트리거 패턴 확인 ({{...}})
-            const settings = window.toolsPanel?.settings || window.toolsPanel?.loadSettings() || {};
+            const settings = window.toolsPanel?.settings || window.toolsPanel?.loadSettingsSync() || {};
             const tOpen = settings.triggerStatOpen || '{{';
             const tClose = settings.triggerStatClose || '}}';
             
@@ -952,7 +952,7 @@ class WindowManager {
 
             if (pos !== -1) {
                 // 상태창 트리거 확인
-                const settings = window.toolsPanel?.settings || window.toolsPanel?.loadSettings() || {};
+                const settings = window.toolsPanel?.settings || window.toolsPanel?.loadSettingsSync() || {};
                 const tOpen = settings.triggerStatOpen || '{{';
                 const tClose = settings.triggerStatClose || '}}';
                 const lastOpen = text.substring(0, pos + tOpen.length).lastIndexOf(tOpen);
@@ -1220,7 +1220,7 @@ class WindowManager {
         }
 
         // 자동 저장 (3초 디바운스)
-        const settings = window.toolsPanel?.loadSettings();
+        const settings = window.toolsPanel?.loadSettingsSync();
         if (settings?.autoSave !== false) {
             clearTimeout(this.autoSaveTimers.get(fileId));
             this.autoSaveTimers.set(fileId, setTimeout(() => {
@@ -1237,7 +1237,7 @@ class WindowManager {
         if (!info) return;
 
         if (isAuto) {
-            const settings = window.toolsPanel?.settings || window.toolsPanel?.loadSettings();
+            const settings = window.toolsPanel?.settings || window.toolsPanel?.loadSettingsSync();
             if (settings?.autoSave === false) return;
         }
 
