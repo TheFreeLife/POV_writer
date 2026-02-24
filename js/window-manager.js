@@ -30,8 +30,14 @@ class WindowManager {
 
     init() {
         // 전역 마우스 이벤트
-        document.addEventListener('mousemove', (e) => this.onMouseMove(e));
-        document.addEventListener('mouseup', (e) => this.onMouseUp(e));
+        document.addEventListener('mousemove', (e) => {
+            this.onMouseMove(e);
+            if (this.statResizeState) this.onStatResizing(e);
+        });
+        document.addEventListener('mouseup', (e) => {
+            this.onMouseUp(e);
+            if (this.statResizeState) this.stopStatResizing(e);
+        });
         document.addEventListener('click', () => this.hideContextMenu());
 
         // 상단 헤더 저장 버튼
@@ -376,6 +382,11 @@ class WindowManager {
         // 포커스
         this.focusWindow(fileId);
 
+        // 수치 계산기인 경우 초기 렌더링
+        if (file.template === 'stat') {
+            this.renderStatCalculator(fileId);
+        }
+
         // 초기 하이라이트 적용
         this.updateHighlighter(fileId);
     }
@@ -457,9 +468,10 @@ class WindowManager {
         const isCollapsed = file.windowState?.isCollapsed || false;
         // 템플릿 속성 확인 또는 콘텐츠가 이미지 데이터(Base64)인 경우
         const isImage = file.template === 'image' || (file.content && file.content.startsWith('data:image'));
+        const isStat = file.template === 'stat';
         
         const win = document.createElement('div');
-        win.className = `editor-window${isCollapsed ? ' collapsed' : ''}${isImage ? ' image-window' : ''}`;
+        win.className = `editor-window${isCollapsed ? ' collapsed' : ''}${isImage ? ' image-window' : ''}${isStat ? ' stat-window' : ''}`;
         win.dataset.fileId = file.id;
         win.style.left = `${x}px`;
         win.style.top = `${y}px`;
@@ -488,6 +500,12 @@ class WindowManager {
                     </div>
                 </div>
             `;
+        } else if (isStat) {
+            bodyContent = `
+                <div class="stat-calculator-container" id="statContainer_${file.id}">
+                    <!-- 계산기 UI가 여기에 렌더링됩니다 -->
+                </div>
+            `;
         } else {
             bodyContent = `
                 <div class="window-editor">
@@ -512,7 +530,7 @@ class WindowManager {
                 </div>
             </div>
             ${bodyContent}
-            ${!isImage ? `
+            ${(!isImage && !isStat) ? `
             <div class="window-statusbar">
                 <div class="window-status-left" data-stats="${file.id}">
                     <span class="stat-item total">0자</span>
@@ -890,6 +908,64 @@ class WindowManager {
                 }
             }
             textarea.style.cursor = found ? 'pointer' : 'text';
+        });
+
+        textarea.addEventListener('contextmenu', async (e) => {
+            if (!(e.ctrlKey || e.metaKey)) return;
+            
+            // 설정에서 트리거 불러오기
+            const settings = window.toolsPanel?.settings || window.toolsPanel?.loadSettings() || {};
+            const tOpen = settings.triggerStatOpen || '{{';
+            const tClose = settings.triggerStatClose || '}}';
+            
+            // Ctrl + 우클릭 시 커서 위치의 트리거 처리
+            const pos = textarea.selectionStart;
+            const text = textarea.value;
+            
+            // 트리거 패턴 찾기 (현재 커서 위치 포함하는지 확인)
+            const beforeText = text.substring(0, pos);
+            const afterText = text.substring(pos);
+            const startIdx = beforeText.lastIndexOf(tOpen);
+            const endIdx = afterText.indexOf(tClose);
+            
+            if (startIdx !== -1 && endIdx !== -1) {
+                e.preventDefault(); // 기본 우클릭 메뉴 차단
+                
+                const fullEndIdx = pos + endIdx + tClose.length;
+                const pattern = text.substring(startIdx, fullEndIdx);
+                const statName = pattern.replace(tOpen, '').replace(tClose, '').trim();
+                
+                // 1. 해당 이름의 상태창 파일 찾기
+                const files = await storage.getProjectFiles(window.currentProjectId);
+                const statFile = files.find(f => f.name === statName && f.template === 'stat');
+                
+                if (!statFile) {
+                    window.showToast?.(`"${statName}" 상태창 파일을 찾을 수 없습니다.`);
+                    return;
+                }
+                
+                // 2. 상태창 데이터 포맷팅
+                try {
+                    const data = JSON.parse(statFile.content);
+                    const statStrings = data.stats.map(s => `[${s.name}: ${s.value}]`).join(' ');
+                    const resultText = `《 ${statName} 상태창 》\n${statStrings}`;
+                    
+                    // 3. 텍스트 치환
+                    const newText = text.substring(0, startIdx) + resultText + text.substring(fullEndIdx);
+                    textarea.value = newText;
+                    
+                    // 커서 위치 조정
+                    textarea.selectionStart = textarea.selectionEnd = startIdx + resultText.length;
+                    
+                    // 변경사항 반영
+                    this.onTextChange(fileId, newText);
+                    this.updateHighlighter(fileId);
+                    window.showToast?.(`"${statName}" 데이터를 불러왔습니다.`);
+                } catch (err) {
+                    console.error('상태창 데이터 파싱 실패:', err);
+                    window.showToast?.('데이터를 불러오는 중 오류가 발생했습니다.');
+                }
+            }
         });
 
         textarea.addEventListener('focus', () => {
@@ -1592,8 +1668,213 @@ class WindowManager {
     }
 
     getTemplateIcon(template) {
-        const icons = { item: '📦', place: '🗺️', character: '👤', image: '🖼️' };
+        const icons = { item: '📦', place: '🗺️', character: '👤', image: '🖼️', stat: '📊' };
         return icons[template] || '📄';
+    }
+
+    /**
+     * 수치 계산기 렌더링
+     */
+    renderStatCalculator(fileId) {
+        const info = this.windows.get(fileId);
+        const container = document.getElementById(`statContainer_${fileId}`);
+        if (!info || !container) return;
+
+        let data;
+        try {
+            data = JSON.parse(info.file.content || '{"stats":[], "history":[]}');
+            if (!data.stats) data.stats = [];
+            if (!data.history) data.history = [];
+        } catch (e) {
+            data = { stats: [], history: [] };
+        }
+
+        container.innerHTML = `
+            <div class="stat-header">
+                <span style="font-size: 13px; font-weight: 700;">상태창 매니저</span>
+                <button class="btn btn-icon btn-secondary" onclick="window.windowManager.addStatItem('${fileId}')" title="항목 추가">＋</button>
+            </div>
+            <div class="stat-content" id="statContent_${fileId}">
+                ${data.stats.map((s, idx) => `
+                    <div class="stat-item-row">
+                        <input type="text" class="stat-name-input" value="${this.escapeHtml(s.name)}" 
+                            onchange="window.windowManager.onStatNameChange('${fileId}', ${idx}, this.value)" placeholder="항목명">
+                        <div class="stat-controls">
+                            <button class="stat-btn" onclick="window.windowManager.updateStat('${fileId}', ${idx}, -1)">-</button>
+                            <span class="stat-value">${s.value}</span>
+                            <button class="stat-btn" onclick="window.windowManager.updateStat('${fileId}', ${idx}, 1)">+</button>
+                        </div>
+                        <div style="display: flex; gap: 4px;">
+                            <input type="number" class="stat-input-small" placeholder="값" 
+                                onkeypress="if(event.key==='Enter') window.windowManager.updateStat('${fileId}', ${idx}, parseInt(this.value) || 0, true)">
+                        </div>
+                        <button class="btn btn-icon" style="color: var(--color-text-muted);" 
+                            onclick="window.windowManager.removeStatItem('${fileId}', ${idx})">✕</button>
+                    </div>
+                `).join('')}
+                ${data.stats.length === 0 ? '<div style="text-align: center; padding: 40px; color: var(--color-text-tertiary); font-size: 13px;">등록된 스탯이 없습니다.<br>상단 + 버튼을 눌러 추가하세요.</div>' : ''}
+                <button class="stat-add-btn" onclick="window.windowManager.addStatItem('${fileId}')">+ 새 항목 추가</button>
+            </div>
+            <div class="stat-inner-resizer" onmousedown="window.windowManager.startStatResizing(event, '${fileId}')"></div>
+            <div class="stat-history" id="statHistory_${fileId}" style="height: ${data.historyHeight || 150}px">
+                <div class="history-title">
+                    <span>변경 기록 (최근 30개)</span>
+                    <span style="cursor: pointer; font-weight: normal; opacity: 0.6;" onclick="window.windowManager.clearStatHistory('${fileId}')">기록 삭제</span>
+                </div>
+                ${data.history.slice(-30).reverse().map(h => `
+                    <div class="history-item">
+                        <span class="history-time">${new Date(h.time).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second:'2-digit'})}</span>
+                        <span style="font-weight: 600;">${this.escapeHtml(h.name)}</span>: 
+                        <span>${h.prev} → ${h.curr}</span>
+                        <span class="${h.diff >= 0 ? 'history-diff-plus' : 'history-diff-minus'}">
+                            (${h.diff >= 0 ? '+' : ''}${h.diff})
+                        </span>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+    }
+
+    async updateStat(fileId, index, delta, isAbsolute = false) {
+        const info = this.windows.get(fileId);
+        if (!info) return;
+
+        let data = JSON.parse(info.file.content || '{"stats":[], "history":[]}');
+        const stat = data.stats[index];
+        if (!stat) return;
+
+        const prev = stat.value;
+        const diff = isAbsolute ? delta : delta; // delta가 증분일 수도, 절대값일 수도 있음 (여기선 인자명 그대로 처리)
+        
+        if (isAbsolute) {
+            stat.value = delta;
+        } else {
+            stat.value += delta;
+        }
+
+        const actualDiff = stat.value - prev;
+        if (actualDiff === 0) return;
+
+        // 기록 추가
+        data.history.push({
+            time: Date.now(),
+            name: stat.name || '미지정',
+            prev: prev,
+            curr: stat.value,
+            diff: actualDiff
+        });
+
+        // 최대 100개까지만 기록 유지
+        if (data.history.length > 100) data.history.shift();
+
+        await this.saveStatData(fileId, data);
+    }
+
+    async addStatItem(fileId) {
+        const info = this.windows.get(fileId);
+        if (!info) return;
+
+        let data = JSON.parse(info.file.content || '{"stats":[], "history":[]}');
+        data.stats.push({ name: '새 스탯', value: 10 });
+        
+        await this.saveStatData(fileId, data);
+    }
+
+    async removeStatItem(fileId, index) {
+        if (!confirm('이 항목을 삭제할까요?')) return;
+        const info = this.windows.get(fileId);
+        if (!info) return;
+
+        let data = JSON.parse(info.file.content || '{"stats":[], "history":[]}');
+        data.stats.splice(index, 1);
+        
+        await this.saveStatData(fileId, data);
+    }
+
+    async onStatNameChange(fileId, index, newName) {
+        const info = this.windows.get(fileId);
+        if (!info) return;
+
+        let data = JSON.parse(info.file.content || '{"stats":[], "history":[]}');
+        data.stats[index].name = newName;
+        
+        await this.saveStatData(fileId, data);
+    }
+
+    async clearStatHistory(fileId) {
+        if (!confirm('변경 기록을 모두 삭제할까요?')) return;
+        const info = this.windows.get(fileId);
+        if (!info) return;
+
+        let data = JSON.parse(info.file.content || '{"stats":[], "history":[]}');
+        data.history = [];
+        
+        await this.saveStatData(fileId, data);
+    }
+
+    async saveStatData(fileId, data) {
+        const info = this.windows.get(fileId);
+        if (!info) return;
+
+        const content = JSON.stringify(data);
+        info.file.content = content;
+        
+        await storage.updateFile(fileId, { content });
+        this.renderStatCalculator(fileId);
+
+        // 수정됨 표시
+        const indicator = info.element.querySelector(`[data-indicator="${fileId}"]`);
+        if (indicator) indicator.classList.add('show');
+    }
+
+    /**
+     * 수치 계산기 내부 리사이징 시작
+     */
+    startStatResizing(e, fileId) {
+        e.preventDefault();
+        e.stopPropagation();
+        const historyEl = document.getElementById(`statHistory_${fileId}`);
+        if (!historyEl) return;
+
+        this.statResizeState = {
+            fileId,
+            startY: e.clientY,
+            startHeight: historyEl.offsetHeight
+        };
+        document.body.style.cursor = 'ns-resize';
+        document.body.style.userSelect = 'none';
+    }
+
+    onStatResizing(e) {
+        if (!this.statResizeState) return;
+        const { fileId, startY, startHeight } = this.statResizeState;
+        const historyEl = document.getElementById(`statHistory_${fileId}`);
+        if (!historyEl) return;
+
+        // 마우스가 위로 올라가면(startY - clientY > 0) 높이가 커짐
+        const delta = (startY - e.clientY) / this.scale;
+        const newHeight = Math.max(50, Math.min(600, startHeight + delta));
+        historyEl.style.height = `${newHeight}px`;
+    }
+
+    async stopStatResizing(e) {
+        if (!this.statResizeState) return;
+        const { fileId } = this.statResizeState;
+        const historyEl = document.getElementById(`statHistory_${fileId}`);
+        
+        if (historyEl) {
+            const finalHeight = historyEl.offsetHeight;
+            const info = this.windows.get(fileId);
+            if (info) {
+                let data = JSON.parse(info.file.content || '{}');
+                data.historyHeight = finalHeight;
+                await this.saveStatData(fileId, data);
+            }
+        }
+
+        this.statResizeState = null;
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
     }
 
     escapeHtml(text) {

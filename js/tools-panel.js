@@ -376,6 +376,25 @@ class ToolsPanel {
                 <div style="font-size: 12px; color: var(--color-text-tertiary); text-align: center;">
                     ${this.timerMode === 'pomodoro' ? '💡 25분 집중 후 5분 휴식을 권장합니다.' : '창작에 몰입하는 시간을 기록하세요.'}
                 </div>
+
+                <div class="settings-section" style="margin-top: 24px;">
+                    <h3 class="settings-section-title">🔗 트리거 설정</h3>
+                    
+                    <div class="form-group">
+                        <label class="form-label">장소 이동 트리거 (병합용)</label>
+                        <input type="text" class="input" id="triggerLocation" value="${this.settings.triggerLocation || '장소:'}" placeholder="예: 장소:">
+                    </div>
+
+                    <div class="form-group" style="margin-top: 12px;">
+                        <label class="form-label">상태창 불러오기 트리거</label>
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <input type="text" class="input" id="triggerStatOpen" value="${this.settings.triggerStatOpen || '{{'}" style="width: 50px; text-align: center;">
+                            <span style="color: var(--color-text-tertiary); font-size: 12px;">이름</span>
+                            <input type="text" class="input" id="triggerStatClose" value="${this.settings.triggerStatClose || '}}'}" style="width: 50px; text-align: center;">
+                        </div>
+                        <p style="font-size: 11px; color: var(--color-text-tertiary); margin-top: 6px;">괄호 사이에 상태창 이름을 넣고 Ctrl+우클릭 하세요.</p>
+                    </div>
+                </div>
             </div>
         `;
     }
@@ -408,6 +427,16 @@ class ToolsPanel {
             const display = document.getElementById('mainDisplay');
             if (display) display.textContent = this.formatTime(this.remainingTime);
         });
+
+        // 트리거 설정 실시간 저장
+        const saveTrigger = (key, val) => {
+            this.settings[key] = val;
+            localStorage.setItem('editorSettings', JSON.stringify(this.settings));
+        };
+
+        document.getElementById('triggerLocation')?.addEventListener('input', (e) => saveTrigger('triggerLocation', e.target.value));
+        document.getElementById('triggerStatOpen')?.addEventListener('input', (e) => saveTrigger('triggerStatOpen', e.target.value));
+        document.getElementById('triggerStatClose')?.addEventListener('input', (e) => saveTrigger('triggerStatClose', e.target.value));
     }
 
     setTimerMode(mode) {
@@ -847,7 +876,9 @@ class ToolsPanel {
             autoCloseQuotes: true,
             autoSave: true,
             editorWidth: 900,
-            triggerLocation: '장소:'
+            triggerLocation: '장소:',
+            triggerStatOpen: '{{',
+            triggerStatClose: '}}'
         };
         try {
             const saved = localStorage.getItem('editorSettings');

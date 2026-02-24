@@ -20,6 +20,7 @@ class FileTreeManager {
 
     setupEventListeners() {
         document.getElementById('newFolderBtn')?.addEventListener('click', () => this.showNewItemModal('folder'));
+        document.getElementById('newStatBtn')?.addEventListener('click', () => this.showNewStatModal());
         document.getElementById('newImageBtn')?.addEventListener('click', () => this.showNewImageModal());
         document.getElementById('newFileBtn')?.addEventListener('click', () => this.showNewItemModal('file'));
         document.getElementById('cancelNewFileBtn')?.addEventListener('click', () => this.hideNewItemModal());
@@ -85,6 +86,33 @@ class FileTreeManager {
         }
 
         document.addEventListener('click', () => this.hideContextMenu());
+    }
+
+    /**
+     * 수치 계산기 생성 모달 표시
+     */
+    showNewStatModal(parentId = null) {
+        this.newItemType = 'file';
+        this.newItemParentId = parentId;
+        this.editingItem = null;
+
+        const modal = document.getElementById('newFileModal');
+        const title = document.getElementById('newFileModalTitle');
+        const templateGroup = document.getElementById('templateGroup');
+        const submitBtn = document.getElementById('createFileBtn');
+
+        if (modal && title) {
+            title.textContent = '새 수치 계산기(상태창) 생성';
+            submitBtn.textContent = '생성';
+            document.getElementById('fileName').value = '';
+            if (templateGroup) templateGroup.style.display = 'none';
+
+            // 강제로 stat 템플릿 타입을 지정하기 위해 플래그 설정
+            this.isStatCreation = true;
+
+            modal.classList.remove('hidden');
+            document.getElementById('fileName').focus();
+        }
     }
 
     /**
@@ -209,6 +237,8 @@ class FileTreeManager {
         let icon = '📄';
         if (isFolder) {
             icon = (hasChildren && isExpanded ? '📂' : '📁');
+        } else if (file.template === 'stat') {
+            icon = '📊';
         } else if (file.template === 'image' || (file.content && file.content.startsWith('data:image'))) {
             icon = '🖼️';
         }
@@ -441,11 +471,46 @@ class FileTreeManager {
     hideNewItemModal() {
         document.getElementById('newFileModal')?.classList.add('hidden');
         this.editingItem = null;
+        this.isStatCreation = false;
     }
 
     async saveItem() {
         const name = document.getElementById('fileName').value.trim();
         if (!name) return alert('이름을 입력해주세요.');
+
+        // 수치 계산기 생성 모드인 경우
+        if (this.isStatCreation) {
+            try {
+                const siblings = this.files.filter(f => f.parentId === this.newItemParentId);
+                const maxOrder = siblings.length > 0 ? Math.max(...siblings.map(f => f.order)) : -1;
+
+                await storage.createFile({
+                    projectId: this.currentProjectId,
+                    name,
+                    type: 'file',
+                    parentId: this.newItemParentId,
+                    content: JSON.stringify({
+                        stats: [
+                            { name: '레벨', value: 1 },
+                            { name: '경험치', value: 0 },
+                            { name: '근력', value: 10 },
+                            { name: '민첩', value: 10 }
+                        ],
+                        history: []
+                    }),
+                    template: 'stat',
+                    order: maxOrder + 1
+                });
+
+                await this.loadProjectFiles(this.currentProjectId);
+                this.hideNewItemModal();
+                this.isStatCreation = false;
+                return;
+            } catch (error) {
+                console.error('수치 계산기 생성 실패:', error);
+                return alert('생성 중 오류가 발생했습니다.');
+            }
+        }
 
         const template = document.getElementById('fileTemplate').value;
 
@@ -680,6 +745,7 @@ class FileTreeManager {
 
         select.innerHTML = `
             <option value="blank">빈 파일</option>
+            <option value="status">🛡️ 상태창/스테이터스 (수치 계산기)</option>
             <option value="item">📦 아이템 설정</option>
             <option value="place">🗺️ 장소/배경 설정</option>
         `;
