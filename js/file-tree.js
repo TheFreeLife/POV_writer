@@ -30,7 +30,36 @@ class FileTreeManager {
         // 새 이미지 모달 이벤트
         document.getElementById('cancelNewImageBtn')?.addEventListener('click', () => this.hideNewImageModal());
         document.getElementById('closeNewImageModal')?.addEventListener('click', () => this.hideNewImageModal());
-        document.getElementById('imageUploadWrapper')?.addEventListener('click', () => document.getElementById('imageFileInput').click());
+        
+        const imageUploadWrapper = document.getElementById('imageUploadWrapper');
+        if (imageUploadWrapper) {
+            imageUploadWrapper.addEventListener('click', () => document.getElementById('imageFileInput').click());
+            
+            imageUploadWrapper.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                imageUploadWrapper.classList.add('dragover');
+            });
+
+            imageUploadWrapper.addEventListener('dragleave', () => {
+                imageUploadWrapper.classList.remove('dragover');
+            });
+
+            imageUploadWrapper.addEventListener('drop', (e) => {
+                e.preventDefault();
+                imageUploadWrapper.classList.remove('dragover');
+                const file = e.dataTransfer.files[0];
+                if (file && file.type.startsWith('image/')) {
+                    // input 요소에도 파일을 설정해주어 나중에 save 시 사용할 수 있게 함
+                    const dt = new DataTransfer();
+                    dt.items.add(file);
+                    const input = document.getElementById('imageFileInput');
+                    if (input) input.files = dt.files;
+                    
+                    this.processImageFile(file);
+                }
+            });
+        }
+        
         document.getElementById('imageFileInput')?.addEventListener('change', (e) => this.handleImagePreview(e));
         document.getElementById('createImageItemBtn')?.addEventListener('click', () => this.saveImageItem());
 
@@ -135,19 +164,25 @@ class FileTreeManager {
         document.getElementById('newImageModal')?.classList.add('hidden');
     }
 
-    handleImagePreview(e) {
-        const file = e.target.files[0];
-        if (!file) return;
+    processImageFile(file) {
+        if (!file || !file.type.startsWith('image/')) return;
 
         const reader = new FileReader();
         reader.onload = (event) => {
             const preview = document.getElementById('imageFilePreview');
             const placeholder = document.getElementById('imageFilePlaceholder');
-            preview.src = event.target.result;
-            preview.classList.remove('hidden');
-            placeholder.classList.add('hidden');
+            if (preview && placeholder) {
+                preview.src = event.target.result;
+                preview.classList.remove('hidden');
+                placeholder.classList.add('hidden');
+            }
         };
         reader.readAsDataURL(file);
+    }
+
+    handleImagePreview(e) {
+        const file = e.target.files[0];
+        this.processImageFile(file);
     }
 
     async saveImageItem() {

@@ -20,6 +20,30 @@ class ProjectManager {
         getEl('createProjectBtn')?.addEventListener('click', () => this.createProject());
 
         getEl('thumbnailUpload')?.addEventListener('click', () => getEl('thumbnailInput')?.click());
+        
+        const thumbnailUpload = getEl('thumbnailUpload');
+        if (thumbnailUpload) {
+            thumbnailUpload.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                thumbnailUpload.classList.add('dragover');
+            });
+            thumbnailUpload.addEventListener('dragleave', () => {
+                thumbnailUpload.classList.remove('dragover');
+            });
+            thumbnailUpload.addEventListener('drop', (e) => {
+                e.preventDefault();
+                thumbnailUpload.classList.remove('dragover');
+                const file = e.dataTransfer.files[0];
+                if (file && file.type.startsWith('image/')) {
+                    const dt = new DataTransfer();
+                    dt.items.add(file);
+                    const input = getEl('thumbnailInput');
+                    if (input) input.files = dt.files;
+                    this.handleThumbnailUpload(file, getEl('thumbnailPreview'), getEl('thumbnailPlaceholder'));
+                }
+            });
+        }
+
         getEl('thumbnailInput')?.addEventListener('change', (e) => {
             this.handleThumbnailUpload(e.target.files[0], getEl('thumbnailPreview'), getEl('thumbnailPlaceholder'));
         });
@@ -29,6 +53,30 @@ class ProjectManager {
         getEl('saveEditProjectBtn')?.addEventListener('click', () => this.saveEditProject());
 
         getEl('editThumbnailUpload')?.addEventListener('click', () => getEl('editThumbnailInput')?.click());
+        
+        const editThumbnailUpload = getEl('editThumbnailUpload');
+        if (editThumbnailUpload) {
+            editThumbnailUpload.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                editThumbnailUpload.classList.add('dragover');
+            });
+            editThumbnailUpload.addEventListener('dragleave', () => {
+                editThumbnailUpload.classList.remove('dragover');
+            });
+            editThumbnailUpload.addEventListener('drop', (e) => {
+                e.preventDefault();
+                editThumbnailUpload.classList.remove('dragover');
+                const file = e.dataTransfer.files[0];
+                if (file && file.type.startsWith('image/')) {
+                    const dt = new DataTransfer();
+                    dt.items.add(file);
+                    const input = getEl('editThumbnailInput');
+                    if (input) input.files = dt.files;
+                    this.handleThumbnailUpload(file, getEl('editThumbnailPreview'), getEl('editThumbnailPlaceholder'));
+                }
+            });
+        }
+
         getEl('editThumbnailInput')?.addEventListener('change', (e) => {
             this.handleThumbnailUpload(e.target.files[0], getEl('editThumbnailPreview'), getEl('editThumbnailPlaceholder'));
         });

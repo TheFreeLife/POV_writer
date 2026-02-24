@@ -41,6 +41,13 @@
     color: var(--color-accent-primary);
 }
 
+.image-upload-dropzone.dragover {
+    background-color: var(--color-accent-primary-transparent);
+    border-color: var(--color-accent-primary);
+    color: var(--color-accent-primary);
+    transform: scale(0.99);
+}
+
 .image-upload-icon {
     font-size: 32px;
     margin-bottom: 8px;

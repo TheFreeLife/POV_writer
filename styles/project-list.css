@@ -248,6 +248,12 @@
     background: var(--color-bg-hover);
 }
 
+.thumbnail-upload.dragover {
+    background-color: var(--color-accent-primary-transparent);
+    border-color: var(--color-accent-primary);
+    color: var(--color-accent-primary);
+}
+
 .thumbnail-upload input[type="file"] {
     display: none;
 }
