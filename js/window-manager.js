@@ -416,11 +416,15 @@ class WindowManager {
      */
     updateImageSizeInfo(fileId, base64) {
         const sizeEl = document.getElementById(`imageSize_${fileId}`);
+        const info = this.windows.get(fileId);
         if (!sizeEl || !base64) return;
 
         const img = new Image();
         img.onload = () => {
             sizeEl.textContent = `(${img.naturalWidth}x${img.naturalHeight})`;
+            
+            // 저장된 회전 및 스케일 적용
+            this.applyImageRotation(fileId);
         };
         img.src = base64;
     }
@@ -560,6 +564,7 @@ class WindowManager {
                     <span class="window-modified" data-indicator="${file.id}"></span>
                 </div>
                 <div class="window-titlebar-actions">
+                    ${isImage ? `<button class="window-btn window-btn-rotate" data-action="rotate" title="90도 회전">🔄</button>` : ''}
                     <button class="window-btn window-btn-collapse" data-action="collapse" title="접기/펴기">${collapseChar}</button>
                     <button class="window-btn window-btn-close" data-action="close" title="닫기">✕</button>
                 </div>
@@ -756,13 +761,14 @@ class WindowManager {
             }, { once: true });
         });
 
-        // 버튼 (닫기, 접기)
+        // 버튼 (닫기, 접기, 회전)
         win.querySelectorAll('.window-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 e.stopPropagation();
                 const action = btn.dataset.action;
                 if (action === 'close') this.closeWindow(fileId);
                 if (action === 'collapse') this.toggleCollapse(fileId);
+                if (action === 'rotate') this.rotateImage(fileId);
             });
         });
 
@@ -1106,6 +1112,11 @@ class WindowManager {
             s.element.style.height = `${newH}px`;
             s.element.style.left = `${newL}px`;
             s.element.style.top = `${newT}px`;
+
+            // 이미지 창인 경우 회전 스케일 재계산
+            if (s.element.classList.contains('image-window')) {
+                this.applyImageRotation(s.fileId);
+            }
         }
 
         // 캔버스 팬
@@ -1777,25 +1788,86 @@ class WindowManager {
         if (!info) return;
 
         const win = info.element;
-        const currentWidth = win.offsetWidth;
-        const currentHeight = win.offsetHeight;
+        const currentRotation = (info.file.windowState?.rotation || 0) % 360;
+        const isSwapped = currentRotation === 90 || currentRotation === 270;
         
-        // 현재 너비를 기준으로 높이를 계산하거나, 너무 크면 조절
-        let newWidth = Math.min(naturalWidth, 800);
-        let newHeight = (newWidth * naturalHeight) / naturalWidth;
+        // 회전 각도에 따라 너비/높이 기준 스왑
+        const w = isSwapped ? naturalHeight : naturalWidth;
+        const h = isSwapped ? naturalWidth : naturalHeight;
 
-        // 높이가 너무 크면 높이 기준으로 다시 계산
+        let newWidth = Math.min(w, 800);
+        let newHeight = (newWidth * h) / w;
+
         if (newHeight > 600) {
             newHeight = 600;
-            newWidth = (newHeight * naturalWidth) / naturalHeight;
+            newWidth = (newHeight * w) / h;
         }
 
         win.style.width = `${newWidth}px`;
-        win.style.height = `${newHeight + 36}px`; // 타이틀바 높이(36px) 고려
+        win.style.height = `${newHeight + 36}px`;
 
         this.updateFileWindowState(fileId, {
             width: newWidth,
             height: newHeight + 36
+        });
+    }
+
+    /**
+     * 이미지를 90도씩 회전
+     */
+    async rotateImage(fileId) {
+        const info = this.windows.get(fileId);
+        if (!info) return;
+
+        const currentRotation = (info.file.windowState?.rotation || 0) + 90;
+        
+        // 상태 저장
+        info.file.windowState = { ...info.file.windowState, rotation: currentRotation };
+        await this.updateFileWindowState(fileId, { rotation: currentRotation });
+
+        // 회전 및 스케일 적용
+        this.applyImageRotation(fileId);
+    }
+
+    /**
+     * 회전 각도와 창 크기에 맞춰 이미지 크기 및 위치 조절
+     */
+    applyImageRotation(fileId) {
+        const info = this.windows.get(fileId);
+        const img = document.getElementById(`imageViewer_${fileId}`);
+        if (!info || !img) return;
+
+        // 브라우저 렌더링 주기에 맞춰 정확한 치수 계산
+        requestAnimationFrame(() => {
+            const rotation = (info.file.windowState?.rotation || 0) % 360;
+            const isSwapped = Math.abs(rotation % 180) === 90;
+            const container = img.parentElement;
+            
+            if (!container) return;
+
+            // 실제 측정값 또는 저장된 값 사용
+            let cw = container.offsetWidth;
+            let ch = container.offsetHeight;
+
+            // 만약 측정값이 0이라면 저장된 윈도우 상태에서 가져옴
+            if (cw === 0 || ch === 0) {
+                cw = info.file.windowState?.width || 400;
+                ch = (info.file.windowState?.height || 336) - 36; // 타이틀바 제외
+            }
+
+            if (isSwapped) {
+                // 90도/270도 회전 시 이미지 요소의 가로세로를 창과 반대로 스왑
+                img.style.width = `${ch}px`;
+                img.style.height = `${cw}px`;
+            } else {
+                img.style.width = '100%';
+                img.style.height = '100%';
+            }
+            
+            img.style.transform = `rotate(${rotation}deg)`;
+            img.style.position = 'relative'; // absolute 제거
+            img.style.top = 'auto';
+            img.style.left = 'auto';
         });
     }
 
