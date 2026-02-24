@@ -681,6 +681,7 @@ class FileTreeManager {
         const nameEl = document.getElementById('statsFolderName');
         const totalCharsEl = document.getElementById('totalFolderChars');
         const totalFilesEl = document.getElementById('totalFolderFiles');
+        const avgCharsEl = document.getElementById('avgFolderChars');
         const mentionListEl = document.getElementById('fileMentionList');
 
         if (!modal) return;
@@ -688,6 +689,7 @@ class FileTreeManager {
         nameEl.textContent = file.name;
         totalCharsEl.textContent = '계산 중...';
         totalFilesEl.textContent = '계산 중...';
+        if (avgCharsEl) avgCharsEl.textContent = '계산 중...';
         mentionListEl.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--color-text-tertiary);">데이터 분석 중...</div>';
 
         modal.classList.remove('hidden');
@@ -711,16 +713,26 @@ class FileTreeManager {
             const folderContent = getChildrenRecursive(file.id);
             const filesOnly = folderContent.filter(f => f.type === 'file');
             
-            // 2. 총 글자 수 계산 (실시간 창 텍스트 반영)
+            // 2. 총 글자 수 및 평균 글자 수 계산 (실시간 창 텍스트 반영)
             let totalChars = 0;
+            let textFileCount = 0;
             filesOnly.forEach(f => {
+                // 이미지 파일은 글자수 통계에서 제외
+                if (f.template === 'image' || (f.content && f.content.startsWith('data:image'))) return;
+                // 수치 계산기도 제외 (JSON 데이터이므로)
+                if (f.template === 'stat') return;
+
                 const openWin = window.windowManager?.windows.get(f.id);
                 const content = openWin ? openWin.textarea.value : (f.content || '');
                 totalChars += content.length;
+                textFileCount++;
             });
+
+            const avgChars = textFileCount > 0 ? Math.round(totalChars / textFileCount) : 0;
 
             totalCharsEl.textContent = `${totalChars.toLocaleString()}자`;
             totalFilesEl.textContent = `${filesOnly.length}개`;
+            if (avgCharsEl) avgCharsEl.textContent = `${avgChars.toLocaleString()}자`;
 
             // 3. 파일별 언급 횟수 계산 (프로젝트 전체 기준)
             // 전체 텍스트 수집 (실시간 창 반영, 이미지는 제외)
