@@ -854,19 +854,57 @@ class WindowManager {
             e.stopPropagation();
         });
 
-        textarea.addEventListener('click', (e) => {
-            // Ctrl + 좌클릭 시에만 하이퍼링크 작동
+        textarea.addEventListener('click', async (e) => {
+            // Ctrl + 좌클릭 시 작동
             if (!(e.ctrlKey || e.metaKey)) return;
 
             const pos = textarea.selectionStart;
             const text = textarea.value;
 
+            // 1. 상태창 불러오기 트리거 패턴 확인 ({{...}})
+            const settings = window.toolsPanel?.settings || window.toolsPanel?.loadSettings() || {};
+            const tOpen = settings.triggerStatOpen || '{{';
+            const tClose = settings.triggerStatClose || '}}';
+            
+            const lastOpen = text.substring(0, pos + tOpen.length).lastIndexOf(tOpen);
+            const firstClose = text.indexOf(tClose, Math.max(0, pos - tClose.length));
+            
+            if (lastOpen !== -1 && firstClose !== -1 && lastOpen < firstClose && pos >= lastOpen && pos <= firstClose + tClose.length) {
+                e.preventDefault();
+                
+                const fullEndIdx = firstClose + tClose.length;
+                const pattern = text.substring(lastOpen, fullEndIdx);
+                const statName = pattern.replace(tOpen, '').replace(tClose, '').trim();
+                
+                const files = await storage.getProjectFiles(window.currentProjectId);
+                const statFile = files.find(f => f.name === statName && f.template === 'stat');
+                
+                if (statFile) {
+                    try {
+                        const data = JSON.parse(statFile.content);
+                        const statStrings = data.stats.map(s => `[${s.name}: ${s.value}]`).join(' ');
+                        const resultText = `《 ${statName} 상태창 》\n${statStrings}`;
+                        
+                        const newText = text.substring(0, lastOpen) + resultText + text.substring(fullEndIdx);
+                        textarea.value = newText;
+                        textarea.selectionStart = textarea.selectionEnd = lastOpen + resultText.length;
+                        
+                        this.onTextChange(fileId, newText);
+                        this.updateHighlighter(fileId);
+                        window.showToast?.(`"${statName}" 데이터를 불러왔습니다.`);
+                        return; // 상태창 처리 완료 시 종료
+                    } catch (err) {
+                        console.error('상태창 데이터 파싱 실패:', err);
+                    }
+                }
+            }
+
+            // 2. 하이퍼링크 작동 (파일명 클릭 시 창 열기)
             if (this.hyperlinkMap.size > 0) {
                 const sortedNames = Array.from(this.hyperlinkMap.keys()).sort((a, b) => b.length - a.length);
                 for (const name of sortedNames) {
                     let index = text.indexOf(name);
                     while (index !== -1) {
-                        // 경계 확인 제거: 해당 영역을 클릭했는지만 확인
                         if (pos >= index && pos <= index + name.length) {
                             e.preventDefault();
                             const targetId = this.hyperlinkMap.get(name);
@@ -888,84 +926,44 @@ class WindowManager {
                 return;
             }
 
-            // 커서 아래에 파일명이 있는지 확인
+            // 커서 아래에 파일명이나 상태창 트리거가 있는지 확인
             const pos = this.getTextOffsetFromPoint(textarea, e.clientX, e.clientY);
             const text = textarea.value;
             let found = false;
 
-            if (pos !== -1 && this.hyperlinkMap.size > 0) {
-                for (const name of this.hyperlinkMap.keys()) {
-                    let index = text.indexOf(name);
-                    while (index !== -1) {
-                        // 경계 확인 제거: 해당 글자 위에 마우스가 있는지만 확인
-                        if (pos >= index && pos <= index + name.length) {
-                            found = true;
-                            break;
+            if (pos !== -1) {
+                // 상태창 트리거 확인
+                const settings = window.toolsPanel?.settings || window.toolsPanel?.loadSettings() || {};
+                const tOpen = settings.triggerStatOpen || '{{';
+                const tClose = settings.triggerStatClose || '}}';
+                const lastOpen = text.substring(0, pos + tOpen.length).lastIndexOf(tOpen);
+                const firstClose = text.indexOf(tClose, Math.max(0, pos - tClose.length));
+                
+                if (lastOpen !== -1 && firstClose !== -1 && lastOpen < firstClose && pos >= lastOpen && pos <= firstClose + tClose.length) {
+                    found = true;
+                }
+
+                // 하이퍼링크 확인 (트리거가 아닐 때만)
+                if (!found && this.hyperlinkMap.size > 0) {
+                    for (const name of this.hyperlinkMap.keys()) {
+                        let index = text.indexOf(name);
+                        while (index !== -1) {
+                            if (pos >= index && pos <= index + name.length) {
+                                found = true;
+                                break;
+                            }
+                            index = text.indexOf(name, index + 1);
                         }
-                        index = text.indexOf(name, index + 1);
+                        if (found) break;
                     }
-                    if (found) break;
                 }
             }
             textarea.style.cursor = found ? 'pointer' : 'text';
         });
 
         textarea.addEventListener('contextmenu', async (e) => {
+            // 기존 Ctrl + 우클릭 로직 제거 (일반 우클릭 메뉴 사용 가능하도록)
             if (!(e.ctrlKey || e.metaKey)) return;
-            
-            // 설정에서 트리거 불러오기
-            const settings = window.toolsPanel?.settings || window.toolsPanel?.loadSettings() || {};
-            const tOpen = settings.triggerStatOpen || '{{';
-            const tClose = settings.triggerStatClose || '}}';
-            
-            // Ctrl + 우클릭 시 커서 위치의 트리거 처리
-            const pos = textarea.selectionStart;
-            const text = textarea.value;
-            
-            // 트리거 패턴 찾기 (현재 커서 위치 포함하는지 확인)
-            const beforeText = text.substring(0, pos);
-            const afterText = text.substring(pos);
-            const startIdx = beforeText.lastIndexOf(tOpen);
-            const endIdx = afterText.indexOf(tClose);
-            
-            if (startIdx !== -1 && endIdx !== -1) {
-                e.preventDefault(); // 기본 우클릭 메뉴 차단
-                
-                const fullEndIdx = pos + endIdx + tClose.length;
-                const pattern = text.substring(startIdx, fullEndIdx);
-                const statName = pattern.replace(tOpen, '').replace(tClose, '').trim();
-                
-                // 1. 해당 이름의 상태창 파일 찾기
-                const files = await storage.getProjectFiles(window.currentProjectId);
-                const statFile = files.find(f => f.name === statName && f.template === 'stat');
-                
-                if (!statFile) {
-                    window.showToast?.(`"${statName}" 상태창 파일을 찾을 수 없습니다.`);
-                    return;
-                }
-                
-                // 2. 상태창 데이터 포맷팅
-                try {
-                    const data = JSON.parse(statFile.content);
-                    const statStrings = data.stats.map(s => `[${s.name}: ${s.value}]`).join(' ');
-                    const resultText = `《 ${statName} 상태창 》\n${statStrings}`;
-                    
-                    // 3. 텍스트 치환
-                    const newText = text.substring(0, startIdx) + resultText + text.substring(fullEndIdx);
-                    textarea.value = newText;
-                    
-                    // 커서 위치 조정
-                    textarea.selectionStart = textarea.selectionEnd = startIdx + resultText.length;
-                    
-                    // 변경사항 반영
-                    this.onTextChange(fileId, newText);
-                    this.updateHighlighter(fileId);
-                    window.showToast?.(`"${statName}" 데이터를 불러왔습니다.`);
-                } catch (err) {
-                    console.error('상태창 데이터 파싱 실패:', err);
-                    window.showToast?.('데이터를 불러오는 중 오류가 발생했습니다.');
-                }
-            }
         });
 
         textarea.addEventListener('focus', () => {
