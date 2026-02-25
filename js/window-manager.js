@@ -427,26 +427,16 @@ class WindowManager {
 
         const img = new Image();
         img.onload = () => {
-            let ext = '';
+            // MIME 타입에서 실제 확장자 추출 (예: data:image/png;base64 -> PNG)
+            let ext = 'IMG';
             
-            // 1. 파일명에서 확장자 추출 시도 (가장 직관적)
-            const fileName = info.file.name || '';
-            if (fileName.includes('.')) {
-                ext = fileName.split('.').pop().toUpperCase();
+            if (base64.startsWith('data:image/')) {
+                const mimeType = base64.split(';')[0].split(':')[1]; // image/png
+                ext = mimeType.split('/')[1].toUpperCase(); // PNG
             }
 
-            // 2. 파일명에 확장자가 없거나 asdf 같은 경우 MIME 타입에서 추출 시도
-            if (!ext || ext.length > 4 || ext === 'ASDF') {
-                if (base64.startsWith('data:image/')) {
-                    const mimeType = base64.split(';')[0].split(':')[1]; // image/png
-                    ext = mimeType.split('/')[1].toUpperCase(); // PNG
-                }
-            }
-
-            // 3. 최종 보정
+            // JPEG 보정 및 표시
             if (ext === 'JPEG') ext = 'JPG';
-            if (!ext) ext = 'IMG';
-            
             sizeEl.textContent = `(${img.naturalWidth}x${img.naturalHeight} / ${ext})`;
             
             // 저장된 회전 및 스케일 적용
