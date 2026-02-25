@@ -388,6 +388,12 @@ class WindowManager {
         };
         this.windows.set(fileId, windowInfo);
 
+        // 타자기 모드 초기 상태 반영
+        if (file.windowState?.isLineFocus && windowInfo.textarea) {
+            windowInfo.textarea.classList.add('line-focus-mode');
+            setTimeout(() => this.updateLineFocus(fileId), 10);
+        }
+
         // 파일의 isOpen 상태 업데이트
         if (!restoreState) {
             await this.updateFileWindowState(fileId, { isOpen: true, x, y, width, height });
@@ -447,6 +453,61 @@ class WindowManager {
             this.applyImageRotation(fileId);
         };
         img.src = base64;
+    }
+
+    /**
+     * 타자기 모드(Line Focus) 업데이트
+     */
+    updateLineFocus(fileId) {
+        const info = this.windows.get(fileId);
+        if (!info || !info.textarea || !info.element) return;
+
+        const textarea = info.textarea;
+        const isFocus = textarea.classList.contains('line-focus-mode');
+        const editor = info.element.querySelector('.window-editor');
+        if (!editor) return;
+
+        let highlight = editor.querySelector('.line-focus-highlight');
+        if (!isFocus) {
+            if (highlight) highlight.remove();
+            return;
+        }
+
+        if (!highlight) {
+            highlight = document.createElement('div');
+            highlight.className = 'line-focus-highlight';
+            editor.appendChild(highlight);
+        }
+
+        const textBefore = (textarea.value || "").substring(0, textarea.selectionStart || 0);
+        const currentLineIndex = textBefore.split('\n').length - 1;
+
+        const style = window.getComputedStyle(textarea);
+        const lineHeight = parseFloat(style.lineHeight) || parseFloat(style.fontSize) * 1.5;
+        const paddingTop = parseFloat(style.paddingTop) || 0;
+        
+        const topPos = paddingTop + (currentLineIndex * lineHeight);
+        highlight.style.top = `${topPos}px`;
+        highlight.style.height = `${lineHeight}px`;
+        highlight.style.width = `calc(100% - ${parseFloat(style.paddingLeft) + parseFloat(style.paddingRight)}px)`;
+        highlight.style.left = style.paddingLeft;
+        highlight.style.transform = `translateY(-${textarea.scrollTop}px)`;
+
+        // CSS 변수 설정 (마스킹용)
+        editor.style.setProperty('--focus-top', `${topPos}px`);
+        editor.style.setProperty('--focus-height', `${lineHeight}px`);
+    }
+
+    /**
+     * 타자기 모드 토글
+     */
+    toggleLineFocus(fileId) {
+        const info = this.windows.get(fileId);
+        if (!info || !info.textarea) return;
+
+        const isFocus = info.textarea.classList.toggle('line-focus-mode');
+        this.updateLineFocus(fileId);
+        this.updateFileWindowState(fileId, { isLineFocus: isFocus });
     }
 
     /**
@@ -585,6 +646,7 @@ class WindowManager {
                 </div>
                 <div class="window-titlebar-actions">
                     ${isImage ? `<button class="window-btn window-btn-rotate" data-action="rotate" title="90도 회전">🔄</button>` : ''}
+                    ${(!isImage && !isStat) ? `<button class="window-btn window-btn-focus" data-action="line-focus" title="타자기 모드(집중)">🖋️</button>` : ''}
                     <button class="window-btn window-btn-collapse" data-action="collapse" title="접기/펴기">${collapseChar}</button>
                     <button class="window-btn window-btn-close" data-action="close" title="닫기">✕</button>
                 </div>
@@ -789,6 +851,7 @@ class WindowManager {
                 if (action === 'close') this.closeWindow(fileId);
                 if (action === 'collapse') this.toggleCollapse(fileId);
                 if (action === 'rotate') this.rotateImage(fileId);
+                if (action === 'line-focus') this.toggleLineFocus(fileId);
             });
         });
 
@@ -873,10 +936,19 @@ class WindowManager {
         textarea.addEventListener('input', () => {
             this.onTextChange(fileId, textarea.value);
             this.updateHighlighter(fileId);
+            this.updateLineFocus(fileId);
         });
 
         textarea.addEventListener('scroll', () => {
             this.updateHighlighter(fileId);
+            this.updateLineFocus(fileId);
+        });
+
+        // 커서 이동 대응 (클릭, 키보드)
+        ['click', 'keyup', 'focus'].forEach(evt => {
+            textarea.addEventListener(evt, () => {
+                this.updateLineFocus(fileId);
+            });
         });
 
         // 따옴표 자동 닫기 및 괄호 처리 (스마트 버전)
@@ -1302,6 +1374,9 @@ class WindowManager {
 
         // 글자수 업데이트
         this.updateCharCount(fileId, content);
+        
+        // 타자기 모드 갱신
+        this.updateLineFocus(fileId);
 
         // 통계 업데이트
         if (this.activeWindowId === fileId) {

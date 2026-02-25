@@ -1333,3 +1333,41 @@
     color: var(--color-text-primary);
     border-style: solid;
 }
+
+/* 타자기 모드 (Line Focus) */
+.window-textarea.line-focus-mode {
+    color: rgba(230, 237, 243, 0.05) !important;
+    -webkit-text-fill-color: rgba(230, 237, 243, 0.05) !important;
+    caret-color: var(--color-accent-primary);
+}
+
+/* 텍스트 백드롭 마스킹 (현재 줄만 선명하게) */
+.window-editor:has(.window-textarea.line-focus-mode) .window-backdrop {
+    -webkit-mask-image: linear-gradient(
+        to bottom,
+        rgba(0,0,0,0.15) 0px,
+        rgba(0,0,0,0.15) var(--focus-top),
+        rgba(0,0,0,1.0) var(--focus-top),
+        rgba(0,0,0,1.0) calc(var(--focus-top) + var(--focus-height)),
+        rgba(0,0,0,0.15) calc(var(--focus-top) + var(--focus-height)),
+        rgba(0,0,0,0.15) 100%
+    );
+    mask-image: linear-gradient(
+        to bottom,
+        rgba(0,0,0,0.15) 0px,
+        rgba(0,0,0,0.15) var(--focus-top),
+        rgba(0,0,0,1.0) var(--focus-top),
+        rgba(0,0,0,1.0) calc(var(--focus-top) + var(--focus-height)),
+        rgba(0,0,0,0.15) calc(var(--focus-top) + var(--focus-height)),
+        rgba(0,0,0,0.15) 100%
+    );
+}
+
+.line-focus-highlight {
+    position: absolute;
+    background: rgba(88, 166, 255, 0.05);
+    border-left: 3px solid var(--color-accent-primary);
+    pointer-events: none;
+    z-index: 0;
+    transition: top 0.2s ease;
+}
