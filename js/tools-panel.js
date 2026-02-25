@@ -988,6 +988,10 @@ class ToolsPanel {
               <input type="checkbox" id="autoSaveToggle" ${s.autoSave !== false ? 'checked' : ''} style="width: 20px; height: 20px; cursor: pointer;">
             </div>
             <div class="form-group" style="flex-direction: row; align-items: center; justify-content: space-between; padding: 8px 0;">
+              <label for="autoIndentToggle" style="cursor: pointer; font-size: 14px; font-weight: 500;">엔터 시 자동 들여쓰기</label>
+              <input type="checkbox" id="autoIndentToggle" ${s.autoIndent ? 'checked' : ''} style="width: 20px; height: 20px; cursor: pointer;">
+            </div>
+            <div class="form-group" style="flex-direction: row; align-items: center; justify-content: space-between; padding: 8px 0;">
               <label for="autoCloseQuotes" style="cursor: pointer; font-size: 14px; font-weight: 500;">따옴표 자동 닫기</label>
               <input type="checkbox" id="autoCloseQuotes" ${s.autoCloseQuotes ? 'checked' : ''} style="width: 20px; height: 20px; cursor: pointer;">
             </div>
@@ -1030,6 +1034,7 @@ class ToolsPanel {
         getEl('hyperlinkColor')?.addEventListener('input', (e) => updatePreview('hyperlinkColor', e.target.value));
         getEl('autoCloseQuotes')?.addEventListener('change', (e) => updatePreview('autoCloseQuotes', e.target.checked));
         getEl('autoSaveToggle')?.addEventListener('change', (e) => updatePreview('autoSave', e.target.checked));
+        getEl('autoIndentToggle')?.addEventListener('change', (e) => updatePreview('autoIndent', e.target.checked));
 
         getEl('defaultWinWidth')?.addEventListener('input', (e) => {
             const valEl = getEl('winWidthValue');

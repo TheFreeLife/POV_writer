@@ -657,6 +657,12 @@ body {
   display: inline-block;
 }
 
+/* 모달 닫기 버튼 호버 */
+#closeBackupModalBtn:hover {
+  color: var(--color-text-primary) !important;
+  opacity: 1.0 !important;
+}
+
 /* 토스트 알림 - 다크 */
 .toast-container {
   position: fixed;

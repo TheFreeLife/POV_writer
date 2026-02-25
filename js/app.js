@@ -72,7 +72,10 @@ window.showToast = showToast;
 async function initApp() {
     try {
         if (window.storage) await storage.init();
-        if (window.projectManager) await projectManager.renderProjectList();
+        if (window.projectManager) {
+            await projectManager.renderProjectList();
+            projectManager.setupBackupEventListeners(); // 백업 이벤트 등록
+        }
 
         // 설정 적용 (지연 실행)
         setTimeout(() => {

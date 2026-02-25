@@ -467,6 +467,108 @@ class StorageManager {
       };
     }
   }
+
+  // --- 백업 & 복구 관련 메서드 ---
+
+  async getAllBackupData() {
+    await this.init();
+    const db = this.db;
+    const tx = db.transaction([PROJECTS_STORE, FILES_STORE, VERSIONS_STORE, SETTINGS_STORE], 'readonly');
+    
+    const [projects, files, history, settings, presets] = await Promise.all([
+      new Promise(r => tx.objectStore(PROJECTS_STORE).getAll().onsuccess = e => r(e.target.result)),
+      new Promise(r => tx.objectStore(FILES_STORE).getAll().onsuccess = e => r(e.target.result)),
+      new Promise(r => tx.objectStore(VERSIONS_STORE).getAll().onsuccess = e => r(e.target.result)),
+      new Promise(r => tx.objectStore(SETTINGS_STORE).get('editorSettings').onsuccess = e => r(e.target.result)),
+      new Promise(r => tx.objectStore(SETTINGS_STORE).get('colorPresets').onsuccess = e => r(e.target.result))
+    ]);
+
+    return { type: 'FULL_BACKUP', projects, files, history, settings, presets };
+  }
+
+  async getProjectBackupData(projectId) {
+    await this.init();
+    const db = this.db;
+    const tx = db.transaction([PROJECTS_STORE, FILES_STORE, VERSIONS_STORE], 'readonly');
+
+    const project = await new Promise(r => tx.objectStore(PROJECTS_STORE).get(projectId).onsuccess = e => r(e.target.result));
+    if (!project) return null;
+
+    const allFiles = await new Promise(r => tx.objectStore(FILES_STORE).getAll().onsuccess = e => r(e.target.result));
+    const files = allFiles.filter(f => f.projectId === projectId);
+    const fileIds = files.map(f => f.id);
+
+    const allHistory = await new Promise(r => tx.objectStore(VERSIONS_STORE).getAll().onsuccess = e => r(e.target.result));
+    const history = allHistory.filter(h => fileIds.includes(h.fileId));
+
+    return { type: 'PROJECT_BACKUP', project, files, history };
+  }
+
+  async getMultipleProjectsBackupData(projectIds) {
+    await this.init();
+    const db = this.db;
+    const tx = db.transaction([PROJECTS_STORE, FILES_STORE, VERSIONS_STORE], 'readonly');
+
+    const allProjects = await new Promise(r => tx.objectStore(PROJECTS_STORE).getAll().onsuccess = e => r(e.target.result));
+    const targetProjects = allProjects.filter(p => projectIds.includes(p.id));
+    
+    const allFiles = await new Promise(r => tx.objectStore(FILES_STORE).getAll().onsuccess = e => r(e.target.result));
+    const targetFiles = allFiles.filter(f => projectIds.includes(f.projectId));
+    const fileIds = targetFiles.map(f => f.id);
+
+    const allHistory = await new Promise(r => tx.objectStore(VERSIONS_STORE).getAll().onsuccess = e => r(e.target.result));
+    const targetHistory = allHistory.filter(h => fileIds.includes(h.fileId));
+
+    return {
+      type: 'FULL_BACKUP', // 복구 시 FULL_BACKUP 로직(배열 처리)을 재활용하기 위해 타입을 맞춤
+      projects: targetProjects,
+      files: targetFiles,
+      history: targetHistory
+    };
+  }
+
+  async getSettingsBackupData() {
+    await this.init();
+    const db = this.db;
+    const tx = db.transaction([SETTINGS_STORE], 'readonly');
+
+    const settings = await new Promise(r => tx.objectStore(SETTINGS_STORE).get('editorSettings').onsuccess = e => r(e.target.result));
+    const presets = await new Promise(r => tx.objectStore(SETTINGS_STORE).get('colorPresets').onsuccess = e => r(e.target.result));
+
+    return { type: 'SETTINGS_BACKUP', settings, presets };
+  }
+
+  async restoreBackup(data) {
+    await this.init();
+    const db = this.db;
+    const tx = db.transaction([PROJECTS_STORE, FILES_STORE, VERSIONS_STORE, SETTINGS_STORE], 'readwrite');
+
+    return new Promise((resolve, reject) => {
+      try {
+        if (data.type === 'FULL_BACKUP' || data.type === 'PROJECT_BACKUP') {
+          const projects = data.type === 'FULL_BACKUP' ? data.projects : [data.project];
+          const projectStore = tx.objectStore(PROJECTS_STORE);
+          const fileStore = tx.objectStore(FILES_STORE);
+          const historyStore = tx.objectStore(VERSIONS_STORE);
+
+          for (const p of projects) projectStore.put(p);
+          for (const f of data.files) fileStore.put(f);
+          for (const h of data.history) historyStore.put(h);
+        }
+
+        if (data.type === 'FULL_BACKUP' || data.type === 'SETTINGS_BACKUP') {
+          const globalStore = tx.objectStore(SETTINGS_STORE);
+          if (data.settings) globalStore.put(data.settings, 'editorSettings');
+          if (data.presets) globalStore.put(data.presets, 'colorPresets');
+        }
+
+        tx.oncomplete = () => resolve(true);
+        tx.onerror = (e) => reject(e.target.error);
+      } catch (err) {
+        reject(err);
+      }
+    });
+  }
 }
 
 const storage = new StorageManager();

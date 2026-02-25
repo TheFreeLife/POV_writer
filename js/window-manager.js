@@ -944,6 +944,24 @@ class WindowManager {
         // 따옴표 자동 닫기 및 괄호 처리 (스마트 버전)
         textarea.addEventListener('keydown', (e) => {
             const settings = window.toolsPanel?.settings || {};
+
+            // 엔터 시 자동 들여쓰기 처리
+            if (e.key === 'Enter' && settings.autoIndent && !e.shiftKey) {
+                e.preventDefault();
+                const start = textarea.selectionStart;
+                const end = textarea.selectionEnd;
+                const text = textarea.value;
+
+                // 엔터(줄바꿈) + 공백 한 칸 삽입
+                const newText = text.substring(0, start) + "\n " + text.substring(end);
+                textarea.value = newText;
+                textarea.selectionStart = textarea.selectionEnd = start + 2; // \n + 공백 (2글자)
+                
+                this.onTextChange(fileId, newText);
+                this.updateHighlighter(fileId);
+                return;
+            }
+
             if (!settings.autoCloseQuotes) return;
 
             const charMap = { '"': '"', "'": "'", "(": ")", "[": "]", "{": "}" };
