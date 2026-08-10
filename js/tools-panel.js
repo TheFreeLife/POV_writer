@@ -135,8 +135,7 @@ class ToolsPanel {
                 <div class="stats-item"><span class="stats-label">공백 제외</span><span class="stats-value" id="charCountNoSpace">0</span></div>
                 <div class="stats-item"><span class="stats-label">문장 수</span><span class="stats-value" id="sentenceCount">0</span></div>
                 <div class="stats-item"><span class="stats-label">단락 수</span><span class="stats-value" id="paragraphCount">0</span></div>
-                <div class="stats-item"><span class="stats-label">파일 / 폴더</span><span class="stats-value" id="fileFolderCount">0 / 0</span></div>
-                <div class="stats-item"><span class="stats-label">대사(큰따옴표)</span><span class="stats-value" id="dialogueCount">0회</span></div>
+                <div class="stats-item"><span class="stats-label">노드 / 폴더</span><span class="stats-value" id="fileFolderCount">0 / 0</span></div>
             </div>
 
             <!-- 집필 목표 영역 -->
