@@ -79,7 +79,7 @@
           <svg id="nodeConnectionsSvg" class="node-connections-svg" width="20000" height="20000">
             <defs>
               <marker id="arrowhead" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-                <path d="M 0 0 L 10 5 L 0 10 z" fill="#00ffcc" />
+                <path d="M 0 0 L 10 5 L 0 10 z" fill="context-stroke" />
               </marker>
               <marker id="arrowhead-selected" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
                 <path d="M 0 0 L 10 5 L 0 10 z" fill="#f39c12" />
@@ -323,9 +323,9 @@
           </div>
         </div>
 
-        <!-- 4. [포트 구성] Input & Output 포트 종류 및 개수 설정 -->
+        <!-- 4. [포트 구성] Input & Output 포트 종류, 이름 및 핀 색상 설정 -->
         <div class="node-create-section mt-lg">
-          <label class="form-label">4. 노드 포트 (Input / Output 핀) 종류 및 개수 설정</label>
+          <label class="form-label">4. 노드 포트 (Input / Output 핀) 이름 및 핀 색상 설정</label>
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px;">
             
             <!-- 왼쪽 Input 포트 목록 -->
@@ -370,6 +370,41 @@
       <div class="modal-footer">
         <button class="btn btn-secondary" id="cancelCustomWizardBtn">취소</button>
         <button class="btn btn-primary" id="submitCustomWizardBtn">✨ 노드 목록에 추가</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 노드 핀/포트 및 색상 수정 모달 -->
+  <div id="nodePortEditModal" class="modal-overlay hidden">
+    <div class="modal modal-md">
+      <div class="modal-header">
+        <h2 class="modal-title" id="nodePortEditTitle">📌 노드 핀 (포트) & 색상 수정</h2>
+        <button class="modal-close" id="closeNodePortEditModal">✕</button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="nodePortEditFileId">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px;">
+          <!-- 왼쪽 Input 포트 -->
+          <div style="background: var(--color-bg-secondary); padding: 12px; border-radius: 10px; border: 1px solid var(--color-border);">
+            <div class="flex justify-between items-center mb-xs">
+              <span style="font-size: 12px; font-weight: 700; color: #2ecc71;">📥 Input 포트</span>
+              <button type="button" class="btn btn-secondary btn-sm" id="editAddInputPortBtn" style="font-size: 11px; padding: 2px 8px;">➕ 추가</button>
+            </div>
+            <div id="editInputPortList" class="stat-fields-list" style="max-height: 160px; padding: 6px;"></div>
+          </div>
+          <!-- 오른쪽 Output 포트 -->
+          <div style="background: var(--color-bg-secondary); padding: 12px; border-radius: 10px; border: 1px solid var(--color-border);">
+            <div class="flex justify-between items-center mb-xs">
+              <span style="font-size: 12px; font-weight: 700; color: #00ffcc;">📤 Output 포트</span>
+              <button type="button" class="btn btn-secondary btn-sm" id="editAddOutputPortBtn" style="font-size: 11px; padding: 2px 8px;">➕ 추가</button>
+            </div>
+            <div id="editOutputPortList" class="stat-fields-list" style="max-height: 160px; padding: 6px;"></div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="cancelNodePortEditBtn">취소</button>
+        <button class="btn btn-primary" id="saveNodePortEditBtn">💾 포트 설정 저장</button>
       </div>
     </div>
   </div>

@@ -69,6 +69,13 @@ class WindowManager {
         document.getElementById('closeVersionModal')?.addEventListener('click', () => document.getElementById('versionModal').classList.add('hidden'));
         document.getElementById('cancelVersionBtn')?.addEventListener('click', () => document.getElementById('versionModal').classList.add('hidden'));
 
+        // 노드 핀/포트 수정 모달 버튼
+        document.getElementById('closeNodePortEditModal')?.addEventListener('click', () => this.hideNodePortEditModal());
+        document.getElementById('cancelNodePortEditBtn')?.addEventListener('click', () => this.hideNodePortEditModal());
+        document.getElementById('saveNodePortEditBtn')?.addEventListener('click', () => this.saveNodePortEdit());
+        document.getElementById('editAddInputPortBtn')?.addEventListener('click', () => this.addNodePortEditRow('input', '입력 데이터', '#2ecc71'));
+        document.getElementById('editAddOutputPortBtn')?.addEventListener('click', () => this.addNodePortEditRow('output', '출력 데이터', '#00ffcc'));
+
         // 전역 단축키 (저장 및 연결선 삭제)
         window.addEventListener('keydown', (e) => {
             if ((e.ctrlKey || e.metaKey) && e.key === 's') {
@@ -679,19 +686,25 @@ class WindowManager {
         const inputsArr = (portsConfig.inputs && portsConfig.inputs.length > 0) ? portsConfig.inputs : [{ id: 'in_1', name: '입력 데이터' }];
         const outputsArr = (portsConfig.outputs && portsConfig.outputs.length > 0) ? portsConfig.outputs : [{ id: 'out_1', name: '출력 데이터' }];
 
-        const inputsHtml = inputsArr.map(p => `
+        const inputsHtml = inputsArr.map(p => {
+            const portColor = p.color || '#2ecc71';
+            return `
             <div class="node-port-item node-port-item-left">
-                <div class="node-port port-left" data-file-id="${file.id}" data-port-id="${p.id}" data-port-type="left" title="📥 Input 포트: ${this.escapeHtml(p.name)}"></div>
-                <span class="node-port-label node-port-label-left">📥 ${this.escapeHtml(p.name)}</span>
+                <div class="node-port port-left" data-file-id="${file.id}" data-port-id="${p.id}" data-port-type="left" data-port-color="${portColor}" style="--port-color: ${portColor};" title="📥 Input 포트: ${this.escapeHtml(p.name)}"></div>
+                <span class="node-port-label node-port-label-left" style="--port-color: ${portColor};">📥 ${this.escapeHtml(p.name)}</span>
             </div>
-        `).join('');
+            `;
+        }).join('');
 
-        const outputsHtml = outputsArr.map(p => `
+        const outputsHtml = outputsArr.map(p => {
+            const portColor = p.color || '#00ffcc';
+            return `
             <div class="node-port-item node-port-item-right">
-                <div class="node-port port-right" data-file-id="${file.id}" data-port-id="${p.id}" data-port-type="right" title="📤 Output 포트: ${this.escapeHtml(p.name)}"></div>
-                <span class="node-port-label node-port-label-right">📤 ${this.escapeHtml(p.name)}</span>
+                <div class="node-port port-right" data-file-id="${file.id}" data-port-id="${p.id}" data-port-type="right" data-port-color="${portColor}" style="--port-color: ${portColor};" title="📤 Output 포트: ${this.escapeHtml(p.name)}"></div>
+                <span class="node-port-label node-port-label-right" style="--port-color: ${portColor};">📤 ${this.escapeHtml(p.name)}</span>
             </div>
-        `).join('');
+            `;
+        }).join('');
 
         // 포트 개수에 따른 노드 창 최소 높이 (60px 간격 + 핀 높이 고려)
         const maxPortsCount = Math.max(inputsArr.length, outputsArr.length);
@@ -1738,6 +1751,16 @@ class WindowManager {
             `;
         }
 
+        if (!isMulti) {
+            menuHtml += `
+                <div class="context-menu-item" data-action="edit-node-ports">
+                    <span class="context-menu-icon">📌</span>
+                    <span>노드 핀(포트) 및 색상 수정...</span>
+                </div>
+                <div class="context-menu-divider"></div>
+            `;
+        }
+
         menuHtml += `
             <div class="context-menu-item danger" data-action="delete">
                 <span class="context-menu-icon">🗑️</span>
@@ -1783,6 +1806,13 @@ class WindowManager {
             }
             this.hideContextMenu();
         });
+
+        const editPortsBtn = menu.querySelector('[data-action="edit-node-ports"]');
+        editPortsBtn?.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.showNodePortEditModal(fileId);
+            this.hideContextMenu();
+        });
     }
 
     /**
@@ -1791,6 +1821,153 @@ class WindowManager {
     hideContextMenu() {
         const menu = document.getElementById('contextMenu');
         if (menu) menu.classList.add('hidden');
+    }
+
+    addNodePortEditRow(type = 'input', name = '', color = '') {
+        const listId = type === 'input' ? 'editInputPortList' : 'editOutputPortList';
+        const list = document.getElementById(listId);
+        if (!list) return;
+
+        const fallbackColor = type === 'input' ? '#2ecc71' : '#00ffcc';
+        const colorVal = color || fallbackColor;
+
+        const row = document.createElement('div');
+        row.className = 'stat-field-row';
+        row.style.marginBottom = '6px';
+        row.style.display = 'flex';
+        row.style.alignItems = 'center';
+        row.style.gap = '6px';
+        row.innerHTML = `
+            <input type="color" class="port-color-picker" value="${colorVal}" title="핀 색상 변경" style="width: 28px; height: 26px; padding: 1px 2px; border: 1px solid var(--color-border); border-radius: 6px; cursor: pointer; background: transparent; flex-shrink: 0;">
+            <input type="text" class="input field-name" placeholder="포트 핀 이름" value="${this.escapeHtml(name)}" style="flex: 1; font-size: 11px; height: 26px; padding: 0 6px;">
+            <button type="button" class="btn btn-icon btn-secondary remove-field-btn" title="포트 삭제" style="color: var(--color-accent-danger); border: none; background: transparent; padding: 2px; flex-shrink: 0;">✕</button>
+        `;
+
+        row.querySelector('.remove-field-btn')?.addEventListener('click', () => row.remove());
+        list.appendChild(row);
+    }
+
+    async showNodePortEditModal(fileId) {
+        const info = this.windows.get(fileId);
+        if (!info) return;
+        const file = info.file;
+
+        const modal = document.getElementById('nodePortEditModal');
+        if (!modal) return;
+
+        const fileIdInput = document.getElementById('nodePortEditFileId');
+        if (fileIdInput) fileIdInput.value = fileId;
+
+        const titleEl = document.getElementById('nodePortEditTitle');
+        if (titleEl) titleEl.textContent = `📌 '${file.name}' 노드 핀(포트) & 색상 수정`;
+
+        const portsConfig = file.portsConfig || {
+            inputs: [{ id: 'in_1', name: '입력 데이터', color: '#2ecc71' }],
+            outputs: [{ id: 'out_1', name: '출력 데이터', color: '#00ffcc' }]
+        };
+
+        const inList = document.getElementById('editInputPortList');
+        if (inList) {
+            inList.innerHTML = '';
+            (portsConfig.inputs || []).forEach(p => this.addNodePortEditRow('input', p.name, p.color));
+        }
+
+        const outList = document.getElementById('editOutputPortList');
+        if (outList) {
+            outList.innerHTML = '';
+            (portsConfig.outputs || []).forEach(p => this.addNodePortEditRow('output', p.name, p.color));
+        }
+
+        modal.classList.remove('hidden');
+    }
+
+    hideNodePortEditModal() {
+        document.getElementById('nodePortEditModal')?.classList.add('hidden');
+    }
+
+    async saveNodePortEdit() {
+        const fileId = document.getElementById('nodePortEditFileId')?.value;
+        if (!fileId) return;
+
+        const inputs = [];
+        document.querySelectorAll('#editInputPortList .stat-field-row').forEach((row, idx) => {
+            const pName = row.querySelector('.field-name')?.value.trim();
+            const pColor = row.querySelector('.port-color-picker')?.value || '#2ecc71';
+            if (pName) inputs.push({ id: `in_${idx + 1}`, name: pName, color: pColor });
+        });
+
+        const outputs = [];
+        document.querySelectorAll('#editOutputPortList .stat-field-row').forEach((row, idx) => {
+            const pName = row.querySelector('.field-name')?.value.trim();
+            const pColor = row.querySelector('.port-color-picker')?.value || '#00ffcc';
+            if (pName) outputs.push({ id: `out_${idx + 1}`, name: pName, color: pColor });
+        });
+
+        const portsConfig = { inputs, outputs };
+
+        await window.storage?.updateFile(fileId, { portsConfig });
+
+        const info = this.windows.get(fileId);
+        if (info) {
+            info.file.portsConfig = portsConfig;
+            this.rebuildWindowPorts(fileId);
+        }
+
+        this.hideNodePortEditModal();
+        this.renderConnections();
+        window.showToast?.('노드 핀(포트) 설정이 저장되었습니다! 📌');
+    }
+
+    rebuildWindowPorts(fileId) {
+        const info = this.windows.get(fileId);
+        if (!info || !info.element) return;
+        const file = info.file;
+
+        const portsConfig = file.portsConfig || { inputs: [], outputs: [] };
+        const inputsArr = portsConfig.inputs || [];
+        const outputsArr = portsConfig.outputs || [];
+
+        const leftWrapper = info.element.querySelector('.node-ports-wrapper-left');
+        const rightWrapper = info.element.querySelector('.node-ports-wrapper-right');
+
+        if (leftWrapper) {
+            leftWrapper.innerHTML = inputsArr.map(p => {
+                const portColor = p.color || '#2ecc71';
+                return `
+                <div class="node-port-item node-port-item-left">
+                    <div class="node-port port-left" data-file-id="${file.id}" data-port-id="${p.id}" data-port-type="left" data-port-color="${portColor}" style="--port-color: ${portColor};" title="📥 Input 포트: ${this.escapeHtml(p.name)}"></div>
+                    <span class="node-port-label node-port-label-left" style="--port-color: ${portColor};">📥 ${this.escapeHtml(p.name)}</span>
+                </div>
+                `;
+            }).join('');
+        }
+
+        if (rightWrapper) {
+            rightWrapper.innerHTML = outputsArr.map(p => {
+                const portColor = p.color || '#00ffcc';
+                return `
+                <div class="node-port-item node-port-item-right">
+                    <div class="node-port port-right" data-file-id="${file.id}" data-port-id="${p.id}" data-port-type="right" data-port-color="${portColor}" style="--port-color: ${portColor};" title="📤 Output 포트: ${this.escapeHtml(p.name)}"></div>
+                    <span class="node-port-label node-port-label-right" style="--port-color: ${portColor};">📤 ${this.escapeHtml(p.name)}</span>
+                </div>
+                `;
+            }).join('');
+        }
+
+        info.element.querySelectorAll('.node-port').forEach(portEl => {
+            portEl.addEventListener('mousedown', (e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                const portType = portEl.dataset.portType;
+                if (portType === 'right') {
+                    this.startConnectionDrag(e, file.id, portType, portEl);
+                }
+            });
+        });
+
+        const maxPortsCount = Math.max(inputsArr.length, outputsArr.length);
+        const calcMinHeight = Math.max(240, maxPortsCount * 80 + 50);
+        info.element.style.minHeight = `${calcMinHeight}px`;
     }
 
     /**
@@ -2671,17 +2848,20 @@ class WindowManager {
             container.insertBefore(svg, container.firstChild);
         }
 
+        const portColor = portEl?.dataset?.portColor || '#00ffcc';
         let draftEl = svg.querySelector('#connectionDraftPath');
         if (!draftEl) {
             draftEl = document.createElementNS('http://www.w3.org/2000/svg', 'path');
             draftEl.setAttribute('id', 'connectionDraftPath');
             draftEl.setAttribute('class', 'node-connection-draft');
-            draftEl.setAttribute('stroke', '#00ffcc');
+            draftEl.setAttribute('stroke', portColor);
             draftEl.setAttribute('stroke-width', '4');
             draftEl.setAttribute('stroke-dasharray', '6 4');
             draftEl.setAttribute('fill', 'none');
             draftEl.setAttribute('marker-end', 'url(#arrowhead)');
             svg.appendChild(draftEl);
+        } else {
+            draftEl.setAttribute('stroke', portColor);
         }
 
         this.connectionDragState = {
@@ -2906,13 +3086,23 @@ class WindowManager {
 
             if (!start || !end) return;
 
+            const fromWin = this.getWindowInfo(conn.fromId);
+            let fromPortEl = null;
+            if (conn.fromPortId) {
+                fromPortEl = fromWin?.element?.querySelector(`.node-port[data-port-id="${conn.fromPortId}"]`);
+            }
+            if (!fromPortEl) {
+                fromPortEl = fromWin?.element?.querySelector(`.node-port.port-right`);
+            }
+            const strokeColor = fromPortEl?.dataset?.portColor || '#00ffcc';
+
             const pathD = this.calculateBezierPath(start.x, start.y, conn.fromPort, end.x, end.y, conn.toPort);
             
             const isSelected = (this.selectedConnectionId === conn.id);
             const pathEl = document.createElementNS('http://www.w3.org/2000/svg', 'path');
             pathEl.setAttribute('d', pathD);
             pathEl.setAttribute('class', `node-connection-line${isSelected ? ' selected' : ''}`);
-            pathEl.setAttribute('stroke', isSelected ? '#ffcc00' : '#00ffcc');
+            pathEl.setAttribute('stroke', isSelected ? '#ffcc00' : strokeColor);
             pathEl.setAttribute('stroke-width', isSelected ? '5' : '4');
             pathEl.setAttribute('fill', 'none');
             pathEl.setAttribute('marker-end', isSelected ? 'url(#arrowhead-selected)' : 'url(#arrowhead)');

@@ -423,13 +423,12 @@
 
 .node-connection-line {
     fill: none !important;
-    stroke: #00ffcc !important;
     stroke-width: 4px !important;
     stroke-linecap: round !important;
     pointer-events: stroke !important;
     cursor: pointer;
     transition: stroke 0.2s, stroke-width 0.2s;
-    filter: drop-shadow(0px 0px 8px rgba(0, 255, 204, 0.9)) !important;
+    filter: drop-shadow(0px 0px 8px rgba(0, 0, 0, 0.6));
 }
 
 .node-connection-line:hover {
@@ -452,12 +451,11 @@
 
 .node-connection-draft {
     fill: none !important;
-    stroke: #00ffcc !important;
     stroke-width: 4px !important;
     stroke-dasharray: 6 4 !important;
     pointer-events: none !important;
     opacity: 0.9 !important;
-    filter: drop-shadow(0px 0px 8px rgba(0, 255, 204, 0.9)) !important;
+    filter: drop-shadow(0px 0px 8px rgba(0, 0, 0, 0.6));
 }
 
 /* 노드 포트 핀 DOM 요소 */
@@ -559,13 +557,13 @@
 }
 
 .node-port.port-left {
-    border: 3px solid #2ecc71 !important;
-    box-shadow: 0 0 10px rgba(46, 204, 113, 0.7);
+    border: 3px solid var(--port-color, #2ecc71) !important;
+    box-shadow: 0 0 10px var(--port-color, rgba(46, 204, 113, 0.7));
 }
 
 .node-port.port-right {
-    border: 3px solid #00ffcc !important;
-    box-shadow: 0 0 10px rgba(0, 255, 204, 0.7);
+    border: 3px solid var(--port-color, #00ffcc) !important;
+    box-shadow: 0 0 10px var(--port-color, rgba(0, 255, 204, 0.7));
     cursor: crosshair;
 }
 
@@ -573,16 +571,16 @@
 .node-port.port-left.connecting {
     opacity: 1;
     transform: translateY(-50%) scale(1.4) !important;
-    background: #2ecc71 !important;
-    box-shadow: 0 0 14px rgba(46, 204, 113, 1) !important;
+    background: var(--port-color, #2ecc71) !important;
+    box-shadow: 0 0 14px var(--port-color, rgba(46, 204, 113, 1)) !important;
 }
 
 .node-port.port-right:hover,
 .node-port.port-right.connecting {
     opacity: 1;
     transform: translateY(-50%) scale(1.4) !important;
-    background: #00ffcc !important;
-    box-shadow: 0 0 14px rgba(0, 255, 204, 1) !important;
+    background: var(--port-color, #00ffcc) !important;
+    box-shadow: 0 0 14px var(--port-color, rgba(0, 255, 204, 1)) !important;
 }
 
 /* 호버링 시에만 포트 핀 바로 위에 둥둥 뜨는 반투명 라벨 태그 */
@@ -612,15 +610,15 @@
 }
 
 .node-port-label-left {
-    background: rgba(18, 38, 26, 0.9);
-    color: #2ecc71;
-    border: 1px solid rgba(46, 204, 113, 0.7);
+    background: rgba(18, 38, 26, 0.95);
+    color: var(--port-color, #2ecc71);
+    border: 1px solid var(--port-color, rgba(46, 204, 113, 0.7));
 }
 
 .node-port-label-right {
-    background: rgba(12, 38, 38, 0.9);
-    color: #00ffcc;
-    border: 1px solid rgba(0, 255, 204, 0.7);
+    background: rgba(12, 38, 38, 0.95);
+    color: var(--port-color, #00ffcc);
+    border: 1px solid var(--port-color, rgba(0, 255, 204, 0.7));
 }
 
 

@@ -681,17 +681,42 @@ class FileTreeManager {
             if (preset.wizardType === 'stat') typeBadge = '수치';
             else if (preset.wizardType === 'text_fields') typeBadge = '속성';
 
+            let portsPreviewHtml = '';
+            if (preset.portsConfig) {
+                const inArr = preset.portsConfig.inputs || [];
+                const outArr = preset.portsConfig.outputs || [];
+                const inDots = inArr.map(p => `<span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:${p.color || '#2ecc71'}; margin-right:3px;" title="${this.escapeHtml(p.name)}"></span>`).join('');
+                const outDots = outArr.map(p => `<span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:${p.color || '#00ffcc'}; margin-right:3px;" title="${this.escapeHtml(p.name)}"></span>`).join('');
+                if (inArr.length > 0 || outArr.length > 0) {
+                    portsPreviewHtml = `<div style="margin-top:5px; font-size:10px; color:var(--color-text-tertiary); display:flex; gap:10px; align-items:center;">
+                        ${inArr.length > 0 ? `<span>📥 ${inDots}</span>` : ''}
+                        ${outArr.length > 0 ? `<span>📤 ${outDots}</span>` : ''}
+                    </div>`;
+                }
+            }
+
             card.innerHTML = `
                 <div class="node-type-icon">${preset.icon || '📄'}</div>
-                <div class="node-type-info" style="flex: 1; padding-right: 20px;">
+                <div class="node-type-info" style="flex: 1; padding-right: 48px;">
                     <div class="node-type-title" style="display: flex; align-items: center; justify-content: space-between;">
                         <span>${this.escapeHtml(preset.name)}</span>
                         <span style="font-size: 10px; color: var(--color-accent-primary); background: var(--color-bg-secondary); padding: 2px 6px; border-radius: 8px;">${typeBadge} 커스텀</span>
                     </div>
                     <div class="node-type-desc">${this.escapeHtml(preset.desc || '사용자 정의 커스텀 노드')}</div>
+                    ${portsPreviewHtml}
                 </div>
-                <button class="delete-preset-btn" title="프리셋 삭제" style="position: absolute; top: 6px; right: 6px; background: transparent; border: none; color: var(--color-text-tertiary); cursor: pointer; font-size: 14px; padding: 2px 6px;">✕</button>
+                <div class="preset-card-actions" style="position: absolute; top: 6px; right: 6px; display: flex; gap: 2px;">
+                    <button class="edit-preset-btn" title="프리셋 수정" style="background: transparent; border: none; color: var(--color-text-secondary); cursor: pointer; font-size: 13px; padding: 2px 5px; border-radius: 4px;">✏️</button>
+                    <button class="delete-preset-btn" title="프리셋 삭제" style="background: transparent; border: none; color: var(--color-text-tertiary); cursor: pointer; font-size: 14px; padding: 2px 5px; border-radius: 4px;">✕</button>
+                </div>
             `;
+
+            // 프리셋 수정 버튼
+            card.querySelector('.edit-preset-btn')?.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.hideNodeSelectModal();
+                this.showCustomWizardModal(preset);
+            });
 
             // 프리셋 삭제 버튼
             card.querySelector('.delete-preset-btn')?.addEventListener('click', async (e) => {
@@ -738,52 +763,83 @@ class FileTreeManager {
         }
     }
 
-    showCustomWizardModal() {
-        this.selectedWizardType = 'file';
+    showCustomWizardModal(presetToEdit = null) {
+        this.selectedWizardType = presetToEdit?.wizardType || 'file';
+        this.editingCustomPresetId = presetToEdit?.id || null;
+
         const modal = document.getElementById('customWizardModal');
         if (!modal) return;
 
+        const titleEl = modal.querySelector('.modal-title');
+        const submitBtn = document.getElementById('submitCustomWizardBtn');
+        if (titleEl) titleEl.textContent = presetToEdit ? '✏️ 커스텀 노드 프리셋 수정' : '✨ 나만의 커스텀 노드 정의 & 목록 추가';
+        if (submitBtn) submitBtn.textContent = presetToEdit ? '💾 프리셋 수정 저장' : '✨ 노드 목록에 추가';
+
         const nameInput = document.getElementById('wizardName');
         const descInput = document.getElementById('wizardDesc');
-        if (nameInput) nameInput.value = '';
-        if (descInput) descInput.value = '';
+        if (nameInput) nameInput.value = presetToEdit?.name || '';
+        if (descInput) descInput.value = presetToEdit?.desc || '';
 
         const iconBtn = document.getElementById('wizardIconBtn');
         const iconInput = document.getElementById('wizardIcon');
-        if (iconBtn) iconBtn.textContent = '📄';
-        if (iconInput) iconInput.value = '📄';
+        const defaultIcon = presetToEdit?.icon || '📄';
+        if (iconBtn) iconBtn.textContent = defaultIcon;
+        if (iconInput) iconInput.value = defaultIcon;
 
         modal.querySelectorAll('.wizard-type-card').forEach(card => {
-            if (card.dataset.wizardType === 'file') card.classList.add('active');
+            if (card.dataset.wizardType === this.selectedWizardType) card.classList.add('active');
             else card.classList.remove('active');
         });
 
         const list = document.getElementById('wizardStatList');
         if (list) {
             list.innerHTML = '';
-            this.addWizardStatRow('근력', 10);
-            this.addWizardStatRow('민첩', 10);
-            this.addWizardStatRow('지능', 10);
+            if (presetToEdit?.wizardType === 'stat' && Array.isArray(presetToEdit.fields) && presetToEdit.fields.length > 0) {
+                presetToEdit.fields.forEach(f => this.addWizardStatRow(f.name, f.val));
+            } else {
+                this.addWizardStatRow('근력', 10);
+                this.addWizardStatRow('민첩', 10);
+                this.addWizardStatRow('지능', 10);
+            }
         }
 
         const textList = document.getElementById('wizardTextFieldsList');
         if (textList) {
             textList.innerHTML = '';
-            this.addWizardTextFieldRow('소속', '황실 기사단');
-            this.addWizardTextFieldRow('칭호', '검성');
-            this.addWizardTextFieldRow('특기', '신속 베기');
+            if (presetToEdit?.wizardType === 'text_fields' && Array.isArray(presetToEdit.fields) && presetToEdit.fields.length > 0) {
+                presetToEdit.fields.forEach(f => this.addWizardTextFieldRow(f.name, f.val));
+            } else {
+                this.addWizardTextFieldRow('소속', '황실 기사단');
+                this.addWizardTextFieldRow('칭호', '검성');
+                this.addWizardTextFieldRow('특기', '신속 베기');
+            }
         }
 
         const inList = document.getElementById('wizardInputPortList');
         if (inList) {
             inList.innerHTML = '';
-            this.addPortConfigRow('input', '입력 데이터');
+            const inputs = presetToEdit?.portsConfig?.inputs;
+            if (Array.isArray(inputs) && inputs.length > 0) {
+                inputs.forEach(p => this.addPortConfigRow('input', p.name, p.color));
+            } else {
+                this.addPortConfigRow('input', '입력 데이터', '#2ecc71');
+            }
         }
 
         const outList = document.getElementById('wizardOutputPortList');
         if (outList) {
             outList.innerHTML = '';
-            this.addPortConfigRow('output', '출력 데이터');
+            const outputs = presetToEdit?.portsConfig?.outputs;
+            if (Array.isArray(outputs) && outputs.length > 0) {
+                outputs.forEach(p => this.addPortConfigRow('output', p.name, p.color));
+            } else {
+                this.addPortConfigRow('output', '출력 데이터', '#00ffcc');
+            }
+        }
+
+        const tmplSelect = document.getElementById('wizardTemplate');
+        if (tmplSelect && presetToEdit?.template) {
+            tmplSelect.value = presetToEdit.template;
         }
 
         this.updateCustomWizardUI();
@@ -792,6 +848,7 @@ class FileTreeManager {
     }
 
     hideCustomWizardModal() {
+        this.editingCustomPresetId = null;
         document.getElementById('customWizardModal')?.classList.add('hidden');
     }
 
@@ -864,17 +921,24 @@ class FileTreeManager {
         list.appendChild(row);
     }
 
-    addPortConfigRow(type = 'input', defaultName = '') {
+    addPortConfigRow(type = 'input', defaultName = '', defaultColor = '') {
         const listId = type === 'input' ? 'wizardInputPortList' : 'wizardOutputPortList';
         const list = document.getElementById(listId);
         if (!list) return;
 
+        const fallbackColor = type === 'input' ? '#2ecc71' : '#00ffcc';
+        const colorVal = defaultColor || fallbackColor;
+
         const row = document.createElement('div');
         row.className = 'stat-field-row';
         row.style.marginBottom = '6px';
+        row.style.display = 'flex';
+        row.style.alignItems = 'center';
+        row.style.gap = '6px';
         row.innerHTML = `
+            <input type="color" class="port-color-picker" value="${colorVal}" title="핀 색상 변경" style="width: 28px; height: 26px; padding: 1px 2px; border: 1px solid var(--color-border); border-radius: 6px; cursor: pointer; background: transparent; flex-shrink: 0;">
             <input type="text" class="input field-name" placeholder="포트 핀 이름" value="${this.escapeHtml(defaultName)}" style="flex: 1; font-size: 11px; height: 26px; padding: 0 6px;">
-            <button type="button" class="btn btn-icon btn-secondary remove-field-btn" title="포트 삭제" style="color: var(--color-accent-danger); border: none; background: transparent; padding: 2px;">✕</button>
+            <button type="button" class="btn btn-icon btn-secondary remove-field-btn" title="포트 삭제" style="color: var(--color-accent-danger); border: none; background: transparent; padding: 2px; flex-shrink: 0;">✕</button>
         `;
 
         row.querySelector('.remove-field-btn')?.addEventListener('click', () => {
@@ -913,23 +977,27 @@ class FileTreeManager {
             });
         }
 
-        // 포트 핀 정보 수집
+        // 포트 핀 정보 수집 (이름 및 핀 색상)
         const inputs = [];
-        document.querySelectorAll('#wizardInputPortList .stat-field-row .field-name').forEach((el, idx) => {
-            const pName = el.value.trim();
-            if (pName) inputs.push({ id: `in_${idx + 1}`, name: pName });
+        document.querySelectorAll('#wizardInputPortList .stat-field-row').forEach((row, idx) => {
+            const pName = row.querySelector('.field-name')?.value.trim();
+            const pColor = row.querySelector('.port-color-picker')?.value || '#2ecc71';
+            if (pName) inputs.push({ id: `in_${idx + 1}`, name: pName, color: pColor });
         });
 
         const outputs = [];
-        document.querySelectorAll('#wizardOutputPortList .stat-field-row .field-name').forEach((el, idx) => {
-            const pName = el.value.trim();
-            if (pName) outputs.push({ id: `out_${idx + 1}`, name: pName });
+        document.querySelectorAll('#wizardOutputPortList .stat-field-row').forEach((row, idx) => {
+            const pName = row.querySelector('.field-name')?.value.trim();
+            const pColor = row.querySelector('.port-color-picker')?.value || '#00ffcc';
+            if (pName) outputs.push({ id: `out_${idx + 1}`, name: pName, color: pColor });
         });
 
         const portsConfig = { inputs, outputs };
+        const isEditing = !!this.editingCustomPresetId;
+        const presetId = this.editingCustomPresetId || ('preset_' + Date.now());
 
         const presetData = {
-            id: 'preset_' + Date.now(),
+            id: presetId,
             name,
             icon,
             desc,
@@ -940,11 +1008,12 @@ class FileTreeManager {
         };
 
         await window.storage?.saveCustomNodePreset(presetData);
+        this.editingCustomPresetId = null;
 
         this.hideCustomWizardModal();
         await this.showNodeSelectModal();
 
-        window.showToast?.(`'${name}' 커스텀 노드가 노드 목록에 추가되었습니다! ✨`);
+        window.showToast?.(isEditing ? `'${name}' 프리셋 수정이 저장되었습니다! ✏️` : `'${name}' 커스텀 노드가 노드 목록에 추가되었습니다! ✨`);
     }
 
     async createCustomTextFieldsNode(name, icon, desc, fields, portsConfig = null) {
