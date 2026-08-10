@@ -49,6 +49,7 @@ class FileTreeManager {
                     else if (presetType === 'ai_meta') this.createAiMetaNode();
                     else if (presetType === 'stat') this.showNewStatModal();
                     else if (presetType === 'image') this.showNewImageModal();
+                    else if (presetType === 'folder_collector') this.createCustomFolderCollectorNode('등장인물 수집기', '📂', '선택한 폴더의 모든 노드 자동 수집');
                     else this.showNewItemModal('file');
                 });
             });
@@ -770,7 +771,9 @@ class FileTreeManager {
     }
 
     async createNodeFromPreset(preset) {
-        if (preset.wizardType === 'stat') {
+        if (preset.wizardType === 'folder_collector' || preset.isFolderCollectorNode) {
+            await this.createCustomFolderCollectorNode(preset.name, preset.icon, preset.desc, preset.targetFolderId, preset.itemTemplate, preset.delimiter, preset.portsConfig);
+        } else if (preset.wizardType === 'stat') {
             await this.createCustomStatNode(preset.name, preset.icon, preset.desc, preset.fields || [], preset.portsConfig);
         } else if (preset.wizardType === 'text_fields') {
             await this.createCustomTextFieldsNode(preset.name, preset.icon, preset.desc, preset.fields || [], preset.portsConfig, preset.outputTemplate);
@@ -846,13 +849,33 @@ class FileTreeManager {
             }
         }
 
+        const folderSelect = document.getElementById('wizardTargetFolder');
+        if (folderSelect) {
+            const projectFolders = (this.files || []).filter(f => f.type === 'folder');
+            folderSelect.innerHTML = `<option value="root">📁 [프로젝트 전체 파일 노드]</option>` + 
+                projectFolders.map(f => `<option value="${f.id}">📁 ${this.escapeHtml(f.name)}</option>`).join('');
+            if (presetToEdit?.targetFolderId) {
+                folderSelect.value = presetToEdit.targetFolderId;
+            }
+        }
+
+        const itemTmplEl = document.getElementById('wizardItemTemplate');
+        if (itemTmplEl) {
+            itemTmplEl.value = presetToEdit?.itemTemplate || `📌 《 {$이름$} 》\n{$CONTENT$}`;
+        }
+
+        const delimEl = document.getElementById('wizardDelimiter');
+        if (delimEl) {
+            delimEl.value = presetToEdit?.delimiter !== undefined ? presetToEdit.delimiter : '-----------------------------------';
+        }
+
         const inList = document.getElementById('wizardInputPortList');
         if (inList) {
             inList.innerHTML = '';
             const inputs = presetToEdit?.portsConfig?.inputs;
             if (Array.isArray(inputs) && inputs.length > 0) {
                 inputs.forEach(p => this.addPortConfigRow('input', p.name, p.color));
-            } else {
+            } else if (this.selectedWizardType !== 'folder_collector') {
                 this.addPortConfigRow('input', '입력 데이터', '#2ecc71');
             }
         }
@@ -894,6 +917,12 @@ class FileTreeManager {
         const iconBtn = document.getElementById('wizardIconBtn');
         const iconInput = document.getElementById('wizardIcon');
 
+        const folderSection = document.getElementById('wizardFolderCollectorSection');
+        if (folderSection) {
+            if (type === 'folder_collector') folderSection.classList.remove('hidden');
+            else folderSection.classList.add('hidden');
+        }
+
         if (statSection) {
             if (type === 'stat') statSection.classList.remove('hidden');
             else statSection.classList.add('hidden');
@@ -912,6 +941,7 @@ class FileTreeManager {
         let defaultIcon = '📄';
         if (type === 'stat') defaultIcon = '📊';
         else if (type === 'text_fields') defaultIcon = '🏷️';
+        else if (type === 'folder_collector') defaultIcon = '📂';
 
         if (iconBtn) iconBtn.textContent = defaultIcon;
         if (iconInput) iconInput.value = defaultIcon;
@@ -1135,6 +1165,10 @@ class FileTreeManager {
         const isEditing = !!this.editingCustomPresetId;
         const presetId = this.editingCustomPresetId || ('preset_' + Date.now());
 
+        const targetFolderId = document.getElementById('wizardTargetFolder')?.value || 'root';
+        const itemTemplate = document.getElementById('wizardItemTemplate')?.value || `📌 《 {$이름$} 》\n{$CONTENT$}`;
+        const delimiter = document.getElementById('wizardDelimiter')?.value !== undefined ? document.getElementById('wizardDelimiter').value : '-----------------------------------';
+
         const presetData = {
             id: presetId,
             name,
@@ -1144,7 +1178,11 @@ class FileTreeManager {
             fields,
             outputTemplate,
             portsConfig,
-            template: type === 'file' ? (document.getElementById('wizardTemplate')?.value || 'blank') : null
+            targetFolderId,
+            itemTemplate,
+            delimiter,
+            isFolderCollectorNode: type === 'folder_collector',
+            template: type === 'folder_collector' ? 'folder_collector' : (type === 'file' ? (document.getElementById('wizardTemplate')?.value || 'blank') : null)
         };
 
         await window.storage?.saveCustomNodePreset(presetData);
@@ -1154,6 +1192,33 @@ class FileTreeManager {
         await this.showNodeSelectModal();
 
         window.showToast?.(isEditing ? `'${name}' 프리셋 수정이 저장되었습니다! ✏️` : `'${name}' 커스텀 노드가 노드 목록에 추가되었습니다! ✨`);
+    }
+
+    async createCustomFolderCollectorNode(name, icon, desc, targetFolderId = 'root', itemTemplate = '', delimiter = '-----------------------------------', portsConfig = null) {
+        const defaultItemTemplate = itemTemplate || `📌 《 {$이름$} 》\n{$CONTENT$}`;
+        const contentObj = {
+            isFolderCollectorNode: true,
+            targetFolderId: targetFolderId || 'root',
+            itemTemplate: defaultItemTemplate,
+            delimiter: delimiter !== undefined ? delimiter : '-----------------------------------'
+        };
+
+        const defaultPorts = portsConfig || {
+            inputs: [],
+            outputs: [{ id: 'out_1', name: '수집 데이터', color: '#00ffcc' }]
+        };
+
+        const fileData = {
+            name: `${icon || '📂'} ${name}`,
+            type: 'file',
+            template: 'folder_collector',
+            isFolderCollectorNode: true,
+            description: desc,
+            content: JSON.stringify(contentObj, null, 2),
+            portsConfig: defaultPorts
+        };
+
+        await this.createNewCustomNode(fileData);
     }
 
     async createCustomTextFieldsNode(name, icon, desc, fields, portsConfig = null, outputTemplate = '') {

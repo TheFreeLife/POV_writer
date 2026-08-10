@@ -440,6 +440,12 @@ class WindowManager {
             this.renderTextFieldsNode(fileId);
         }
 
+        // 폴더 자동 수집 노드인 경우 초기 렌더링
+        const isFolderCollector = file.template === 'folder_collector' || file.isFolderCollectorNode || (file.content && typeof file.content === 'string' && file.content.includes('"isFolderCollectorNode"'));
+        if (isFolderCollector) {
+            this.renderFolderCollectorNode(fileId);
+        }
+
         // 시스템 프롬프트 노드 및 AI META 노드 폼 초기 렌더링
         const isSystemPrompt = file.isSystemPromptNode || (file.content && typeof file.content === 'string' && file.content.includes('"command"'));
         const isAiMeta = file.isAiMetaNode || (file.content && typeof file.content === 'string' && file.content.includes('"role"'));
@@ -666,6 +672,12 @@ class WindowManager {
             bodyContent = `
                 <div class="stat-calculator-container" id="textFieldContainer_${file.id}">
                     <!-- 텍스트 속성 및 출력 양식 UI가 렌더링됩니다 -->
+                </div>
+            `;
+        } else if (file.template === 'folder_collector' || file.isFolderCollectorNode || (file.content && typeof file.content === 'string' && file.content.includes('"isFolderCollectorNode"'))) {
+            bodyContent = `
+                <div class="stat-calculator-container" id="folderCollectorContainer_${file.id}">
+                    <!-- 폴더 자동 수집 노드 UI가 렌더링됩니다 -->
                 </div>
             `;
         } else if (isSystemPrompt) {
@@ -2556,7 +2568,9 @@ class WindowManager {
 
                 // 상위 노드가 그 Output 포트에서 "그대로" 평가한 Output 텍스트 생성
                 let outputText = '';
-                if (uFile.isTextFieldsNode || (uFile.content && typeof uFile.content === 'string' && uFile.content.includes('"isTextFieldsNode"'))) {
+                if (uFile.template === 'folder_collector' || uFile.isFolderCollectorNode || (uFile.content && typeof uFile.content === 'string' && uFile.content.includes('"isFolderCollectorNode"'))) {
+                    outputText = this.getEvaluatedFolderCollectorText(uFile);
+                } else if (uFile.isTextFieldsNode || (uFile.content && typeof uFile.content === 'string' && uFile.content.includes('"isTextFieldsNode"'))) {
                     outputText = this.getEvaluatedTextFieldsText(uFile, conn.fromPortId);
                 } else if (uFile.template === 'stat' || uFile.isStatNode) {
                     try {
@@ -3582,6 +3596,196 @@ class WindowManager {
         container.querySelectorAll('input, textarea').forEach(inputEl => {
             inputEl.addEventListener('input', updateMetaData);
         });
+    }
+
+    /**
+     * 폴더 자동 수집 노드 평가 및 렌더링
+     */
+    getEvaluatedFolderCollectorText(file) {
+        if (!file || !file.content) return '';
+        try {
+            const data = typeof file.content === 'string' ? JSON.parse(file.content) : file.content;
+            const targetFolderId = data.targetFolderId || 'root';
+            const itemTemplate = data.itemTemplate || '';
+
+            // 1) 양식이 비어 있으면 빈 텍스트(여백) 출력
+            if (!itemTemplate.trim()) {
+                return '';
+            }
+
+            const projectFiles = Array.from(this.windows.values()).map(w => w.file);
+            let allFiles = window.fileTreeManager?.files || projectFiles;
+
+            let targetFiles = [];
+            if (targetFolderId === 'root') {
+                targetFiles = allFiles.filter(f => f.type === 'file' && f.id !== file.id && f.template !== 'folder_collector');
+            } else {
+                targetFiles = allFiles.filter(f => f.parentId === targetFolderId && f.type === 'file' && f.id !== file.id);
+            }
+
+            if (targetFiles.length === 0) {
+                return `(선택한 폴더에 수집할 파일 노드가 없습니다)`;
+            }
+
+            // 폴더 내 각 파일의 전체 내용 평가 및 Map 구성
+            const fileContentMap = new Map();
+
+            targetFiles.forEach(f => {
+                let contentText = '';
+                if (f.isTextFieldsNode || (f.content && typeof f.content === 'string' && f.content.includes('"isTextFieldsNode"'))) {
+                    contentText = this.getEvaluatedTextFieldsText(f);
+                } else if (f.template === 'stat' || f.isStatNode) {
+                    try {
+                        const uData = typeof f.content === 'string' ? JSON.parse(f.content) : f.content;
+                        contentText = uData.outputTemplate || '';
+                        if (!contentText) {
+                            contentText = `《 ${f.name} 상태창 》\n` + (uData.stats || []).map(s => `[${s.name}: ${s.value}]`).join(' ');
+                        } else {
+                            contentText = contentText.replace(/\{\$이름\$\}/g, f.name);
+                            (uData.stats || []).forEach(s => {
+                                const escapedName = s.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                                contentText = contentText.replace(new RegExp(`\\{\\$${escapedName}\\$\\}`, 'g'), s.value);
+                            });
+                        }
+                    } catch(e) {}
+                } else {
+                    contentText = typeof f.content === 'string' ? f.content : '';
+                }
+
+                const rawName = f.name || '';
+                const cleanName = rawName.replace(/^[^\w\s가-힣]+\s*/, '').trim();
+
+                fileContentMap.set(rawName, contentText);
+                if (cleanName) fileContentMap.set(cleanName, contentText);
+            });
+
+            // 2) 양식에 {$CONTENT$}가 포함된 경우 (파일별 순차 반복 수집)
+            if (itemTemplate.includes('{$CONTENT$}')) {
+                return targetFiles.map(f => {
+                    const textVal = fileContentMap.get(f.name) || '';
+                    return itemTemplate.replace(/\{\$이름\$\}/g, f.name).replace(/\{\$CONTENT\$\}/g, textVal);
+                }).join('\n\n');
+            }
+
+            // 3) 사용자가 양식에 {$파일명$} 형태로 원하는 파일들을 직접 자유롭게 배치한 경우
+            let result = itemTemplate.replace(/\{\$이름\$\}/g, file.name);
+
+            fileContentMap.forEach((textVal, nameKey) => {
+                const escapedName = nameKey.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                const regex = new RegExp(`\\{\\$${escapedName}\\$\\}`, 'g');
+                result = result.replace(regex, textVal);
+            });
+
+            return result;
+        } catch (e) {
+            return typeof file.content === 'string' ? file.content : '';
+        }
+    }
+
+    renderFolderCollectorNode(fileId) {
+        const info = this.windows.get(fileId);
+        const container = document.getElementById(`folderCollectorContainer_${fileId}`);
+        if (!info || !container) return;
+
+        let data;
+        try {
+            data = typeof info.file.content === 'string' ? JSON.parse(info.file.content || '{}') : (info.file.content || {});
+            if (!data.targetFolderId) data.targetFolderId = 'root';
+            if (data.itemTemplate === undefined) data.itemTemplate = '';
+        } catch (e) {
+            data = { targetFolderId: 'root', itemTemplate: '' };
+        }
+
+        const projectFolders = (window.fileTreeManager?.files || []).filter(f => f.type === 'folder');
+        const evaluatedText = this.getEvaluatedFolderCollectorText(info.file);
+
+        let allFiles = window.fileTreeManager?.files || Array.from(this.windows.values()).map(w => w.file);
+        let targetFiles = [];
+        if (data.targetFolderId === 'root') {
+            targetFiles = allFiles.filter(f => f.type === 'file' && f.id !== fileId && f.template !== 'folder_collector');
+        } else {
+            targetFiles = allFiles.filter(f => f.parentId === data.targetFolderId && f.type === 'file' && f.id !== fileId);
+        }
+
+        const fileChipsHtml = targetFiles.map(f => {
+            const cleanName = f.name.replace(/^[^\w\s가-힣]+\s*/, '').trim() || f.name;
+            return `<button type="button" class="btn btn-secondary btn-sm" style="font-size: 11px; padding: 2px 8px; font-weight: 600;" 
+                onclick="window.windowManager.insertFolderCollectorFileVar('${fileId}', '${this.escapeHtml(cleanName)}')" title="클릭 시 양식에 {$${this.escapeHtml(cleanName)}$} 삽입">+ {$${this.escapeHtml(cleanName)}$}</button>`;
+        }).join(' ');
+
+        container.innerHTML = `
+            <div style="padding: 12px; display: flex; flex-direction: column; gap: 10px; height: 100%; box-sizing: border-box;">
+                <div style="background: var(--color-surface-1); padding: 10px; border-radius: 8px; border: 1px solid var(--color-border);">
+                    <label style="font-size: 12px; font-weight: 700; color: var(--color-accent-primary); display: block; margin-bottom: 6px;">📁 수집 대상 폴더 선택</label>
+                    <select class="input" style="width: 100%; font-size: 12px; height: 34px; padding: 4px 8px; line-height: 1.4; box-sizing: border-box; cursor: pointer; text-overflow: ellipsis; white-space: nowrap;" onchange="window.windowManager.onFolderCollectorFolderChange('${fileId}', this.value)">
+                        <option value="root" ${data.targetFolderId === 'root' ? 'selected' : ''}>📁 [프로젝트 전체 파일 노드]</option>
+                        ${projectFolders.map(f => `<option value="${f.id}" ${data.targetFolderId === f.id ? 'selected' : ''}>📁 ${this.escapeHtml(f.name)}</option>`).join('')}
+                    </select>
+                </div>
+
+                <div style="background: var(--color-surface-1); padding: 10px; border-radius: 8px; border: 1px solid var(--color-border); flex: 1; display: flex; flex-direction: column;">
+                    <div style="font-size: 11px; font-weight: 700; color: var(--color-text-secondary); margin-bottom: 6px;">
+                        📌 감지된 파일 노드 (버튼 클릭 시 양식에 변수 삽입):
+                    </div>
+                    <div style="display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 8px;">
+                        ${fileChipsHtml || '<span style="font-size: 11px; color: var(--color-text-tertiary);">감지된 파일 없음</span>'}
+                    </div>
+
+                    <label style="font-size: 12px; font-weight: 700; color: var(--color-text-secondary); display: block; margin-bottom: 6px;">📝 파일 자유 배치 양식 (템플릿)</label>
+                    <textarea class="input folder-collector-tmpl_${fileId}" style="width: 100%; height: 95px; font-family: inherit; font-size: 12px; line-height: 1.5; resize: vertical;" 
+                        oninput="window.windowManager.onFolderCollectorTemplateChange('${fileId}', this.value)" placeholder="예: [메인 캐릭터]&#10;{$아인$}&#10;&#10;[서브 캐릭터]&#10;{$엘레나$}">${this.escapeHtml(data.itemTemplate)}</textarea>
+                    <div style="font-size: 10px; color: var(--color-text-tertiary); margin-top: 4px; line-height: 1.4;">
+                      💡 위 파일 변수(<code>{$파일명$}</code>)를 원하는 위치에 배치하면 해당 파일의 전체 내용이 들어갑니다. (양식을 비워두면 빈 텍스트 출력)
+                    </div>
+                </div>
+
+                <!-- 실시간 최종 수집 출력 미리보기 -->
+                <div style="margin-top: 4px; border-top: 1px dashed var(--color-border); padding-top: 10px;">
+                    <div style="font-size: 12px; font-weight: 700; color: #00ffcc; margin-bottom: 6px;">👁️ 배치 결과 최종 미리보기</div>
+                    <pre style="background: var(--color-bg-primary); border: 1px solid var(--color-border); padding: 10px; border-radius: 8px; font-family: inherit; font-size: 12px; line-height: 1.6; white-space: pre-wrap; word-break: break-all; margin: 0; color: var(--color-text-primary); max-height: 150px; overflow-y: auto;">${this.escapeHtml(evaluatedText)}</pre>
+                </div>
+            </div>
+        `;
+    }
+
+    insertFolderCollectorFileVar(fileId, fileName) {
+        const textarea = document.querySelector(`.folder-collector-tmpl_${fileId}`);
+        if (!textarea) return;
+        const varStr = `{$${fileName}$}\n`;
+        const start = textarea.selectionStart || textarea.value.length;
+        const end = textarea.selectionEnd || textarea.value.length;
+        const val = textarea.value;
+        textarea.value = val.substring(0, start) + varStr + val.substring(end);
+        textarea.selectionStart = textarea.selectionEnd = start + varStr.length;
+        textarea.focus();
+        this.onFolderCollectorTemplateChange(fileId, textarea.value);
+    }
+
+    async onFolderCollectorFolderChange(fileId, folderId) {
+        const info = this.windows.get(fileId);
+        if (!info) return;
+        let data = typeof info.file.content === 'string' ? JSON.parse(info.file.content || '{}') : (info.file.content || {});
+        data.targetFolderId = folderId;
+        info.file.content = JSON.stringify(data, null, 2);
+        await window.storage?.updateFile(fileId, { content: info.file.content });
+        this.renderFolderCollectorNode(fileId);
+    }
+
+    async onFolderCollectorTemplateChange(fileId, template) {
+        const info = this.windows.get(fileId);
+        if (!info) return;
+        let data = typeof info.file.content === 'string' ? JSON.parse(info.file.content || '{}') : (info.file.content || {});
+        data.itemTemplate = template;
+        info.file.content = JSON.stringify(data, null, 2);
+        await window.storage?.updateFile(fileId, { content: info.file.content });
+
+        const container = document.getElementById(`folderCollectorContainer_${fileId}`);
+        if (container) {
+            const previewPre = container.querySelector('pre');
+            if (previewPre) {
+                previewPre.textContent = this.getEvaluatedFolderCollectorText(info.file);
+            }
+        }
     }
 
     escapeHtml(text) {
