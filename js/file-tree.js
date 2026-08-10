@@ -772,7 +772,7 @@ class FileTreeManager {
 
     async createNodeFromPreset(preset) {
         if (preset.wizardType === 'folder_collector' || preset.isFolderCollectorNode) {
-            await this.createCustomFolderCollectorNode(preset.name, preset.icon, preset.desc, preset.targetFolderId, preset.itemTemplate, preset.delimiter, preset.portsConfig);
+            await this.createCustomFolderCollectorNode(preset.name, preset.icon, preset.desc, preset.targetFolderId, preset.itemTemplate, preset.portsConfig);
         } else if (preset.wizardType === 'stat') {
             await this.createCustomStatNode(preset.name, preset.icon, preset.desc, preset.fields || [], preset.portsConfig);
         } else if (preset.wizardType === 'text_fields') {
@@ -916,12 +916,6 @@ class FileTreeManager {
         const templateSection = document.getElementById('wizardTemplateSection');
         const iconBtn = document.getElementById('wizardIconBtn');
         const iconInput = document.getElementById('wizardIcon');
-
-        const folderSection = document.getElementById('wizardFolderCollectorSection');
-        if (folderSection) {
-            if (type === 'folder_collector') folderSection.classList.remove('hidden');
-            else folderSection.classList.add('hidden');
-        }
 
         if (statSection) {
             if (type === 'stat') statSection.classList.remove('hidden');
@@ -1165,10 +1159,6 @@ class FileTreeManager {
         const isEditing = !!this.editingCustomPresetId;
         const presetId = this.editingCustomPresetId || ('preset_' + Date.now());
 
-        const targetFolderId = document.getElementById('wizardTargetFolder')?.value || 'root';
-        const itemTemplate = document.getElementById('wizardItemTemplate')?.value || `📌 《 {$이름$} 》\n{$CONTENT$}`;
-        const delimiter = document.getElementById('wizardDelimiter')?.value !== undefined ? document.getElementById('wizardDelimiter').value : '-----------------------------------';
-
         const presetData = {
             id: presetId,
             name,
@@ -1178,9 +1168,6 @@ class FileTreeManager {
             fields,
             outputTemplate,
             portsConfig,
-            targetFolderId,
-            itemTemplate,
-            delimiter,
             isFolderCollectorNode: type === 'folder_collector',
             template: type === 'folder_collector' ? 'folder_collector' : (type === 'file' ? (document.getElementById('wizardTemplate')?.value || 'blank') : null)
         };
@@ -1194,13 +1181,11 @@ class FileTreeManager {
         window.showToast?.(isEditing ? `'${name}' 프리셋 수정이 저장되었습니다! ✏️` : `'${name}' 커스텀 노드가 노드 목록에 추가되었습니다! ✨`);
     }
 
-    async createCustomFolderCollectorNode(name, icon, desc, targetFolderId = 'root', itemTemplate = '', delimiter = '-----------------------------------', portsConfig = null) {
-        const defaultItemTemplate = itemTemplate || `📌 《 {$이름$} 》\n{$CONTENT$}`;
+    async createCustomFolderCollectorNode(name, icon, desc, targetFolderId = 'root', itemTemplate = '', portsConfig = null) {
         const contentObj = {
             isFolderCollectorNode: true,
             targetFolderId: targetFolderId || 'root',
-            itemTemplate: defaultItemTemplate,
-            delimiter: delimiter !== undefined ? delimiter : '-----------------------------------'
+            itemTemplate: itemTemplate || ''
         };
 
         const defaultPorts = portsConfig || {
