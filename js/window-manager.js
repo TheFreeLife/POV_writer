@@ -649,8 +649,8 @@ class WindowManager {
         }
 
         win.innerHTML = `
-            <div class="node-port port-left" data-file-id="${file.id}" data-port-type="left" title="연결 포트 (드래그하여 이으세요)"></div>
-            <div class="node-port port-right" data-file-id="${file.id}" data-port-type="right" title="연결 포트 (드래그하여 이으세요)"></div>
+            <div class="node-port port-left" data-file-id="${file.id}" data-port-type="left" title="입력 포트 (Input - 화살표 들어오는 곳)"></div>
+            <div class="node-port port-right" data-file-id="${file.id}" data-port-type="right" title="출력 포트 (Output - 드래그하여 연결)"></div>
             <div class="window-titlebar" data-file-id="${file.id}">
                 <div class="window-titlebar-left">
                     <span class="window-titlebar-icon">${icon}</span>
@@ -2487,13 +2487,13 @@ class WindowManager {
                 pLeft.className = 'node-port port-left';
                 pLeft.dataset.fileId = fileId;
                 pLeft.dataset.portType = 'left';
-                pLeft.title = '연결 포트 (드래그하여 이으세요)';
+                pLeft.title = '입력 포트 (Input - 화살표 들어오는 곳)';
 
                 const pRight = document.createElement('div');
                 pRight.className = 'node-port port-right';
                 pRight.dataset.fileId = fileId;
                 pRight.dataset.portType = 'right';
-                pRight.title = '연결 포트 (드래그하여 이으세요)';
+                pRight.title = '출력 포트 (Output - 드래그하여 연결)';
 
                 info.element.prepend(pLeft, pRight);
 
@@ -2516,7 +2516,11 @@ class WindowManager {
         try {
             if (window.storage) {
                 const conns = await window.storage.getProjectConnections(projectId);
-                this.nodeConnections = Array.isArray(conns) ? conns : [];
+                this.nodeConnections = Array.isArray(conns) ? conns.map(c => ({
+                    ...c,
+                    fromPort: 'right',
+                    toPort: 'left'
+                })) : [];
             }
         } catch (e) {
             console.warn('노드 연결 정보 불러오기 실패:', e);
@@ -2581,7 +2585,7 @@ class WindowManager {
     }
 
     /**
-     * 포트 드래그 연결 시작
+     * 포트 드래그 연결 시작 (Input/Output 모든 포트에서 드래그 가능)
      */
     startConnectionDrag(e, fromId, fromPort, portEl) {
         const coords = this.getPortCoordinates(fromId, fromPort);
@@ -2621,7 +2625,7 @@ class WindowManager {
     }
 
     /**
-     * 드래그 중 임시 연결선 갱신
+     * 드래그 중 임시 연결선 갱신 (반대쪽 포트만 타겟팅)
      */
     updateConnectionDrag(e) {
         const state = this.connectionDragState;
@@ -2634,14 +2638,20 @@ class WindowManager {
         const currentX = (e.clientX - containerRect.left) / (this.scale || 1);
         const currentY = (e.clientY - containerRect.top) / (this.scale || 1);
 
-        const pathD = this.calculateBezierPath(state.startX, state.startY, state.fromPort, currentX, currentY, 'left');
+        let pathD = '';
+        if (state.fromPort === 'right') {
+            pathD = this.calculateBezierPath(state.startX, state.startY, 'right', currentX, currentY, 'left');
+        } else {
+            pathD = this.calculateBezierPath(currentX, currentY, 'right', state.startX, state.startY, 'left');
+        }
         state.draftEl.setAttribute('d', pathD);
 
         const elemBelow = document.elementFromPoint(e.clientX, e.clientY);
-        const targetPort = elemBelow ? elemBelow.closest('.node-port') : null;
+        const oppositePortClass = state.fromPort === 'right' ? '.node-port.port-left' : '.node-port.port-right';
+        const targetPort = elemBelow ? elemBelow.closest(oppositePortClass) : null;
         
         document.querySelectorAll('.node-port.connecting').forEach(p => {
-            if (p !== elemBelow) p.classList.remove('connecting');
+            if (p !== targetPort) p.classList.remove('connecting');
         });
         if (targetPort) targetPort.classList.add('connecting');
     }
@@ -2663,7 +2673,15 @@ class WindowManager {
             const toPort = targetPort.dataset.portType || 'left';
 
             if (toId && String(toId) !== String(state.fromId)) {
-                this.addNodeConnection(state.fromId, state.fromPort, toId, toPort);
+                if (state.fromPort === toPort) {
+                    if (toPort === 'left') {
+                        window.showToast?.('Input 포트끼리는 연결할 수 없습니다. (Output 포트와 연결하세요)', 'warn');
+                    } else {
+                        window.showToast?.('Output 포트끼리는 연결할 수 없습니다. (Input 포트와 연결하세요)', 'warn');
+                    }
+                } else {
+                    this.addNodeConnection(state.fromId, state.fromPort, toId, toPort);
+                }
             }
         }
 
@@ -2673,26 +2691,39 @@ class WindowManager {
     }
 
     /**
-     * 노드 간 연결선 추가
+     * 노드 간 연결선 추가 (자동으로 Output -> Input 화살표 방향 정렬)
      */
     addNodeConnection(fromId, fromPort, toId, toPort) {
+        if (fromPort === toPort) {
+            window.showToast?.('동일한 포트 타입끼리는 연결할 수 없습니다. (Input ↔ Output만 연결 가능)', 'warn');
+            return;
+        }
+
+        let outputId = fromId;
+        let inputId = toId;
+
+        // Input(left) 포트에서 드래그를 시작해 Output(right) 포트에 연결한 경우 방향 자동 조절
+        if (fromPort === 'left' && toPort === 'right') {
+            outputId = toId;
+            inputId = fromId;
+        }
+
         const exists = this.nodeConnections.some(c => 
-            (String(c.fromId) === String(fromId) && String(c.toId) === String(toId)) || 
-            (String(c.fromId) === String(toId) && String(c.toId) === String(fromId))
+            (String(c.fromId) === String(outputId) && String(c.toId) === String(inputId))
         );
 
         if (exists) {
-            window.showToast?.('이미 두 노드가 연결되어 있습니다.', 'warn');
+            window.showToast?.('이미 해당 방향으로 두 노드가 연결되어 있습니다.', 'warn');
             return;
         }
 
         const connId = 'conn_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
         this.nodeConnections.push({
             id: connId,
-            fromId,
-            fromPort,
-            toId,
-            toPort
+            fromId: outputId,
+            fromPort: 'right',
+            toId: inputId,
+            toPort: 'left'
         });
 
         this.renderConnections();

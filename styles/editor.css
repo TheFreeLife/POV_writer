@@ -423,30 +423,42 @@
     width: 16px;
     height: 16px;
     background: var(--color-bg-secondary);
-    border: 2px solid var(--color-accent-primary);
     border-radius: 50%;
-    opacity: 0.7;
+    opacity: 0.8;
     transition: all 0.2s ease;
-    cursor: crosshair;
     z-index: 50;
 }
 
+/* 입력 포트 (Input) - 왼쪽: 화살표를 수신하는 용도 */
 .node-port.port-left {
     left: -8px;
     transform: translateY(-50%);
+    border: 2px solid #2ecc71;
+    cursor: pointer;
 }
 
+/* 출력 포트 (Output) - 오른쪽: 화살표를 발신하는 용도 */
 .node-port.port-right {
     right: -8px;
     transform: translateY(-50%);
+    border: 2px solid #00ffcc;
+    cursor: crosshair;
 }
 
-.node-port:hover,
-.node-port.connecting {
+.node-port.port-left:hover,
+.node-port.port-left.connecting {
     opacity: 1;
     transform: translateY(-50%) scale(1.35);
-    background: var(--color-accent-primary);
-    box-shadow: 0 0 10px rgba(88, 166, 255, 0.8);
+    background: #2ecc71;
+    box-shadow: 0 0 10px rgba(46, 204, 113, 0.8);
+}
+
+.node-port.port-right:hover,
+.node-port.port-right.connecting {
+    opacity: 1;
+    transform: translateY(-50%) scale(1.35);
+    background: #00ffcc;
+    box-shadow: 0 0 10px rgba(0, 255, 204, 0.8);
 }
 
 
