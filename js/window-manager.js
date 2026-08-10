@@ -59,6 +59,10 @@ class WindowManager {
                 this.deselectConnection();
             }
         });
+        window.addEventListener('blur', () => {
+            document.querySelectorAll('.selection-box').forEach(el => el.remove());
+            this.selectionState = null;
+        });
 
         // 상단 헤더 저장 버튼
         document.getElementById('saveBtn')?.addEventListener('click', () => {
@@ -204,6 +208,7 @@ class WindowManager {
         canvasArea.addEventListener('mousedown', (e) => {
             if (e.target === canvasArea || e.target === container) {
                 if (e.button === 0) { // 좌클릭
+                    document.querySelectorAll('.selection-box').forEach(el => el.remove());
                     const isMulti = e.shiftKey || e.ctrlKey || e.metaKey;
                     if (!isMulti) {
                         this.unfocusAll();
@@ -713,13 +718,15 @@ class WindowManager {
             `;
         }
 
+        const isFolderCollector = file.template === 'folder_collector' || file.isFolderCollectorNode || (file.content && typeof file.content === 'string' && file.content.includes('"isFolderCollectorNode"'));
+        const defaultInputs = isFolderCollector ? [] : [{ id: 'in_1', name: '입력 데이터' }];
         const portsConfig = file.portsConfig || {
-            inputs: [{ id: 'in_1', name: '입력 데이터' }],
+            inputs: defaultInputs,
             outputs: [{ id: 'out_1', name: '출력 데이터' }]
         };
 
-        const inputsArr = (portsConfig.inputs && portsConfig.inputs.length > 0) ? portsConfig.inputs : [{ id: 'in_1', name: '입력 데이터' }];
-        const outputsArr = (portsConfig.outputs && portsConfig.outputs.length > 0) ? portsConfig.outputs : [{ id: 'out_1', name: '출력 데이터' }];
+        const inputsArr = Array.isArray(portsConfig.inputs) ? portsConfig.inputs : defaultInputs;
+        const outputsArr = Array.isArray(portsConfig.outputs) ? portsConfig.outputs : [{ id: 'out_1', name: '출력 데이터' }];
 
         const inputsHtml = inputsArr.map(p => {
             const portColor = p.color || '#2ecc71';
@@ -1470,9 +1477,7 @@ class WindowManager {
             this.endConnectionDrag(e);
         }
 
-        if (this.selectionState && this.selectionState.element) {
-            this.selectionState.element.remove();
-        }
+        document.querySelectorAll('.selection-box').forEach(el => el.remove());
 
         if (this.regionDragState || this.regionResizeState) {
             this.regionDragState = null;
@@ -3915,8 +3920,13 @@ class WindowManager {
 
             targetFiles.forEach(f => {
                 let contentText = '';
-                if (f.isTextFieldsNode || (f.content && typeof f.content === 'string' && f.content.includes('"isTextFieldsNode"'))) {
-                    contentText = this.getEvaluatedTextFieldsText(f);
+                const outputs = f.portsConfig?.outputs || [];
+                const firstPortId = (Array.isArray(outputs) && outputs.length > 0) ? outputs[0].id : null;
+
+                if (f.isFolderCollectorNode || f.template === 'folder_collector' || (f.content && typeof f.content === 'string' && f.content.includes('"isFolderCollectorNode"'))) {
+                    contentText = this.getEvaluatedFolderCollectorText(f);
+                } else if (f.isTextFieldsNode || (f.content && typeof f.content === 'string' && f.content.includes('"isTextFieldsNode"'))) {
+                    contentText = this.getEvaluatedTextFieldsText(f, firstPortId);
                 } else if (f.template === 'stat' || f.isStatNode) {
                     try {
                         const uData = typeof f.content === 'string' ? JSON.parse(f.content) : f.content;

@@ -49,7 +49,7 @@ class FileTreeManager {
                     else if (presetType === 'ai_meta') this.createAiMetaNode();
                     else if (presetType === 'stat') this.showNewStatModal();
                     else if (presetType === 'image') this.showNewImageModal();
-                    else if (presetType === 'folder_collector') this.createCustomFolderCollectorNode('등장인물 수집기', '📂', '선택한 폴더의 모든 노드 자동 수집');
+                    else if (presetType === 'folder_collector') this.createCustomFolderCollectorNode('폴더 자동 수집기', '📂', '선택한 폴더의 모든 노드 자동 수집');
                     else this.showNewItemModal('file');
                 });
             });
