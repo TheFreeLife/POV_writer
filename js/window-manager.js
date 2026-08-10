@@ -2741,6 +2741,11 @@ class WindowManager {
         const elemBelow = document.elementFromPoint(e.clientX, e.clientY);
         const targetPort = elemBelow ? elemBelow.closest('.node-port') : null;
 
+        // 드래그/연결 클래스 및 커서 스타일 먼저 정리
+        document.querySelectorAll('.node-port.connecting').forEach(p => p.classList.remove('connecting'));
+        this.connectionDragState = null;
+        document.body.style.cursor = '';
+
         if (targetPort) {
             const toId = targetPort.dataset.fileId;
             const toPort = targetPort.dataset.portType || 'left';
@@ -2758,10 +2763,6 @@ class WindowManager {
                 }
             }
         }
-
-        document.querySelectorAll('.node-port.connecting').forEach(p => p.classList.remove('connecting'));
-        this.connectionDragState = null;
-        document.body.style.cursor = '';
     }
 
     /**
@@ -2819,6 +2820,10 @@ class WindowManager {
         this.renderConnections();
         this.saveConnections();
         window.showToast?.('노드 포트 핀이 연결되었습니다! 🔗', 'success');
+
+        // 포트 핀 CSS 애니메이션/트랜지션이 완전히 정돈된 후 연결선 위치 재동기화
+        setTimeout(() => this.renderConnections(), 50);
+        setTimeout(() => this.renderConnections(), 250);
     }
 
     /**
