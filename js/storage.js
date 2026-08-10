@@ -510,6 +510,201 @@ class StorageManager {
   }
 
   async getMultipleProjectsBackupData(projectIds) {
+  }
+
+  async deleteMemos(ids) {
+    await this._transaction([MEMOS_STORE], 'readwrite', (tx) => {
+      const store = tx.objectStore(MEMOS_STORE);
+      ids.forEach(id => store.delete(id));
+    });
+  }
+
+  // 템플릿 메서드
+  async getAllTemplates() {
+    return this._transaction([TEMPLATES_STORE], 'readonly', (tx) => {
+      return new Promise((resolve) => {
+        const req = tx.objectStore(TEMPLATES_STORE).getAll();
+        req.onsuccess = () => resolve(req.result || []);
+      });
+    });
+  }
+
+  async createTemplate(template) {
+    const newTemplate = {
+      id: this.generateId(),
+      name: template.name,
+      content: template.content || '',
+      icon: template.icon || '📄',
+      createdAt: Date.now()
+    };
+    await this._transaction([TEMPLATES_STORE], 'readwrite', (tx) => {
+      tx.objectStore(TEMPLATES_STORE).add(newTemplate);
+    });
+    return newTemplate;
+  }
+
+  async deleteTemplate(id) {
+    await this._transaction([TEMPLATES_STORE], 'readwrite', (tx) => {
+      tx.objectStore(TEMPLATES_STORE).delete(id);
+    });
+  }
+
+  async updateTemplate(id, updates) {
+    return this._transaction([TEMPLATES_STORE], 'readwrite', (tx) => {
+      const store = tx.objectStore(TEMPLATES_STORE);
+      const req = store.get(id);
+      req.onsuccess = () => {
+        const data = { ...req.result, ...updates, updatedAt: Date.now() };
+        store.put(data);
+      };
+    });
+  }
+
+  // 설정 관리 메서드 (IndexedDB)
+  async getGlobalSettings(key) {
+    return this._transaction([SETTINGS_STORE], 'readonly', (tx) => {
+      return new Promise((resolve) => {
+        const req = tx.objectStore(SETTINGS_STORE).get(key);
+        req.onsuccess = () => resolve(req.result ? req.result.value : null);
+        req.onerror = () => resolve(null);
+      });
+    });
+  }
+
+  async saveGlobalSettings(key, value) {
+    await this._transaction([SETTINGS_STORE], 'readwrite', (tx) => {
+      // 명시적으로 키(key)를 두 번째 인자로 전달하여 out-of-line key 에러 방지
+      tx.objectStore(SETTINGS_STORE).put({ id: key, value: value, updatedAt: Date.now() }, key);
+    });
+  }
+
+  /**
+   * LocalStorage에 있는 데이터를 IndexedDB로 이전 (최초 1회)
+   */
+  async migrateLocalStorage() {
+    const migrationFlag = localStorage.getItem('idb_migration_complete');
+    if (migrationFlag) return;
+
+    console.log('LocalStorage -> IndexedDB 데이터 이전 시작...');
+
+    // 1. 에디터 환경 설정
+    const savedSettings = localStorage.getItem('editorSettings');
+    if (savedSettings) {
+      await this.saveGlobalSettings('editorSettings', JSON.parse(savedSettings));
+    }
+
+    // 2. 색상 프리셋
+    const savedPresets = localStorage.getItem('editorColorPresets');
+    if (savedPresets) {
+      await this.saveGlobalSettings('editorColorPresets', JSON.parse(savedPresets));
+    }
+
+    // 통계 히스토리는 양이 많고 복잡할 수 있으므로, 필요 시 프로젝트별로 처리하도록 확장 가능
+    // 여기서는 가장 핵심인 설정과 프리셋만 우선 이전
+
+    localStorage.setItem('idb_migration_complete', 'true');
+    console.log('데이터 이전 완료');
+  }
+
+  // 버전(스냅샷) 관리 메서드
+  async createVersion(version) {
+    const newVersion = {
+      id: this.generateId(),
+      fileId: version.fileId,
+      name: version.name || `${new Date().toLocaleString()} 스냅샷`,
+      content: version.content,
+      createdAt: Date.now()
+    };
+    await this._transaction([VERSIONS_STORE], 'readwrite', (tx) => {
+      tx.objectStore(VERSIONS_STORE).add(newVersion);
+    });
+    return newVersion;
+  }
+
+  async getFileVersions(fileId) {
+    return this._transaction([VERSIONS_STORE], 'readonly', (tx) => {
+      return new Promise((resolve) => {
+        const index = tx.objectStore(VERSIONS_STORE).index('fileId');
+        const req = index.getAll(fileId);
+        req.onsuccess = () => {
+          const res = req.result || [];
+          resolve(res.sort((a, b) => b.createdAt - a.createdAt)); // 최신순
+        };
+      });
+    });
+  }
+
+  async deleteVersion(id) {
+    await this._transaction([VERSIONS_STORE], 'readwrite', (tx) => {
+      tx.objectStore(VERSIONS_STORE).delete(id);
+    });
+  }
+
+  // 유틸리티
+  generateId() {
+    return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  }
+
+  async getStorageEstimate() {
+    if (navigator.storage && navigator.storage.estimate) {
+      const estimate = await navigator.storage.estimate();
+      return {
+        usage: estimate.usage,
+        quota: estimate.quota,
+        usagePercent: (estimate.usage / estimate.quota * 100).toFixed(2)
+      };
+    }
+    return null;
+  }
+
+  async resetDatabase() {
+    if (confirm('모든 데이터가 영구적으로 삭제됩니다. 계속하시겠습니까?')) {
+      if (this.db) this.db.close();
+      const req = indexedDB.deleteDatabase(DB_NAME);
+      req.onsuccess = () => {
+        alert('데이터베이스가 초기화되었습니다. 페이지를 새로고침합니다.');
+        location.reload();
+      };
+    }
+  }
+
+  // --- 백업 & 복구 관련 메서드 ---
+
+  async getAllBackupData() {
+    await this.init();
+    const db = this.db;
+    const tx = db.transaction([PROJECTS_STORE, FILES_STORE, VERSIONS_STORE, SETTINGS_STORE], 'readonly');
+    
+    const [projects, files, history, settings, presets] = await Promise.all([
+      new Promise(r => tx.objectStore(PROJECTS_STORE).getAll().onsuccess = e => r(e.target.result)),
+      new Promise(r => tx.objectStore(FILES_STORE).getAll().onsuccess = e => r(e.target.result)),
+      new Promise(r => tx.objectStore(VERSIONS_STORE).getAll().onsuccess = e => r(e.target.result)),
+      new Promise(r => tx.objectStore(SETTINGS_STORE).get('editorSettings').onsuccess = e => r(e.target.result)),
+      new Promise(r => tx.objectStore(SETTINGS_STORE).get('colorPresets').onsuccess = e => r(e.target.result))
+    ]);
+
+    return { type: 'FULL_BACKUP', projects, files, history, settings, presets };
+  }
+
+  async getProjectBackupData(projectId) {
+    await this.init();
+    const db = this.db;
+    const tx = db.transaction([PROJECTS_STORE, FILES_STORE, VERSIONS_STORE], 'readonly');
+
+    const project = await new Promise(r => tx.objectStore(PROJECTS_STORE).get(projectId).onsuccess = e => r(e.target.result));
+    if (!project) return null;
+
+    const allFiles = await new Promise(r => tx.objectStore(FILES_STORE).getAll().onsuccess = e => r(e.target.result));
+    const files = allFiles.filter(f => f.projectId === projectId);
+    const fileIds = files.map(f => f.id);
+
+    const allHistory = await new Promise(r => tx.objectStore(VERSIONS_STORE).getAll().onsuccess = e => r(e.target.result));
+    const history = allHistory.filter(h => fileIds.includes(h.fileId));
+
+    return { type: 'PROJECT_BACKUP', project, files, history };
+  }
+
+  async getMultipleProjectsBackupData(projectIds) {
     await this.init();
     const db = this.db;
     const tx = db.transaction([PROJECTS_STORE, FILES_STORE, VERSIONS_STORE], 'readonly');
@@ -593,7 +788,24 @@ class StorageManager {
     });
   }
 
-  // 커스텀 노드 프리셋 메서드
+  async saveProjectRegions(projectId, regions) {
+    if (!projectId) return;
+    await this.init();
+    const tx = this.db.transaction([SETTINGS_STORE], 'readwrite');
+    tx.objectStore(SETTINGS_STORE).put(regions, `regions_${projectId}`);
+  }
+
+  async getProjectRegions(projectId) {
+    if (!projectId) return [];
+    await this.init();
+    return new Promise((resolve) => {
+      const tx = this.db.transaction([SETTINGS_STORE], 'readonly');
+      const req = tx.objectStore(SETTINGS_STORE).get(`regions_${projectId}`);
+      req.onsuccess = () => resolve(req.result || []);
+      req.onerror = () => resolve([]);
+    });
+  }
+
   async getCustomNodePresets() {
     return (await this.getGlobalSettings('custom_node_presets')) || [];
   }

@@ -1895,3 +1895,143 @@
     background: var(--color-bg-tertiary) !important;
     box-shadow: 0 0 0 2px rgba(88, 166, 255, 0.2);
 }
+
+/* ==========================================================================
+   캔버스 그룹 영역 (Canvas Group Region)
+   ========================================================================== */
+.canvas-region-box {
+  position: absolute;
+  z-index: 1;
+  border: 2px solid #58a6ff;
+  border-radius: 12px;
+  background: rgba(88, 166, 255, 0.05);
+  box-sizing: border-box;
+  user-select: none;
+  pointer-events: none;
+  transition: border-color 0.2s ease, background-color 0.2s ease;
+}
+
+.canvas-region-box:hover {
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+}
+
+.canvas-region-header {
+  position: absolute;
+  top: -16px;
+  left: 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #58a6ff;
+  color: #ffffff;
+  padding: 3px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: move;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  max-width: calc(100% - 32px);
+  z-index: 2;
+  pointer-events: auto;
+}
+
+.canvas-region-title {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  max-width: 250px;
+}
+
+.canvas-region-title-input {
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid #ffffff;
+  border-radius: 4px;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 1px 4px;
+  outline: none;
+  width: 140px;
+}
+
+.canvas-region-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.canvas-region-color-picker {
+  width: 16px;
+  height: 16px;
+  border: none;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+  border-radius: 50%;
+  overflow: hidden;
+}
+
+.canvas-region-btn {
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.85);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 0 2px;
+  line-height: 1;
+}
+
+.canvas-region-btn:hover {
+  color: #ffffff;
+}
+
+.canvas-region-resize-handle {
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  pointer-events: auto;
+  z-index: 3;
+  transition: transform 0.15s ease, border-color 0.15s ease;
+}
+
+.canvas-region-resize-handle.nw {
+  top: -4px;
+  left: -4px;
+  cursor: nwse-resize;
+  border-top: 3px solid rgba(255, 255, 255, 0.6);
+  border-left: 3px solid rgba(255, 255, 255, 0.6);
+  border-top-left-radius: 8px;
+}
+
+.canvas-region-resize-handle.ne {
+  top: -4px;
+  right: -4px;
+  cursor: nesw-resize;
+  border-top: 3px solid rgba(255, 255, 255, 0.6);
+  border-right: 3px solid rgba(255, 255, 255, 0.6);
+  border-top-right-radius: 8px;
+}
+
+.canvas-region-resize-handle.sw {
+  bottom: -4px;
+  left: -4px;
+  cursor: nesw-resize;
+  border-bottom: 3px solid rgba(255, 255, 255, 0.6);
+  border-left: 3px solid rgba(255, 255, 255, 0.6);
+  border-bottom-left-radius: 8px;
+}
+
+.canvas-region-resize-handle.se {
+  bottom: -4px;
+  right: -4px;
+  cursor: nwse-resize;
+  border-bottom: 3px solid rgba(255, 255, 255, 0.6);
+  border-right: 3px solid rgba(255, 255, 255, 0.6);
+  border-bottom-right-radius: 8px;
+}
+
+.canvas-region-resize-handle:hover {
+  border-color: #ffffff;
+  transform: scale(1.3);
+}

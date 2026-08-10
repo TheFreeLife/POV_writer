@@ -35,6 +35,11 @@ class WindowManager {
         this.connectionDragState = null;
         this.selectedConnectionId = null;
 
+        // 캔버스 그룹 영역 상태
+        this.canvasRegions = [];
+        this.regionDragState = null;
+        this.regionResizeState = null;
+
         this.init();
     }
 
@@ -58,6 +63,11 @@ class WindowManager {
         // 상단 헤더 저장 버튼
         document.getElementById('saveBtn')?.addEventListener('click', () => {
             this.saveActiveWindow();
+        });
+
+        // 캔버스 그룹 영역 추가 버튼
+        document.getElementById('addCanvasRegionBtn')?.addEventListener('click', () => {
+            this.addCanvasRegion();
         });
 
         // 텍스트 병합 모달 버튼
@@ -1379,6 +1389,68 @@ class WindowManager {
             this.updateConnectionDrag(e);
         }
 
+        // 캔버스 그룹 영역 이동
+        if (this.regionDragState) {
+            const currentScale = this.scale || this.zoom || 1;
+            const dx = (e.clientX - this.regionDragState.startX) / currentScale;
+            const dy = (e.clientY - this.regionDragState.startY) / currentScale;
+            const targetRegion = (this.canvasRegions || []).find(r => r.id === this.regionDragState.regionId);
+            if (targetRegion) {
+                targetRegion.x = Math.round(this.regionDragState.origX + dx);
+                targetRegion.y = Math.round(this.regionDragState.origY + dy);
+                const boxEl = document.getElementById(targetRegion.id);
+                if (boxEl) {
+                    boxEl.style.left = `${targetRegion.x}px`;
+                    boxEl.style.top = `${targetRegion.y}px`;
+                }
+            }
+        }
+
+        // 캔버스 그룹 영역 4방향 모서리 크기 조절
+        if (this.regionResizeState) {
+            const currentScale = this.scale || this.zoom || 1;
+            const dx = (e.clientX - this.regionResizeState.startX) / currentScale;
+            const dy = (e.clientY - this.regionResizeState.startY) / currentScale;
+            const dir = this.regionResizeState.dir || 'se';
+            const s = this.regionResizeState;
+            const targetRegion = (this.canvasRegions || []).find(r => r.id === s.regionId);
+
+            if (targetRegion) {
+                const minW = 180;
+                const minH = 120;
+                let newW = s.origW, newH = s.origH;
+                let newX = s.origX, newY = s.origY;
+
+                if (dir.includes('e')) {
+                    newW = Math.max(minW, s.origW + dx);
+                }
+                if (dir.includes('w')) {
+                    newW = Math.max(minW, s.origW - dx);
+                    newX = s.origX + (s.origW - newW);
+                }
+                if (dir.includes('s')) {
+                    newH = Math.max(minH, s.origH + dy);
+                }
+                if (dir.includes('n')) {
+                    newH = Math.max(minH, s.origH - dy);
+                    newY = s.origY + (s.origH - newH);
+                }
+
+                targetRegion.x = Math.round(newX);
+                targetRegion.y = Math.round(newY);
+                targetRegion.width = Math.round(newW);
+                targetRegion.height = Math.round(newH);
+
+                const boxEl = document.getElementById(targetRegion.id);
+                if (boxEl) {
+                    boxEl.style.left = `${targetRegion.x}px`;
+                    boxEl.style.top = `${targetRegion.y}px`;
+                    boxEl.style.width = `${targetRegion.width}px`;
+                    boxEl.style.height = `${targetRegion.height}px`;
+                }
+            }
+        }
+
         // 캔버스 팬
         if (this.panState) {
             const dx = e.clientX - this.panState.startX;
@@ -1400,6 +1472,12 @@ class WindowManager {
 
         if (this.selectionState && this.selectionState.element) {
             this.selectionState.element.remove();
+        }
+
+        if (this.regionDragState || this.regionResizeState) {
+            this.regionDragState = null;
+            this.regionResizeState = null;
+            this.saveRegions();
         }
 
         if (this.dragState || this.resizeState || this.panState || this.selectionState) {
@@ -3107,6 +3185,7 @@ class WindowManager {
             this.nodeConnections = [];
         }
         this.renderConnections();
+        await this.loadProjectRegions(projectId);
     }
 
     /**
@@ -3119,6 +3198,207 @@ class WindowManager {
         } catch (e) {
             console.error('노드 연결 정보 저장 실패:', e);
         }
+    }
+
+    /**
+     * 프로젝트 캔버스 영역 정보 불러오기
+     */
+    async loadProjectRegions(projectId) {
+        if (!projectId) {
+            this.canvasRegions = [];
+            this.renderCanvasRegions();
+            return;
+        }
+        try {
+            if (window.storage) {
+                const regions = await window.storage.getProjectRegions(projectId);
+                this.canvasRegions = Array.isArray(regions) ? regions : [];
+            }
+        } catch (e) {
+            console.warn('캔버스 영역 정보 불러오기 실패:', e);
+            this.canvasRegions = [];
+        }
+        this.renderCanvasRegions();
+    }
+
+    /**
+     * 프로젝트 캔버스 영역 정보 저장
+     */
+    async saveRegions() {
+        if (!window.currentProjectId || !window.storage) return;
+        try {
+            await window.storage.saveProjectRegions(window.currentProjectId, this.canvasRegions);
+        } catch (e) {
+            console.error('캔버스 영역 정보 저장 실패:', e);
+        }
+    }
+
+    /**
+     * 캔버스에 새 그룹 영역 추가
+     */
+    addCanvasRegion(title = '새 그룹 영역', x = null, y = null, width = 500, height = 350, color = '#58a6ff') {
+        const canvasContainer = document.getElementById('canvasContainer');
+
+        if (x === null || y === null) {
+            const canvasArea = document.getElementById('canvasArea');
+            if (canvasArea && canvasContainer) {
+                const areaRect = canvasArea.getBoundingClientRect();
+                const centerClientX = areaRect.left + areaRect.width / 2;
+                const centerClientY = areaRect.top + areaRect.height / 2;
+
+                const cRect = canvasContainer.getBoundingClientRect();
+                x = (centerClientX - cRect.left) / this.scale - width / 2;
+                y = (centerClientY - cRect.top) / this.scale - height / 2;
+            } else {
+                x = 300;
+                y = 200;
+            }
+        }
+
+        const newRegion = {
+            id: 'region_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
+            title: title || '새 그룹 영역',
+            x: Math.round(x),
+            y: Math.round(y),
+            width: Math.round(width),
+            height: Math.round(height),
+            color: color || '#58a6ff'
+        };
+
+        if (!this.canvasRegions) this.canvasRegions = [];
+        this.canvasRegions.push(newRegion);
+
+        this.renderCanvasRegions();
+        this.saveRegions();
+
+        window.showToast?.(`'${newRegion.title}' 영역이 캔버스에 추가되었습니다. 🔲`);
+    }
+
+    /**
+     * 캔버스 그룹 영역 렌더링
+     */
+    renderCanvasRegions() {
+        const container = document.getElementById('canvasContainer');
+        if (!container) return;
+
+        container.querySelectorAll('.canvas-region-box').forEach(el => el.remove());
+
+        if (!this.canvasRegions || this.canvasRegions.length === 0) return;
+
+        const svg = document.getElementById('nodeConnectionsSvg');
+
+        this.canvasRegions.forEach(r => {
+            const box = document.createElement('div');
+            box.className = 'canvas-region-box';
+            box.id = r.id;
+            box.style.left = `${r.x}px`;
+            box.style.top = `${r.y}px`;
+            box.style.width = `${r.width}px`;
+            box.style.height = `${r.height}px`;
+            box.style.borderColor = r.color || '#58a6ff';
+            
+            const hexColor = r.color || '#58a6ff';
+            box.style.backgroundColor = hexColor.startsWith('#') ? (hexColor + '10') : 'rgba(88, 166, 255, 0.05)';
+
+            box.innerHTML = `
+                <div class="canvas-region-header" style="background: ${r.color || '#58a6ff'};">
+                    <span class="canvas-region-title" id="regionTitle_${r.id}" title="더블 클릭하여 이름 변경">🔲 ${this.escapeHtml(r.title)}</span>
+                    <div class="canvas-region-actions">
+                        <input type="color" class="canvas-region-color-picker" value="${r.color || '#58a6ff'}" title="영역 색상 변경">
+                        <button class="canvas-region-btn delete-btn" title="영역 삭제">✕</button>
+                    </div>
+                </div>
+                <div class="canvas-region-resize-handle nw" data-dir="nw" title="크기 조절"></div>
+                <div class="canvas-region-resize-handle ne" data-dir="ne" title="크기 조절"></div>
+                <div class="canvas-region-resize-handle sw" data-dir="sw" title="크기 조절"></div>
+                <div class="canvas-region-resize-handle se" data-dir="se" title="크기 조절"></div>
+            `;
+
+            const colorPicker = box.querySelector('.canvas-region-color-picker');
+            colorPicker?.addEventListener('change', (e) => {
+                e.stopPropagation();
+                r.color = e.target.value;
+                this.renderCanvasRegions();
+                this.saveRegions();
+            });
+
+            const deleteBtn = box.querySelector('.delete-btn');
+            deleteBtn?.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (confirm(`'${r.title}' 캔버스 영역을 삭제하시겠습니까?`)) {
+                    this.canvasRegions = this.canvasRegions.filter(reg => reg.id !== r.id);
+                    box.remove();
+                    this.saveRegions();
+                }
+            });
+
+            const titleEl = box.querySelector('.canvas-region-title');
+            titleEl?.addEventListener('dblclick', (e) => {
+                e.stopPropagation();
+                const input = document.createElement('input');
+                input.type = 'text';
+                input.className = 'canvas-region-title-input';
+                input.value = r.title;
+                titleEl.replaceWith(input);
+                input.focus();
+                input.select();
+
+                const finishRename = () => {
+                    const newTitle = input.value.trim() || '이름 없음 영역';
+                    r.title = newTitle;
+                    this.renderCanvasRegions();
+                    this.saveRegions();
+                };
+
+                input.addEventListener('blur', finishRename);
+                input.addEventListener('keydown', (evt) => {
+                    if (evt.key === 'Enter') finishRename();
+                });
+            });
+
+            const header = box.querySelector('.canvas-region-header');
+            const startDrag = (e) => {
+                if (e.target.closest('.canvas-region-actions') || e.target.tagName === 'INPUT') return;
+                e.stopPropagation();
+
+                this.regionDragState = {
+                    regionId: r.id,
+                    startX: e.clientX,
+                    startY: e.clientY,
+                    origX: r.x,
+                    origY: r.y
+                };
+            };
+
+            header?.addEventListener('mousedown', startDrag);
+            box.addEventListener('mousedown', (e) => {
+                if (e.target === box) {
+                    startDrag(e);
+                }
+            });
+
+            box.querySelectorAll('.canvas-region-resize-handle').forEach(handle => {
+                handle.addEventListener('mousedown', (e) => {
+                    e.stopPropagation();
+                    this.regionResizeState = {
+                        regionId: r.id,
+                        dir: handle.dataset.dir || 'se',
+                        startX: e.clientX,
+                        startY: e.clientY,
+                        origX: r.x,
+                        origY: r.y,
+                        origW: r.width,
+                        origH: r.height
+                    };
+                });
+            });
+
+            if (svg && svg.nextSibling) {
+                container.insertBefore(box, svg.nextSibling);
+            } else {
+                container.appendChild(box);
+            }
+        });
     }
 
     /**
@@ -3150,9 +3430,10 @@ class WindowManager {
             portEl = winEl.querySelector(`.node-port.port-${portType}`);
         }
 
-        if (portEl && winEl.parentElement) {
+        if (portEl) {
+            const container = document.getElementById('canvasContainer');
+            const parentRect = container ? container.getBoundingClientRect() : (winEl.parentElement ? winEl.parentElement.getBoundingClientRect() : { left: 0, top: 0 });
             const portRect = portEl.getBoundingClientRect();
-            const parentRect = winEl.parentElement.getBoundingClientRect();
             const scale = this.scale || this.zoom || 1;
             return {
                 x: (portRect.left + portRect.width / 2 - parentRect.left) / scale,
@@ -3429,6 +3710,8 @@ class WindowManager {
 
         const existingLines = svg.querySelectorAll('.node-connection-line');
         existingLines.forEach(l => l.remove());
+
+        if (!Array.isArray(this.nodeConnections)) this.nodeConnections = [];
 
         // 창이 닫혀있거나 지워진 연결선 자동 필터링
         this.nodeConnections = this.nodeConnections.filter(c => {
