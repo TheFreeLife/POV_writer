@@ -54,12 +54,12 @@
       <!-- 왼쪽 파일 트리 패널 -->
       <aside class="file-tree-panel" id="fileTreePanel">
         <div class="file-tree-header">
-          <span class="file-tree-title">파일</span>
+          <span class="file-tree-title">노드 목록</span>
           <div class="file-tree-actions">
-            <button class="btn btn-icon btn-secondary" id="newFolderBtn" title="새 폴더">📁</button>
-            <button class="btn btn-icon btn-secondary" id="newStatBtn" title="수치 계산기">📊</button>
-            <button class="btn btn-icon btn-secondary" id="newImageBtn" title="새 이미지">🖼️</button>
-            <button class="btn btn-icon btn-secondary" id="newFileBtn" title="새 파일">📄</button>
+            <button class="btn btn-primary btn-sm" id="newNodeBtn" title="노드 추가 및 캔버스 열기">
+              <span>➕</span>
+              <span>노드 추가</span>
+            </button>
           </div>
         </div>
         <div class="file-tree-content" id="fileTree">
@@ -176,11 +176,209 @@
     </div>
   </div>
 
+  <!-- 1. 노드 추가 모달 (기본 제공 노드 형태 + 커스텀 노드 목록) -->
+  <div id="nodeSelectModal" class="modal-overlay hidden">
+    <div class="modal modal-lg">
+      <div class="modal-header">
+        <h2 class="modal-title">➕ 노드 추가</h2>
+        <button class="modal-close" id="closeNodeSelectModal">✕</button>
+      </div>
+      <div class="modal-body" style="max-height: 480px; overflow-y: auto;">
+        <p class="node-select-subtitle">1. 기본 노드 형태</p>
+        <div class="node-type-grid">
+          
+          <div class="node-type-card" data-preset-type="file">
+            <div class="node-type-icon">📄</div>
+            <div class="node-type-info">
+              <div class="node-type-title">소설 / 원고 노드</div>
+              <div class="node-type-desc">장/절, 챕터 및 소설 원고 텍스트를 작성하는 에디터 노드입니다.</div>
+            </div>
+          </div>
+
+          <div class="node-type-card" data-preset-type="stat">
+            <div class="node-type-icon">📊</div>
+            <div class="node-type-info">
+              <div class="node-type-title">수치 계산기 노드</div>
+              <div class="node-type-desc">캐릭터 능력치, 경험치 등 수치 항목을 입력받고 계산하는 노드입니다.</div>
+            </div>
+          </div>
+
+          <div class="node-type-card" data-preset-type="image">
+            <div class="node-type-icon">🖼️</div>
+            <div class="node-type-info">
+              <div class="node-type-title">이미지 / 지도 노드</div>
+              <div class="node-type-desc">일러스트, 지형 지도 등 시각 자원 파일을 캔버스에 추가하는 노드입니다.</div>
+            </div>
+          </div>
+
+          <div class="node-type-card" data-preset-type="system_prompt">
+            <div class="node-type-icon">🤖</div>
+            <div class="node-type-info">
+              <div class="node-type-title">시스템 프롬프트 노드</div>
+              <div class="node-type-desc">명령(Command), 지침(Instruction), 출력 요구사항 설정 전용 노드입니다.</div>
+            </div>
+          </div>
+
+          <div class="node-type-card" data-preset-type="ai_meta">
+            <div class="node-type-icon">🎭</div>
+            <div class="node-type-info">
+              <div class="node-type-title">AI META 지정 노드</div>
+              <div class="node-type-desc">역할(Role), 임무(Task), 상세 지시사항(Instructions) 설정 전용 노드입니다.</div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- 사용자 정의 커스텀 노드 프리셋 섹션 -->
+        <div id="customPresetsSection" class="mt-lg" style="border-top: 1px solid var(--color-border); padding-top: 16px;">
+          <p class="node-select-subtitle" style="margin-bottom: 12px;">⭐️ 내가 정의한 커스텀 노드 형태</p>
+          <div id="customPresetsContainer" class="node-type-grid">
+            <!-- 동적으로 저장된 커스텀 노드 프리셋 카드가 렌더링됩니다 -->
+          </div>
+        </div>
+
+      </div>
+      <div class="modal-footer" style="display: flex; justify-content: space-between; align-items: center; gap: 12px;">
+        <button class="btn btn-primary" id="openCustomWizardBtn">✨ 나만의 커스텀 노드 정의하기</button>
+        <button class="btn btn-secondary" id="cancelNodeSelectBtn">닫기</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2. 커스텀 노드 정의 마법사 모달 -->
+  <div id="customWizardModal" class="modal-overlay hidden">
+    <div class="modal modal-lg">
+      <div class="modal-header">
+        <h2 class="modal-title">✨ 나만의 커스텀 노드 정의 & 목록 추가</h2>
+        <button class="modal-close" id="closeCustomWizardModal">✕</button>
+      </div>
+      <div class="modal-body">
+        <!-- 1. 기본 정보 -->
+        <div class="node-create-section">
+          <label class="form-label">1. 노드 기본 정보</label>
+          <div class="flex gap-md items-center mb-xs">
+            <div class="icon-picker-container" style="position: relative;">
+              <button type="button" class="btn btn-secondary" id="wizardIconBtn" style="font-size: 20px; padding: 6px 14px;">📄</button>
+              <input type="hidden" id="wizardIcon" value="📄">
+              <div id="wizardIconPopover" class="icon-picker-popover hidden"></div>
+            </div>
+            <div style="flex: 1;">
+              <input type="text" class="input" id="wizardName" placeholder="노드 이름을 입력하세요 (예: 주인공 상태창)" style="width: 100%;">
+            </div>
+          </div>
+          <input type="text" class="input" id="wizardDesc" placeholder="노드에 대한 간단한 설명을 입력하세요 (선택)" style="width: 100%;">
+        </div>
+
+        <!-- 2. 노드 형식 선택 -->
+        <div class="node-create-section mt-lg">
+          <label class="form-label">2. 노드 형식 선택</label>
+          <div class="node-type-grid">
+            
+            <div class="wizard-type-card active" data-wizard-type="file">
+              <div class="node-type-icon">📄</div>
+              <div class="node-type-info">
+                <div class="node-type-title">텍스트 작성형</div>
+                <div class="node-type-desc">소설/원고/설정집 텍스트 작성용 노드</div>
+              </div>
+            </div>
+
+            <div class="wizard-type-card" data-wizard-type="stat">
+              <div class="node-type-icon">📊</div>
+              <div class="node-type-info">
+                <div class="node-type-title">수치 조율/계산기형</div>
+                <div class="node-type-desc">원하는 수치 항목들을 직접 입력받는 노드</div>
+              </div>
+            </div>
+
+            <div class="wizard-type-card" data-wizard-type="text_fields">
+              <div class="node-type-icon">🏷️</div>
+              <div class="node-type-info">
+                <div class="node-type-title">텍스트 값/속성 입력형</div>
+                <div class="node-type-desc">소속, 칭호, 무기 등 여러 텍스트 항목들을 정의하고 입력받는 노드</div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- 3-1. [동적] 수치 항목 입력 구역 -->
+        <div id="wizardStatSection" class="node-create-section mt-lg hidden">
+          <div class="flex justify-between items-center mb-sm">
+            <label class="form-label" style="margin: 0;">3. 📊 수치 입력 항목 구성</label>
+            <button type="button" class="btn btn-secondary btn-sm" id="wizardAddStatBtn">➕ 수치 항목 추가</button>
+          </div>
+          <div id="wizardStatList" class="stat-fields-list">
+            <!-- 동적 항목 추가 -->
+          </div>
+        </div>
+
+        <!-- 3-2. [동적] 텍스트 속성 항목 입력 구역 -->
+        <div id="wizardTextFieldsSection" class="node-create-section mt-lg hidden">
+          <div class="flex justify-between items-center mb-sm">
+            <label class="form-label" style="margin: 0;">3. 🏷️ 텍스트 입력 항목 구성</label>
+            <button type="button" class="btn btn-secondary btn-sm" id="wizardAddTextFieldBtn">➕ 텍스트 항목 추가</button>
+          </div>
+          <div id="wizardTextFieldsList" class="stat-fields-list">
+            <!-- 동적 텍스트 항목 추가 -->
+          </div>
+        </div>
+
+        <!-- 4. [포트 구성] Input & Output 포트 종류 및 개수 설정 -->
+        <div class="node-create-section mt-lg">
+          <label class="form-label">4. 노드 포트 (Input / Output 핀) 종류 및 개수 설정</label>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px;">
+            
+            <!-- 왼쪽 Input 포트 목록 -->
+            <div style="background: var(--color-bg-secondary); padding: 12px; border-radius: 10px; border: 1px solid var(--color-border);">
+              <div class="flex justify-between items-center mb-xs">
+                <span style="font-size: 12px; font-weight: 700; color: #2ecc71;">📥 Input 포트 (왼쪽)</span>
+                <button type="button" class="btn btn-secondary btn-sm" id="wizardAddInputPortBtn" style="font-size: 11px; padding: 2px 8px;">➕ 추가</button>
+              </div>
+              <div id="wizardInputPortList" class="stat-fields-list" style="max-height: 140px; padding: 6px;">
+                <!-- 동적 Input 포트 행 -->
+              </div>
+            </div>
+
+            <!-- 오른쪽 Output 포트 목록 -->
+            <div style="background: var(--color-bg-secondary); padding: 12px; border-radius: 10px; border: 1px solid var(--color-border);">
+              <div class="flex justify-between items-center mb-xs">
+                <span style="font-size: 12px; font-weight: 700; color: #00ffcc;">📤 Output 포트 (오른쪽)</span>
+                <button type="button" class="btn btn-secondary btn-sm" id="wizardAddOutputPortBtn" style="font-size: 11px; padding: 2px 8px;">➕ 추가</button>
+              </div>
+              <div id="wizardOutputPortList" class="stat-fields-list" style="max-height: 140px; padding: 6px;">
+                <!-- 동적 Output 포트 행 -->
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- 5. 템플릿 선택 -->
+        <div id="wizardTemplateSection" class="node-create-section mt-lg">
+          <div class="flex justify-between items-center mb-xs">
+            <label class="form-label" for="wizardTemplate" style="margin: 0;">설정집 템플릿 선택 (선택 사항)</label>
+            <button type="button" class="btn btn-secondary btn-sm" id="manageTemplatesBtn">⚙️ 템플릿 관리</button>
+          </div>
+          <select class="input" id="wizardTemplate" style="width: 100%;">
+            <option value="blank">빈 소설 파일</option>
+            <option value="character">👤 캐릭터 설정집 양식</option>
+            <option value="world">🗺️ 세계관/지명 설정집 양식</option>
+            <option value="chapter">📜 장/절 구성 서식</option>
+          </select>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="cancelCustomWizardBtn">취소</button>
+        <button class="btn btn-primary" id="submitCustomWizardBtn">✨ 노드 목록에 추가</button>
+      </div>
+    </div>
+  </div>
+
   <!-- 새 파일/폴더 모달 -->
   <div id="newFileModal" class="modal-overlay hidden">
     <div class="modal">
       <div class="modal-header">
-        <h2 class="modal-title" id="newFileModalTitle">새 파일</h2>
+        <h2 class="modal-title" id="newFileModalTitle">새 노드 생성</h2>
         <button class="modal-close" id="closeNewFileModal">✕</button>
       </div>
       <div class="modal-body">

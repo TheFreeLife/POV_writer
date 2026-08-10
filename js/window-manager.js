@@ -423,8 +423,18 @@ class WindowManager {
         this.focusWindow(fileId);
 
         // 수치 계산기인 경우 초기 렌더링
-        if (file.template === 'stat') {
+        if (file.template === 'stat' || file.isStatNode) {
             this.renderStatCalculator(fileId);
+        }
+
+        // 시스템 프롬프트 노드 및 AI META 노드 폼 초기 렌더링
+        const isSystemPrompt = file.isSystemPromptNode || (file.content && typeof file.content === 'string' && file.content.includes('"command"'));
+        const isAiMeta = file.isAiMetaNode || (file.content && typeof file.content === 'string' && file.content.includes('"role"'));
+
+        if (isSystemPrompt) {
+            this.renderSystemPromptNodeUI(file, windowEl);
+        } else if (isAiMeta) {
+            this.renderAiMetaNodeUI(file, windowEl);
         }
 
         // 초기 하이라이트 적용
@@ -597,9 +607,10 @@ class WindowManager {
      */
     createWindowDOM(file, x, y, width, height) {
         const isCollapsed = file.windowState?.isCollapsed || false;
-        // 템플릿 속성 확인 또는 콘텐츠가 이미지 데이터(Base64)인 경우
-        const isImage = file.template === 'image' || (file.content && file.content.startsWith('data:image'));
-        const isStat = file.template === 'stat';
+        const isImage = file.template === 'image' || (file.content && typeof file.content === 'string' && file.content.startsWith('data:image'));
+        const isStat = file.template === 'stat' || file.isStatNode;
+        const isSystemPrompt = file.isSystemPromptNode || (file.content && typeof file.content === 'string' && file.content.includes('"command"'));
+        const isAiMeta = file.isAiMetaNode || (file.content && typeof file.content === 'string' && file.content.includes('"role"'));
         
         const win = document.createElement('div');
         win.className = `editor-window${isCollapsed ? ' collapsed' : ''}${isImage ? ' image-window' : ''}${isStat ? ' stat-window' : ''}`;
@@ -637,6 +648,18 @@ class WindowManager {
                     <!-- 계산기 UI가 여기에 렌더링됩니다 -->
                 </div>
             `;
+        } else if (isSystemPrompt) {
+            bodyContent = `
+                <div class="system-prompt-container" id="sysPromptContainer_${file.id}">
+                    <!-- 시스템 프롬프트 Key-Value 폼이 렌더링됩니다 -->
+                </div>
+            `;
+        } else if (isAiMeta) {
+            bodyContent = `
+                <div class="system-prompt-container" id="aiMetaContainer_${file.id}">
+                    <!-- AI META Key-Value 폼이 렌더링됩니다 -->
+                </div>
+            `;
         } else {
             bodyContent = `
                 <div class="window-editor">
@@ -648,9 +671,36 @@ class WindowManager {
             `;
         }
 
+        const portsConfig = file.portsConfig || {
+            inputs: [{ id: 'in_1', name: '입력 데이터' }],
+            outputs: [{ id: 'out_1', name: '출력 데이터' }]
+        };
+
+        const inputsArr = (portsConfig.inputs && portsConfig.inputs.length > 0) ? portsConfig.inputs : [{ id: 'in_1', name: '입력 데이터' }];
+        const outputsArr = (portsConfig.outputs && portsConfig.outputs.length > 0) ? portsConfig.outputs : [{ id: 'out_1', name: '출력 데이터' }];
+
+        const inputsHtml = inputsArr.map(p => `
+            <div class="node-port-item node-port-item-left">
+                <div class="node-port port-left" data-file-id="${file.id}" data-port-id="${p.id}" data-port-type="left" title="📥 Input 포트: ${this.escapeHtml(p.name)}"></div>
+                <span class="node-port-label node-port-label-left">📥 ${this.escapeHtml(p.name)}</span>
+            </div>
+        `).join('');
+
+        const outputsHtml = outputsArr.map(p => `
+            <div class="node-port-item node-port-item-right">
+                <div class="node-port port-right" data-file-id="${file.id}" data-port-id="${p.id}" data-port-type="right" title="📤 Output 포트: ${this.escapeHtml(p.name)}"></div>
+                <span class="node-port-label node-port-label-right">📤 ${this.escapeHtml(p.name)}</span>
+            </div>
+        `).join('');
+
+        // 포트 개수에 따른 노드 창 최소 높이 (60px 간격 + 핀 높이 고려)
+        const maxPortsCount = Math.max(inputsArr.length, outputsArr.length);
+        const calcMinHeight = Math.max(240, maxPortsCount * 80 + 50);
+        win.style.minHeight = `${calcMinHeight}px`;
+
         win.innerHTML = `
-            <div class="node-port port-left" data-file-id="${file.id}" data-port-type="left" title="입력 포트 (Input - 화살표 들어오는 곳)"></div>
-            <div class="node-port port-right" data-file-id="${file.id}" data-port-type="right" title="출력 포트 (Output - 드래그하여 연결)"></div>
+            <div class="node-ports-wrapper-left">${inputsHtml}</div>
+            <div class="node-ports-wrapper-right">${outputsHtml}</div>
             <div class="window-titlebar" data-file-id="${file.id}">
                 <div class="window-titlebar-left">
                     <span class="window-titlebar-icon">${icon}</span>
@@ -835,12 +885,14 @@ class WindowManager {
             const targets = [];
             this.selectedWindowIds.forEach(id => {
                 const info = this.windows.get(id);
-                if (info) {
+                if (info && info.element) {
+                    const leftVal = parseFloat(info.element.style.left);
+                    const topVal = parseFloat(info.element.style.top);
                     targets.push({
                         id,
                         element: info.element,
-                        origLeft: info.element.offsetLeft,
-                        origTop: info.element.offsetTop
+                        origLeft: !isNaN(leftVal) ? leftVal : info.element.offsetLeft,
+                        origTop: !isNaN(topVal) ? topVal : info.element.offsetTop
                     });
                 }
             });
@@ -925,18 +977,21 @@ class WindowManager {
             edge.addEventListener('mousedown', (e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                const rect = win.getBoundingClientRect();
-                const containerRect = win.parentElement.getBoundingClientRect();
+                const leftVal = parseFloat(win.style.left);
+                const topVal = parseFloat(win.style.top);
+                const widthVal = parseFloat(win.style.width);
+                const heightVal = parseFloat(win.style.height);
+
                 this.resizeState = {
                     fileId,
                     element: win,
                     dir: edge.dataset.dir,
                     startX: e.clientX,
                     startY: e.clientY,
-                    origWidth: win.offsetWidth,
-                    origHeight: win.offsetHeight,
-                    origLeft: win.offsetLeft,
-                    origTop: win.offsetTop
+                    origWidth: !isNaN(widthVal) ? widthVal : win.offsetWidth,
+                    origHeight: !isNaN(heightVal) ? heightVal : win.offsetHeight,
+                    origLeft: !isNaN(leftVal) ? leftVal : win.offsetLeft,
+                    origTop: !isNaN(topVal) ? topVal : win.offsetTop
                 };
                 const cursorMap = { n: 'ns-resize', s: 'ns-resize', e: 'ew-resize', w: 'ew-resize', nw: 'nwse-resize', se: 'nwse-resize', ne: 'nesw-resize', sw: 'nesw-resize' };
                 document.body.style.cursor = cursorMap[edge.dataset.dir] || 'nwse-resize';
@@ -1205,8 +1260,9 @@ class WindowManager {
     onMouseMove(e) {
         // 다중 드래그 이동
         if (this.dragState) {
-            const dx = (e.clientX - this.dragState.startX) / this.scale;
-            const dy = (e.clientY - this.dragState.startY) / this.scale;
+            const currentScale = this.scale || this.zoom || 1;
+            const dx = (e.clientX - this.dragState.startX) / currentScale;
+            const dy = (e.clientY - this.dragState.startY) / currentScale;
             this.dragState.targets.forEach(t => {
                 t.element.style.left = `${t.origLeft + dx}px`;
                 t.element.style.top = `${t.origTop + dy}px`;
@@ -1233,16 +1289,21 @@ class WindowManager {
         // 8방향 리사이즈
         if (this.resizeState) {
             const s = this.resizeState;
-            const dx = (e.clientX - s.startX) / this.scale;
-            const dy = (e.clientY - s.startY) / this.scale;
+            const currentScale = this.scale || this.zoom || 1;
+            const dx = (e.clientX - s.startX) / currentScale;
+            const dy = (e.clientY - s.startY) / currentScale;
             const dir = s.dir;
+            
+            const minW = parseFloat(s.element.style.minWidth) || 280;
+            const minH = parseFloat(s.element.style.minHeight) || 220;
+
             let newW = s.origWidth, newH = s.origHeight;
             let newL = s.origLeft, newT = s.origTop;
 
-            if (dir.includes('e')) { newW = Math.max(360, s.origWidth + dx); }
-            if (dir.includes('w')) { newW = Math.max(360, s.origWidth - dx); newL = s.origLeft + (s.origWidth - newW); }
-            if (dir.includes('s')) { newH = Math.max(280, s.origHeight + dy); }
-            if (dir.includes('n')) { newH = Math.max(280, s.origHeight - dy); newT = s.origTop + (s.origHeight - newH); }
+            if (dir.includes('e')) { newW = Math.max(minW, s.origWidth + dx); }
+            if (dir.includes('w')) { newW = Math.max(minW, s.origWidth - dx); newL = s.origLeft + (s.origWidth - newW); }
+            if (dir.includes('s')) { newH = Math.max(minH, s.origHeight + dy); }
+            if (dir.includes('n')) { newH = Math.max(minH, s.origHeight - dy); newT = s.origTop + (s.origHeight - newH); }
 
             s.element.style.width = `${newW}px`;
             s.element.style.height = `${newH}px`;
@@ -2553,27 +2614,37 @@ class WindowManager {
     }
 
     /**
-     * 특정 포트의 캔버스 기준 중심 좌표 (X, Y) 계산
+     * 특정 포트의 캔버스 기준 중심 좌표 (X, Y) 계산 (다중 포트 핀 1:1 바인딩)
      */
-    getPortCoordinates(fileId, portType) {
+    getPortCoordinates(fileId, portType, portId = null) {
         const info = this.getWindowInfo(fileId);
         if (!info || !info.element) return null;
 
         const winEl = info.element;
-        
-        let winX = winEl.offsetLeft || 0;
-        let winY = winEl.offsetTop || 0;
-        let winW = winEl.offsetWidth || 360;
-        let winH = winEl.offsetHeight || 280;
-
-        if (winX === 0 && winY === 0 && winEl.parentElement) {
-            const winRect = winEl.getBoundingClientRect();
-            const parentRect = winEl.parentElement.getBoundingClientRect();
-            winX = (winRect.left - parentRect.left) / (this.scale || 1);
-            winY = (winRect.top - parentRect.top) / (this.scale || 1);
-            if (winRect.width) winW = winRect.width / (this.scale || 1);
-            if (winRect.height) winH = winRect.height / (this.scale || 1);
+        let selector = `.node-port.port-${portType}`;
+        if (portId) {
+            selector += `[data-port-id="${portId}"]`;
         }
+
+        let portEl = winEl.querySelector(selector);
+        if (!portEl) {
+            portEl = winEl.querySelector(`.node-port.port-${portType}`);
+        }
+
+        if (portEl && winEl.parentElement) {
+            const portRect = portEl.getBoundingClientRect();
+            const parentRect = winEl.parentElement.getBoundingClientRect();
+            const scale = this.scale || this.zoom || 1;
+            return {
+                x: (portRect.left + portRect.width / 2 - parentRect.left) / scale,
+                y: (portRect.top + portRect.height / 2 - parentRect.top) / scale
+            };
+        }
+
+        const winX = parseFloat(winEl.style.left) || winEl.offsetLeft || 0;
+        const winY = parseFloat(winEl.style.top) || winEl.offsetTop || 0;
+        const winW = parseFloat(winEl.style.width) || winEl.offsetWidth || 360;
+        const winH = parseFloat(winEl.style.height) || winEl.offsetHeight || 280;
 
         const x = (portType === 'left') ? winX : (winX + winW);
         const y = winY + (winH / 2);
@@ -2588,15 +2659,16 @@ class WindowManager {
      * 포트 드래그 연결 시작 (Input/Output 모든 포트에서 드래그 가능)
      */
     startConnectionDrag(e, fromId, fromPort, portEl) {
-        const coords = this.getPortCoordinates(fromId, fromPort);
+        const fromPortId = portEl?.dataset.portId || null;
+        const coords = this.getPortCoordinates(fromId, fromPort, fromPortId);
         if (!coords) return;
 
         const svg = document.getElementById('nodeConnectionsSvg');
         const container = document.getElementById('canvasContainer');
         if (!svg || !container) return;
 
-        if (container.lastElementChild !== svg) {
-            container.appendChild(svg);
+        if (container.firstChild !== svg) {
+            container.insertBefore(svg, container.firstChild);
         }
 
         let draftEl = svg.querySelector('#connectionDraftPath');
@@ -2615,6 +2687,7 @@ class WindowManager {
         this.connectionDragState = {
             fromId,
             fromPort,
+            fromPortId,
             startX: coords.x,
             startY: coords.y,
             draftEl
@@ -2671,6 +2744,7 @@ class WindowManager {
         if (targetPort) {
             const toId = targetPort.dataset.fileId;
             const toPort = targetPort.dataset.portType || 'left';
+            const toPortId = targetPort.dataset.portId || null;
 
             if (toId && String(toId) !== String(state.fromId)) {
                 if (state.fromPort === toPort) {
@@ -2680,7 +2754,7 @@ class WindowManager {
                         window.showToast?.('Output 포트끼리는 연결할 수 없습니다. (Input 포트와 연결하세요)', 'warn');
                     }
                 } else {
-                    this.addNodeConnection(state.fromId, state.fromPort, toId, toPort);
+                    this.addNodeConnection(state.fromId, state.fromPort, state.fromPortId, toId, toPort, toPortId);
                 }
             }
         }
@@ -2693,7 +2767,7 @@ class WindowManager {
     /**
      * 노드 간 연결선 추가 (자동으로 Output -> Input 화살표 방향 정렬)
      */
-    addNodeConnection(fromId, fromPort, toId, toPort) {
+    addNodeConnection(fromId, fromPort, fromPortId, toId, toPort, toPortId) {
         if (fromPort === toPort) {
             window.showToast?.('동일한 포트 타입끼리는 연결할 수 없습니다. (Input ↔ Output만 연결 가능)', 'warn');
             return;
@@ -2701,19 +2775,33 @@ class WindowManager {
 
         let outputId = fromId;
         let inputId = toId;
+        let outPortId = fromPortId;
+        let inPortId = toPortId;
 
         // Input(left) 포트에서 드래그를 시작해 Output(right) 포트에 연결한 경우 방향 자동 조절
         if (fromPort === 'left' && toPort === 'right') {
             outputId = toId;
             inputId = fromId;
+            outPortId = toPortId;
+            inPortId = fromPortId;
+        }
+
+        if (!outPortId) {
+            const outPin = this.getWindowInfo(outputId)?.element?.querySelector('.node-port.port-right');
+            outPortId = outPin?.dataset.portId || 'out_1';
+        }
+
+        if (!inPortId) {
+            const inPin = this.getWindowInfo(inputId)?.element?.querySelector('.node-port.port-left');
+            inPortId = inPin?.dataset.portId || 'in_1';
         }
 
         const exists = this.nodeConnections.some(c => 
-            (String(c.fromId) === String(outputId) && String(c.toId) === String(inputId))
+            String(c.fromId) === String(outputId) && String(c.toId) === String(inputId) && c.fromPortId === outPortId && c.toPortId === inPortId
         );
 
         if (exists) {
-            window.showToast?.('이미 해당 방향으로 두 노드가 연결되어 있습니다.', 'warn');
+            window.showToast?.('이미 해당 포트 핀끼리 연결되어 있습니다.', 'warn');
             return;
         }
 
@@ -2722,13 +2810,15 @@ class WindowManager {
             id: connId,
             fromId: outputId,
             fromPort: 'right',
+            fromPortId: outPortId,
             toId: inputId,
-            toPort: 'left'
+            toPort: 'left',
+            toPortId: inPortId
         });
 
         this.renderConnections();
         this.saveConnections();
-        window.showToast?.('노드가 연결되었습니다! 🔗', 'success');
+        window.showToast?.('노드 포트 핀이 연결되었습니다! 🔗', 'success');
     }
 
     /**
@@ -2791,8 +2881,8 @@ class WindowManager {
         const container = document.getElementById('canvasContainer');
         if (!svg || !container) return;
 
-        if (container.lastElementChild !== svg) {
-            container.appendChild(svg);
+        if (container.firstChild !== svg) {
+            container.insertBefore(svg, container.firstChild);
         }
 
         const existingLines = svg.querySelectorAll('.node-connection-line');
@@ -2806,8 +2896,8 @@ class WindowManager {
         });
 
         this.nodeConnections.forEach(conn => {
-            const start = this.getPortCoordinates(conn.fromId, conn.fromPort);
-            const end = this.getPortCoordinates(conn.toId, conn.toPort);
+            const start = this.getPortCoordinates(conn.fromId, conn.fromPort, conn.fromPortId);
+            const end = this.getPortCoordinates(conn.toId, conn.toPort, conn.toPortId);
 
             if (!start || !end) return;
 
@@ -2837,6 +2927,122 @@ class WindowManager {
             });
 
             svg.appendChild(pathEl);
+        });
+    }
+
+    renderSystemPromptNodeUI(file, win) {
+        const container = win.querySelector(`#sysPromptContainer_${file.id}`);
+        if (!container) return;
+
+        let promptData = {
+            command: "WRITE_CHAPTER",
+            instruction: "아래의 [설정값]과 [지금까지의 줄거리]를 완벽히 분석하여, [현재 챕터 범위]에 해당하는 소설 본문을 즉시 작성하시오.",
+            outputRequirements: "JSON 분석이나 사족(인사말)을 붙이지 말고, 오직 소설 제목과 본문 텍스트만을 일반적인 텍스트로 출력할 것."
+        };
+
+        try {
+            if (file.content) {
+                const parsed = JSON.parse(file.content);
+                if (typeof parsed === 'object') {
+                    promptData = { ...promptData, ...parsed };
+                }
+            }
+        } catch (e) {
+            console.warn('시스템 프롬프트 데이터 파싱 실패, 기본값 사용');
+        }
+
+        container.innerHTML = `
+            <div class="sys-prompt-form" style="padding: 12px; display: flex; flex-direction: column; gap: 10px; height: 100%; overflow-y: auto; background: var(--color-bg-primary);">
+                
+                <div class="sys-prompt-field">
+                    <label class="sys-prompt-label">📌 명령 (Command)</label>
+                    <input type="text" class="input sys-input" data-key="command" value="${this.escapeHtml(promptData.command || '')}" style="width: 100%; font-weight: 600;">
+                </div>
+
+                <div class="sys-prompt-field">
+                    <label class="sys-prompt-label">📜 지침 (Instruction)</label>
+                    <textarea class="input sys-textarea" data-key="instruction" rows="3" style="width: 100%; resize: vertical;">${this.escapeHtml(promptData.instruction || '')}</textarea>
+                </div>
+
+                <div class="sys-prompt-field">
+                    <label class="sys-prompt-label">📤 출력 요구사항 (Output Requirements)</label>
+                    <textarea class="input sys-textarea" data-key="outputRequirements" rows="3" style="width: 100%; resize: vertical;">${this.escapeHtml(promptData.outputRequirements || '')}</textarea>
+                </div>
+
+            </div>
+        `;
+
+        const updatePromptData = async () => {
+            const updated = {};
+            container.querySelectorAll('[data-key]').forEach(el => {
+                const key = el.dataset.key;
+                updated[key] = el.value;
+            });
+
+            file.content = JSON.stringify(updated, null, 2);
+            await storage.updateFile(file.id, { content: file.content });
+        };
+
+        container.querySelectorAll('input, textarea').forEach(inputEl => {
+            inputEl.addEventListener('input', updatePromptData);
+        });
+    }
+
+    renderAiMetaNodeUI(file, win) {
+        const container = win.querySelector(`#aiMetaContainer_${file.id}`);
+        if (!container) return;
+
+        let metaData = {
+            role: "대박을 친 한국의 웹소설 작가 (카카오페이지/네이버 시리즈 스타일)",
+            task: "현재 챕터 소설 본문 작성",
+            detailedInstructions: "1. 인물 간의 텐션 높은 대사와 빠른 스토리 전개감을 살릴 것.\n2. 챕터 마지막에 다음 회차에 대한 궁금증을 극대화하는 절벽엔딩(Cliffhanger)을 배치할 것.\n3. 설정 노드의 스탯/속성값들과 이전 챕터 줄거리를 완벽히 계승할 것."
+        };
+
+        try {
+            if (file.content) {
+                const parsed = JSON.parse(file.content);
+                if (typeof parsed === 'object') {
+                    metaData = { ...metaData, ...parsed };
+                }
+            }
+        } catch (e) {
+            console.warn('AI META 데이터 파싱 실패, 기본값 사용');
+        }
+
+        container.innerHTML = `
+            <div class="sys-prompt-form" style="padding: 12px; display: flex; flex-direction: column; gap: 10px; height: 100%; overflow-y: auto; background: var(--color-bg-primary);">
+                
+                <div class="sys-prompt-field">
+                    <label class="sys-prompt-label">🎭 역할 (Role)</label>
+                    <input type="text" class="input sys-input" data-key="role" value="${this.escapeHtml(metaData.role || '')}" style="width: 100%; font-weight: 600;">
+                </div>
+
+                <div class="sys-prompt-field">
+                    <label class="sys-prompt-label">🎯 임무 (Task)</label>
+                    <input type="text" class="input sys-input" data-key="task" value="${this.escapeHtml(metaData.task || '')}" style="width: 100%;">
+                </div>
+
+                <div class="sys-prompt-field">
+                    <label class="sys-prompt-label">📝 상세 지시사항 (Detailed Instructions)</label>
+                    <textarea class="input sys-textarea" data-key="detailedInstructions" rows="5" style="width: 100%; resize: vertical;">${this.escapeHtml(metaData.detailedInstructions || '')}</textarea>
+                </div>
+
+            </div>
+        `;
+
+        const updateMetaData = async () => {
+            const updated = {};
+            container.querySelectorAll('[data-key]').forEach(el => {
+                const key = el.dataset.key;
+                updated[key] = el.value;
+            });
+
+            file.content = JSON.stringify(updated, null, 2);
+            await storage.updateFile(file.id, { content: file.content });
+        };
+
+        container.querySelectorAll('input, textarea').forEach(inputEl => {
+            inputEl.addEventListener('input', updateMetaData);
         });
     }
 

@@ -208,9 +208,14 @@ class StorageManager {
       id: this.generateId(),
       projectId: file.projectId,
       name: file.name,
-      type: file.type,
+      type: file.type || 'file',
       parentId: file.parentId || null,
       content: file.content || '',
+      isStatNode: !!file.isStatNode,
+      isSystemPromptNode: !!file.isSystemPromptNode,
+      isAiMetaNode: !!file.isAiMetaNode,
+      portsConfig: file.portsConfig || null,
+      description: file.description || '',
       defaultTemplate: file.defaultTemplate || null,
       template: file.template || null, // 템플릿 정보 저장
       order: file.order || 0,
@@ -587,7 +592,34 @@ class StorageManager {
       req.onerror = () => resolve([]);
     });
   }
+
+  // 커스텀 노드 프리셋 메서드
+  async getCustomNodePresets() {
+    return (await this.getGlobalSettings('custom_node_presets')) || [];
+  }
+
+  async saveCustomNodePreset(preset) {
+    const presets = await this.getCustomNodePresets();
+    const existingIdx = presets.findIndex(p => p.id === preset.id);
+    if (existingIdx >= 0) {
+      presets[existingIdx] = preset;
+    } else {
+      presets.push(preset);
+    }
+    await this.saveGlobalSettings('custom_node_presets', presets);
+    return preset;
+  }
+
+  async deleteCustomNodePreset(presetId) {
+    const presets = await this.getCustomNodePresets();
+    const filtered = presets.filter(p => p.id !== presetId);
+    await this.saveGlobalSettings('custom_node_presets', filtered);
+    return filtered;
+  }
 }
 
+// 싱글톤 인스턴스 생성
 const storage = new StorageManager();
-window.storage = storage;
+if (typeof window !== 'undefined') {
+  window.storage = storage;
+}

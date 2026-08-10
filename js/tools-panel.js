@@ -997,6 +997,13 @@ class ToolsPanel {
             </div>
           </div>
 
+          <div class="settings-section">
+            <h3 class="settings-section-title">집필 양식 & 템플릿</h3>
+            <div class="form-group">
+              <button class="btn btn-primary" id="manageTemplatesBtn" style="width: 100%;">⚙️ 집필 템플릿 관리 모달 열기</button>
+            </div>
+          </div>
+
           <div style="margin-top: var(--spacing-2xl); display: flex; flex-direction: column; gap: 12px; padding-bottom: 40px;">
             <button class="btn btn-primary" id="saveSettingsBtn" style="width: 100%; height: 50px; font-size: 15px; font-weight: 700;">환경 설정 저장</button>
             <button class="btn btn-secondary" id="resetSettingsBtn" style="width: 100%; border-color: transparent;">초기화</button>

@@ -19,6 +19,128 @@ class FileTreeManager {
     }
 
     setupEventListeners() {
+        // 노드 추가 버튼 -> 노드 형태 선택 모달 열기
+        document.getElementById('newNodeBtn')?.addEventListener('click', () => {
+            this.showNodeSelectModal();
+        });
+
+        document.getElementById('closeNodeSelectModal')?.addEventListener('click', () => this.hideNodeSelectModal());
+        document.getElementById('cancelNodeSelectBtn')?.addEventListener('click', () => this.hideNodeSelectModal());
+
+        // 하단 "나만의 커스텀 노드 정의하기" 버튼 -> 커스텀 마법사 모달로 전환
+        document.getElementById('openCustomWizardBtn')?.addEventListener('click', () => {
+            this.hideNodeSelectModal();
+            this.showCustomWizardModal();
+        });
+
+        const nodeSelectModal = document.getElementById('nodeSelectModal');
+        if (nodeSelectModal) {
+            nodeSelectModal.addEventListener('click', (e) => {
+                if (e.target === nodeSelectModal) this.hideNodeSelectModal();
+            });
+
+            // 기본 프리셋 노드 형태 선택 카드 이벤트
+            nodeSelectModal.querySelectorAll('.node-type-card').forEach(card => {
+                card.addEventListener('click', () => {
+                    const presetType = card.dataset.presetType;
+                    this.hideNodeSelectModal();
+
+                    if (presetType === 'system_prompt') this.createSystemPromptNode();
+                    else if (presetType === 'ai_meta') this.createAiMetaNode();
+                    else if (presetType === 'stat') this.showNewStatModal();
+                    else if (presetType === 'image') this.showNewImageModal();
+                    else this.showNewItemModal('file');
+                });
+            });
+        }
+
+        // --- 커스텀 마법사 모달 이벤트 ---
+        document.getElementById('closeCustomWizardModal')?.addEventListener('click', () => this.hideCustomWizardModal());
+        document.getElementById('cancelCustomWizardBtn')?.addEventListener('click', () => this.hideCustomWizardModal());
+        document.getElementById('submitCustomWizardBtn')?.addEventListener('click', () => this.handleCustomWizardSubmit());
+
+        const customWizardModal = document.getElementById('customWizardModal');
+        if (customWizardModal) {
+            customWizardModal.addEventListener('click', (e) => {
+                if (e.target === customWizardModal) this.hideCustomWizardModal();
+            });
+
+            customWizardModal.querySelectorAll('.wizard-type-card').forEach(card => {
+                card.addEventListener('click', () => {
+                    customWizardModal.querySelectorAll('.wizard-type-card').forEach(c => c.classList.remove('active'));
+                    card.classList.add('active');
+                    this.selectedWizardType = card.dataset.wizardType || 'file';
+                    this.updateCustomWizardUI();
+                });
+            });
+        }
+
+        // 수치 항목 추가 버튼
+        document.getElementById('wizardAddStatBtn')?.addEventListener('click', () => {
+            this.addWizardStatRow('', 0);
+        });
+
+        // 텍스트 항목 추가 버튼
+        document.getElementById('wizardAddTextFieldBtn')?.addEventListener('click', () => {
+            this.addWizardTextFieldRow('', '');
+        });
+
+        // 포트 항목 추가 버튼
+        document.getElementById('wizardAddInputPortBtn')?.addEventListener('click', () => {
+            this.addPortConfigRow('input', '입력 데이터');
+        });
+        document.getElementById('wizardAddOutputPortBtn')?.addEventListener('click', () => {
+            this.addPortConfigRow('output', '출력 데이터');
+        });
+
+        // 커스텀 마법사 이모지 피커 연동 (다중 행 Grid 스타일)
+        const wizardIconBtn = document.getElementById('wizardIconBtn');
+        const wizardIconPopover = document.getElementById('wizardIconPopover');
+        if (wizardIconBtn && wizardIconPopover) {
+            const emojis = [
+                // 문서 및 서식
+                '📄', '📜', '📖', '📝', '🖋️', '✒️', '✉️', '📓', '📕', '📘', '📙', '🏷️', '📋', '📌',
+                // 게임/수치/UI
+                '📊', '📈', '📉', '🎮', '🕹️', '🎲', '🎯', '🃏', '🧩', '👾', '🤖', '🔋', '💾', '⚙️', '⚖️',
+                // 무기 및 장비
+                '🗡️', '⚔️', '🏹', '🔫', '💣', '🛡️', '🪖', '🥋', '💍', '📿', '🔨', '⛏️', '🪓', '⚒️', '🔧',
+                // 마법 및 요소
+                '🔮', '🧪', '🌡️', '🧬', '⚡', '✨', '🌟', '💥', '🌀', '❄️', '🔥', '💧', '🍃', '☀️', '🌙',
+                // 장소 및 배경
+                '🏰', '⛪', '🏘️', '🏡', '🏛️', '⛩️', '🏔️', '🌋', '🏜️', '🏝️', '🌊', '🌲', '🌳', '⛺', '🗿',
+                // 인물 및 몬스터
+                '👤', '👥', '🤴', '👸', '👮‍♂️', '🕵️‍♀️', '💂‍♂️', '🦸‍♂️', '🦹‍♂️', '🧙‍♂️', '🧛‍♂️', '🧟‍♂️', '🐺', '🐉', '🐲',
+                // 아이템 및 자원
+                '💰', '💎', '🪙', '🗝️', '🔑', '🔓', '🔒', '📦', '🎁', '🍎', '🥩', '🍺', '💊', '💉', '🖼️', '📁'
+            ];
+            wizardIconPopover.innerHTML = '';
+            emojis.forEach(emo => {
+                const item = document.createElement('div');
+                item.className = 'icon-item';
+                item.textContent = emo;
+                item.title = emo;
+                item.onclick = (e) => {
+                    e.stopPropagation();
+                    wizardIconBtn.textContent = emo;
+                    const inputEl = document.getElementById('wizardIcon');
+                    if (inputEl) inputEl.value = emo;
+                    wizardIconPopover.classList.add('hidden');
+                };
+                wizardIconPopover.appendChild(item);
+            });
+
+            wizardIconBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                wizardIconPopover.classList.toggle('hidden');
+            });
+
+            document.addEventListener('click', (e) => {
+                if (!wizardIconBtn.contains(e.target) && !wizardIconPopover.contains(e.target)) {
+                    wizardIconPopover.classList.add('hidden');
+                }
+            });
+        }
+
         document.getElementById('newFolderBtn')?.addEventListener('click', () => this.showNewItemModal('folder'));
         document.getElementById('newStatBtn')?.addEventListener('click', () => this.showNewStatModal());
         document.getElementById('newImageBtn')?.addEventListener('click', () => this.showNewImageModal());
@@ -467,6 +589,604 @@ class FileTreeManager {
         return false;
     }
 
+    showExistingNodeOpenModal() {
+        const modal = document.getElementById('existingNodeOpenModal');
+        const container = document.getElementById('existingNodeListContainer');
+        if (!modal || !container) return;
+
+        container.innerHTML = '';
+
+        const openableFiles = this.files.filter(f => f.type !== 'folder');
+
+        if (openableFiles.length === 0) {
+            container.innerHTML = `
+                <div style="padding: 24px; text-align: center; color: var(--color-text-tertiary);">
+                    생성되어 저장된 노드가 없습니다.<br>
+                    <strong>[➕ 새 노드 생성]</strong> 버튼을 눌러 새 노드를 먼저 생성하세요.
+                </div>
+            `;
+        } else {
+            openableFiles.forEach(file => {
+                const item = document.createElement('div');
+                item.className = 'existing-node-item';
+                let typeLabel = '소설/원고 노드';
+                if (file.isStatNode) typeLabel = '수치 계산기 노드';
+                else if (file.type === 'image') typeLabel = '이미지 노드';
+
+                const isOpen = window.windowManager?.getWindowInfo(file.id);
+
+                item.innerHTML = `
+                    <div class="existing-node-item-info">
+                        <span style="font-size: 18px;">${file.name.slice(0, 2).trim() || '📄'}</span>
+                        <span class="existing-node-item-name">${this.escapeHtml(file.name)}</span>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <span class="existing-node-item-type">${typeLabel}</span>
+                        ${isOpen ? '<span style="font-size: 11px; color: var(--color-accent-success); font-weight: bold;">(열려있음)</span>' : ''}
+                    </div>
+                `;
+
+                item.addEventListener('click', () => {
+                    this.hideExistingNodeOpenModal();
+                    if (window.windowManager) {
+                        window.windowManager.openWindow(file.id);
+                        window.showToast?.(`'${file.name}' 노드가 캔버스에 열렸습니다. 📌`);
+                    }
+                });
+
+                container.appendChild(item);
+            });
+        }
+
+        modal.classList.remove('hidden');
+    }
+
+    hideExistingNodeOpenModal() {
+        document.getElementById('existingNodeOpenModal')?.classList.add('hidden');
+    }
+
+    async showNodeSelectModal() {
+        const modal = document.getElementById('nodeSelectModal');
+        if (!modal) return;
+
+        await this.renderCustomNodePresets();
+        modal.classList.remove('hidden');
+    }
+
+    hideNodeSelectModal() {
+        document.getElementById('nodeSelectModal')?.classList.add('hidden');
+    }
+
+    async renderCustomNodePresets() {
+        const container = document.getElementById('customPresetsContainer');
+        const section = document.getElementById('customPresetsSection');
+        if (!container) return;
+
+        container.innerHTML = '';
+        const presets = await window.storage?.getCustomNodePresets() || [];
+
+        if (presets.length === 0) {
+            if (section) section.style.display = 'none';
+            return;
+        }
+
+        if (section) section.style.display = 'block';
+
+        presets.forEach(preset => {
+            const card = document.createElement('div');
+            card.className = 'node-type-card';
+            card.style.position = 'relative';
+
+            let typeBadge = '텍스트';
+            if (preset.wizardType === 'stat') typeBadge = '수치';
+            else if (preset.wizardType === 'text_fields') typeBadge = '속성';
+
+            card.innerHTML = `
+                <div class="node-type-icon">${preset.icon || '📄'}</div>
+                <div class="node-type-info" style="flex: 1; padding-right: 20px;">
+                    <div class="node-type-title" style="display: flex; align-items: center; justify-content: space-between;">
+                        <span>${this.escapeHtml(preset.name)}</span>
+                        <span style="font-size: 10px; color: var(--color-accent-primary); background: var(--color-bg-secondary); padding: 2px 6px; border-radius: 8px;">${typeBadge} 커스텀</span>
+                    </div>
+                    <div class="node-type-desc">${this.escapeHtml(preset.desc || '사용자 정의 커스텀 노드')}</div>
+                </div>
+                <button class="delete-preset-btn" title="프리셋 삭제" style="position: absolute; top: 6px; right: 6px; background: transparent; border: none; color: var(--color-text-tertiary); cursor: pointer; font-size: 14px; padding: 2px 6px;">✕</button>
+            `;
+
+            // 프리셋 삭제 버튼
+            card.querySelector('.delete-preset-btn')?.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                if (confirm(`'${preset.name}' 커스텀 노드 프리셋을 목록에서 삭제할까요?`)) {
+                    await window.storage?.deleteCustomNodePreset(preset.id);
+                    await this.renderCustomNodePresets();
+                    window.showToast?.('프리셋이 삭제되었습니다.');
+                }
+            });
+
+            // 카드 클릭 시 캔버스/목록에 이 프리셋의 신규 노드 생성!
+            card.addEventListener('click', async () => {
+                this.hideNodeSelectModal();
+                await this.createNodeFromPreset(preset);
+            });
+
+            container.appendChild(card);
+        });
+    }
+
+    async createNodeFromPreset(preset) {
+        if (preset.wizardType === 'stat') {
+            await this.createCustomStatNode(preset.name, preset.icon, preset.desc, preset.fields || [], preset.portsConfig);
+        } else if (preset.wizardType === 'text_fields') {
+            await this.createCustomTextFieldsNode(preset.name, preset.icon, preset.desc, preset.fields || [], preset.portsConfig);
+        } else {
+            let content = '';
+            if (preset.template && preset.template !== 'blank') {
+                content = await this.getTemplateContent(preset.template);
+            }
+            if (preset.desc) {
+                content = `<!-- 설명: ${preset.desc} -->\n` + content;
+            }
+            const fileData = {
+                name: `${preset.icon || '📄'} ${preset.name}`,
+                type: 'file',
+                description: preset.desc,
+                content,
+                defaultTemplate: preset.template === 'blank' ? null : preset.template,
+                portsConfig: preset.portsConfig
+            };
+            await this.createNewCustomNode(fileData);
+        }
+    }
+
+    showCustomWizardModal() {
+        this.selectedWizardType = 'file';
+        const modal = document.getElementById('customWizardModal');
+        if (!modal) return;
+
+        const nameInput = document.getElementById('wizardName');
+        const descInput = document.getElementById('wizardDesc');
+        if (nameInput) nameInput.value = '';
+        if (descInput) descInput.value = '';
+
+        const iconBtn = document.getElementById('wizardIconBtn');
+        const iconInput = document.getElementById('wizardIcon');
+        if (iconBtn) iconBtn.textContent = '📄';
+        if (iconInput) iconInput.value = '📄';
+
+        modal.querySelectorAll('.wizard-type-card').forEach(card => {
+            if (card.dataset.wizardType === 'file') card.classList.add('active');
+            else card.classList.remove('active');
+        });
+
+        const list = document.getElementById('wizardStatList');
+        if (list) {
+            list.innerHTML = '';
+            this.addWizardStatRow('근력', 10);
+            this.addWizardStatRow('민첩', 10);
+            this.addWizardStatRow('지능', 10);
+        }
+
+        const textList = document.getElementById('wizardTextFieldsList');
+        if (textList) {
+            textList.innerHTML = '';
+            this.addWizardTextFieldRow('소속', '황실 기사단');
+            this.addWizardTextFieldRow('칭호', '검성');
+            this.addWizardTextFieldRow('특기', '신속 베기');
+        }
+
+        const inList = document.getElementById('wizardInputPortList');
+        if (inList) {
+            inList.innerHTML = '';
+            this.addPortConfigRow('input', '입력 데이터');
+        }
+
+        const outList = document.getElementById('wizardOutputPortList');
+        if (outList) {
+            outList.innerHTML = '';
+            this.addPortConfigRow('output', '출력 데이터');
+        }
+
+        this.updateCustomWizardUI();
+        modal.classList.remove('hidden');
+        if (nameInput) nameInput.focus();
+    }
+
+    hideCustomWizardModal() {
+        document.getElementById('customWizardModal')?.classList.add('hidden');
+    }
+
+    updateCustomWizardUI() {
+        const type = this.selectedWizardType || 'file';
+        const statSection = document.getElementById('wizardStatSection');
+        const textSection = document.getElementById('wizardTextFieldsSection');
+        const templateSection = document.getElementById('wizardTemplateSection');
+        const iconBtn = document.getElementById('wizardIconBtn');
+        const iconInput = document.getElementById('wizardIcon');
+
+        if (statSection) {
+            if (type === 'stat') statSection.classList.remove('hidden');
+            else statSection.classList.add('hidden');
+        }
+
+        if (textSection) {
+            if (type === 'text_fields') textSection.classList.remove('hidden');
+            else textSection.classList.add('hidden');
+        }
+
+        if (templateSection) {
+            if (type === 'file') templateSection.classList.remove('hidden');
+            else templateSection.classList.add('hidden');
+        }
+
+        let defaultIcon = '📄';
+        if (type === 'stat') defaultIcon = '📊';
+        else if (type === 'text_fields') defaultIcon = '🏷️';
+
+        if (iconBtn) iconBtn.textContent = defaultIcon;
+        if (iconInput) iconInput.value = defaultIcon;
+    }
+
+    addWizardStatRow(name = '', val = 0) {
+        const list = document.getElementById('wizardStatList');
+        if (!list) return;
+
+        const row = document.createElement('div');
+        row.className = 'stat-field-row';
+        row.innerHTML = `
+            <input type="text" class="input field-name" placeholder="항목 이름 (예: 근력, HP)" value="${this.escapeHtml(name)}" style="flex: 1;">
+            <input type="number" class="input field-val" placeholder="기본 수치" value="${val}" style="width: 90px;">
+            <button type="button" class="btn btn-icon btn-secondary remove-field-btn" title="항목 삭제" style="color: var(--color-accent-danger); border: none; background: transparent;">✕</button>
+        `;
+
+        row.querySelector('.remove-field-btn')?.addEventListener('click', () => {
+            row.remove();
+        });
+
+        list.appendChild(row);
+    }
+
+    addWizardTextFieldRow(name = '', val = '') {
+        const list = document.getElementById('wizardTextFieldsList');
+        if (!list) return;
+
+        const row = document.createElement('div');
+        row.className = 'stat-field-row';
+        row.innerHTML = `
+            <input type="text" class="input field-name" placeholder="항목 이름 (예: 소속, 칭호)" value="${this.escapeHtml(name)}" style="width: 140px;">
+            <input type="text" class="input field-val" placeholder="기본 텍스트 내용" value="${this.escapeHtml(val)}" style="flex: 1;">
+            <button type="button" class="btn btn-icon btn-secondary remove-field-btn" title="항목 삭제" style="color: var(--color-accent-danger); border: none; background: transparent;">✕</button>
+        `;
+
+        row.querySelector('.remove-field-btn')?.addEventListener('click', () => {
+            row.remove();
+        });
+
+        list.appendChild(row);
+    }
+
+    addPortConfigRow(type = 'input', defaultName = '') {
+        const listId = type === 'input' ? 'wizardInputPortList' : 'wizardOutputPortList';
+        const list = document.getElementById(listId);
+        if (!list) return;
+
+        const row = document.createElement('div');
+        row.className = 'stat-field-row';
+        row.style.marginBottom = '6px';
+        row.innerHTML = `
+            <input type="text" class="input field-name" placeholder="포트 핀 이름" value="${this.escapeHtml(defaultName)}" style="flex: 1; font-size: 11px; height: 26px; padding: 0 6px;">
+            <button type="button" class="btn btn-icon btn-secondary remove-field-btn" title="포트 삭제" style="color: var(--color-accent-danger); border: none; background: transparent; padding: 2px;">✕</button>
+        `;
+
+        row.querySelector('.remove-field-btn')?.addEventListener('click', () => {
+            row.remove();
+        });
+
+        list.appendChild(row);
+    }
+
+    async handleCustomWizardSubmit() {
+        const nameInput = document.getElementById('wizardName');
+        const descInput = document.getElementById('wizardDesc');
+        const name = nameInput ? nameInput.value.trim() : '';
+        const desc = descInput ? descInput.value.trim() : '';
+        const icon = document.getElementById('wizardIcon')?.value || '📄';
+        const type = this.selectedWizardType || 'file';
+
+        if (!name) {
+            alert('노드 이름을 입력해 주세요.');
+            nameInput?.focus();
+            return;
+        }
+
+        const fields = [];
+        if (type === 'stat') {
+            document.querySelectorAll('#wizardStatList .stat-field-row').forEach(row => {
+                const fName = row.querySelector('.field-name')?.value.trim();
+                const fVal = parseFloat(row.querySelector('.field-val')?.value) || 0;
+                if (fName) fields.push({ name: fName, val: fVal });
+            });
+        } else if (type === 'text_fields') {
+            document.querySelectorAll('#wizardTextFieldsList .stat-field-row').forEach(row => {
+                const fName = row.querySelector('.field-name')?.value.trim();
+                const fVal = row.querySelector('.field-val')?.value.trim() || '';
+                if (fName) fields.push({ name: fName, val: fVal });
+            });
+        }
+
+        // 포트 핀 정보 수집
+        const inputs = [];
+        document.querySelectorAll('#wizardInputPortList .stat-field-row .field-name').forEach((el, idx) => {
+            const pName = el.value.trim();
+            if (pName) inputs.push({ id: `in_${idx + 1}`, name: pName });
+        });
+
+        const outputs = [];
+        document.querySelectorAll('#wizardOutputPortList .stat-field-row .field-name').forEach((el, idx) => {
+            const pName = el.value.trim();
+            if (pName) outputs.push({ id: `out_${idx + 1}`, name: pName });
+        });
+
+        const portsConfig = { inputs, outputs };
+
+        const presetData = {
+            id: 'preset_' + Date.now(),
+            name,
+            icon,
+            desc,
+            wizardType: type,
+            fields,
+            portsConfig,
+            template: type === 'file' ? (document.getElementById('wizardTemplate')?.value || 'blank') : null
+        };
+
+        await window.storage?.saveCustomNodePreset(presetData);
+
+        this.hideCustomWizardModal();
+        await this.showNodeSelectModal();
+
+        window.showToast?.(`'${name}' 커스텀 노드가 노드 목록에 추가되었습니다! ✨`);
+    }
+
+    async createCustomTextFieldsNode(name, icon, desc, fields, portsConfig = null) {
+        let textContent = `📌 《 ${name} 》\n\n`;
+        if (desc) textContent += `설명: ${desc}\n------------------------------\n`;
+
+        fields.forEach(f => {
+            textContent += `• ${f.name}: ${f.val}\n`;
+        });
+
+        const fileData = {
+            name: `${icon} ${name}`,
+            type: 'file',
+            description: desc,
+            content: textContent,
+            portsConfig
+        };
+
+        await this.createNewCustomNode(fileData);
+    }
+
+    async createNewCustomNode(fileData) {
+        try {
+            const projectId = this.currentProjectId || window.app?.currentProjectId || (await storage.getProjects())?.[0]?.id;
+            if (!projectId) {
+                alert('현재 선택된 프로젝트가 없습니다.');
+                return;
+            }
+
+            const siblings = (this.files || []).filter(f => !f.parentId);
+            const maxOrder = siblings.length > 0 ? Math.max(...siblings.map(f => f.order || 0)) : -1;
+
+            const created = await storage.createFile({
+                projectId,
+                name: fileData.name,
+                type: fileData.type || 'file',
+                description: fileData.description || '',
+                content: fileData.content || '',
+                isStatNode: !!fileData.isStatNode,
+                isSystemPromptNode: !!fileData.isSystemPromptNode,
+                isAiMetaNode: !!fileData.isAiMetaNode,
+                portsConfig: fileData.portsConfig || null,
+                template: fileData.defaultTemplate || null,
+                parentId: null,
+                order: maxOrder + 1
+            });
+
+            if (projectId) {
+                await this.loadProjectFiles(projectId);
+            }
+
+            if (created && window.windowManager) {
+                window.windowManager.openWindow(created.id);
+                window.showToast?.(`'${created.name}' 노드가 생성되어 캔버스에 추가되었습니다. ✨`);
+            }
+            return created;
+        } catch (err) {
+            console.error('커스텀 노드 생성 실패 상세 로그:', err);
+            alert(`노드 생성 중 오류가 발생했습니다: ${err.message || err}`);
+        }
+    }
+
+    async createSystemPromptNode() {
+        const promptData = {
+            command: "WRITE_CHAPTER",
+            instruction: "아래의 [설정값]과 [지금까지의 줄거리]를 완벽히 분석하여, [현재 챕터 범위]에 해당하는 소설 본문을 즉시 작성하시오.",
+            outputRequirements: "JSON 분석이나 사족(인사말)을 붙이지 말고, 오직 소설 제목과 본문 텍스트만을 일반적인 텍스트로 출력할 것."
+        };
+
+        const fileData = {
+            name: `🤖 시스템 프롬프트`,
+            type: 'file',
+            isSystemPromptNode: true,
+            description: '명령, 지침, 출력 요구사항 설정 전용 Key-Value 노드',
+            content: JSON.stringify(promptData, null, 2),
+            portsConfig: {
+                inputs: [
+                    { id: 'in_1', name: '지침 데이터' },
+                    { id: 'in_2', name: '세계관 규칙' }
+                ],
+                outputs: [
+                    { id: 'out_1', name: '시스템 프롬프트 출력' }
+                ]
+            }
+        };
+
+        await this.createNewCustomNode(fileData);
+    }
+
+    async createAiMetaNode() {
+        const metaData = {
+            role: "대박을 친 한국의 웹소설 작가 (카카오페이지/네이버 시리즈 스타일)",
+            task: "현재 챕터 소설 본문 작성",
+            detailedInstructions: "1. 인물 간의 텐션 높은 대사와 빠른 스토리 전개감을 살릴 것.\n2. 챕터 마지막에 다음 회차에 대한 궁금증을 극대화하는 절벽엔딩(Cliffhanger)을 배치할 것.\n3. 설정 노드의 스탯/속성값들과 이전 챕터 줄거리를 완벽히 계승할 것."
+        };
+
+        const fileData = {
+            name: `🎭 AI META 지정`,
+            type: 'file',
+            isAiMetaNode: true,
+            description: '역할, 임무, 상세 지시사항 설정 전용 Key-Value 노드',
+            content: JSON.stringify(metaData, null, 2),
+            portsConfig: {
+                inputs: [
+                    { id: 'in_1', name: '작가 페르소나' }
+                ],
+                outputs: [
+                    { id: 'out_1', name: '메타 가이드' },
+                    { id: 'out_2', name: '세부 지시사항' }
+                ]
+            }
+        };
+
+        await this.createNewCustomNode(fileData);
+    }
+
+    updateNodeWizardUI() {
+        const type = this.selectedCreateNodeType || 'file';
+        const statSection = document.getElementById('statFieldsSection');
+        const templateSection = document.getElementById('templateSelectSection');
+        const iconBtn = document.getElementById('nodeCreateIconBtn');
+        const iconInput = document.getElementById('nodeCreateIcon');
+
+        if (statSection) {
+            if (type === 'stat') statSection.classList.remove('hidden');
+            else statSection.classList.add('hidden');
+        }
+
+        if (templateSection) {
+            if (type === 'file') templateSection.classList.remove('hidden');
+            else templateSection.classList.add('hidden');
+        }
+
+        let defaultIcon = '📄';
+        if (type === 'stat') defaultIcon = '📊';
+        else if (type === 'image') defaultIcon = '🖼️';
+        else if (type === 'folder') defaultIcon = '📁';
+
+        if (iconBtn) iconBtn.textContent = defaultIcon;
+        if (iconInput) iconInput.value = defaultIcon;
+    }
+
+    addStatFieldRow(name = '', val = 0) {
+        const list = document.getElementById('statFieldsList');
+        if (!list) return;
+
+        const row = document.createElement('div');
+        row.className = 'stat-field-row';
+        row.innerHTML = `
+            <input type="text" class="input field-name" placeholder="항목 이름 (예: 근력, HP)" value="${this.escapeHtml(name)}" style="flex: 1;">
+            <input type="number" class="input field-val" placeholder="기본 수치" value="${val}" style="width: 90px;">
+            <button type="button" class="btn btn-icon btn-secondary remove-field-btn" title="항목 삭제" style="color: var(--color-accent-danger); border: none; background: transparent;">✕</button>
+        `;
+
+        row.querySelector('.remove-field-btn')?.addEventListener('click', () => {
+            row.remove();
+        });
+
+        list.appendChild(row);
+    }
+
+    async handleCreateNodeSubmit() {
+        const nameInput = document.getElementById('nodeCreateName');
+        const descInput = document.getElementById('nodeCreateDesc');
+        const name = nameInput ? nameInput.value.trim() : '';
+        const desc = descInput ? descInput.value.trim() : '';
+        const icon = document.getElementById('nodeCreateIcon')?.value || '📄';
+        const type = this.selectedCreateNodeType || 'file';
+
+        if (!name) {
+            alert('노드 이름을 입력해 주세요.');
+            nameInput?.focus();
+            return;
+        }
+
+        this.hideNodeSelectModal();
+
+        if (type === 'stat') {
+            const fields = [];
+            document.querySelectorAll('#statFieldsList .stat-field-row').forEach(row => {
+                const fName = row.querySelector('.field-name')?.value.trim();
+                const fVal = parseFloat(row.querySelector('.field-val')?.value) || 0;
+                if (fName) {
+                    fields.push({ name: fName, val: fVal });
+                }
+            });
+
+            await this.createCustomStatNode(name, icon, desc, fields);
+        } else if (type === 'file') {
+            const template = document.getElementById('nodeCreateTemplate')?.value || 'blank';
+            let content = '';
+            if (template !== 'blank') {
+                content = await this.getTemplateContent(template);
+            }
+            if (desc) {
+                content = `<!-- 설명: ${desc} -->\n` + content;
+            }
+            const fileData = {
+                name: `${icon} ${name}`,
+                type: 'file',
+                content,
+                defaultTemplate: template === 'blank' ? null : template
+            };
+            const newFile = await this.createFile(fileData);
+            if (newFile && window.windowManager) {
+                window.windowManager.openWindow(newFile.id);
+            }
+        } else if (type === 'image') {
+            this.showNewImageModal();
+        } else if (type === 'folder') {
+            await this.createFile({
+                name: `${icon} ${name}`,
+                type: 'folder'
+            });
+        }
+    }
+
+    async createCustomStatNode(name, icon, desc, fields, portsConfig = null) {
+        let outputTemplateStr = `《 ${name} 》\n`;
+        const statConfig = {};
+
+        fields.forEach(f => {
+            outputTemplateStr += `[${f.name}: {$${f.name}$}]\n`;
+            statConfig[f.name] = f.val;
+        });
+
+        const fileData = {
+            name: `${icon} ${name}`,
+            type: 'file',
+            isStatNode: true,
+            description: desc,
+            content: JSON.stringify({
+                statConfig,
+                outputTemplate: outputTemplateStr,
+                history: []
+            }, null, 2),
+            portsConfig
+        };
+
+        await this.createNewCustomNode(fileData);
+    }
+
     async showNewItemModal(type, parentId = null, itemToEdit = null) {
         // 폴더 수정인 경우 폴더 설정 모달로 리다이렉트
         if (itemToEdit && itemToEdit.type === 'folder') {
@@ -484,11 +1204,14 @@ class FileTreeManager {
         const submitBtn = document.getElementById('createFileBtn');
 
         if (modal && title) {
+            modal.classList.remove('hidden');
+            document.getElementById('fileName').focus();
+
             if (this.editingItem) {
                 title.textContent = '파일 이름 변경';
                 submitBtn.textContent = '수정';
                 document.getElementById('fileName').value = this.editingItem.name;
-                if (templateGroup) templateGroup.style.display = 'none'; // 파일 수정 시 템플릿 숨김
+                if (templateGroup) templateGroup.style.display = 'none';
             } else {
                 title.textContent = type === 'folder' ? '새 폴더 생성' : '새 파일 생성';
                 submitBtn.textContent = '생성';
@@ -496,20 +1219,17 @@ class FileTreeManager {
                 if (templateGroup) templateGroup.style.display = 'block';
             }
 
-            // 커스텀 템플릿 로드
+            // 커스텀 템플릿 로드는 모달이 표시된 후 비동기로 처리하여 렉 방지
             if (templateSelect && templateGroup?.style.display !== 'none') {
-                await this.refreshTemplateOptions('fileTemplate');
-
-                if (parentId && !this.editingItem) {
-                    const parentFolder = this.files.find(f => f.id === parentId);
-                    templateSelect.value = (parentFolder && parentFolder.defaultTemplate) ? parentFolder.defaultTemplate : 'blank';
-                } else {
-                    templateSelect.value = 'blank';
-                }
+                this.refreshTemplateOptions('fileTemplate').then(() => {
+                    if (parentId && !this.editingItem) {
+                        const parentFolder = this.files.find(f => f.id === parentId);
+                        templateSelect.value = (parentFolder && parentFolder.defaultTemplate) ? parentFolder.defaultTemplate : 'blank';
+                    } else {
+                        templateSelect.value = 'blank';
+                    }
+                });
             }
-
-            modal.classList.remove('hidden');
-            document.getElementById('fileName').focus();
         }
     }
 
@@ -642,12 +1362,13 @@ class FileTreeManager {
             ${file.type === 'folder' ? `
                 <div class="context-menu-item has-submenu" id="ctx-new-file-group">
                     <div style="display: flex; align-items: center; gap: 10px;">
-                        <span class="context-menu-icon">📄</span> 새 파일
+                        <span class="context-menu-icon">➕</span> 새 노드 추가
                     </div>
                     <div class="context-submenu">
-                        <div class="context-menu-item" id="ctx-new-file-text"><span class="context-menu-icon">📄</span> 텍스트 파일</div>
-                        <div class="context-menu-item" id="ctx-new-file-image"><span class="context-menu-icon">🖼️</span> 이미지 파일</div>
-                        <div class="context-menu-item" id="ctx-new-file-stat"><span class="context-menu-icon">📊</span> 수치 계산기</div>
+                        <div class="context-menu-item" id="ctx-new-file-text"><span class="context-menu-icon">📄</span> 소설 / 원고 노드</div>
+                        <div class="context-menu-item" id="ctx-new-file-stat"><span class="context-menu-icon">📊</span> 수치 계산기 노드</div>
+                        <div class="context-menu-item" id="ctx-new-file-image"><span class="context-menu-icon">🖼️</span> 이미지 노드</div>
+                        <div class="context-menu-item" id="ctx-open-wizard"><span class="context-menu-icon">✨</span> 커스텀 노드 정의...</div>
                     </div>
                 </div>
                 <div class="context-menu-item" id="ctx-new-folder"><span class="context-menu-icon">📁</span> 새 폴더</div>
@@ -666,8 +1387,9 @@ class FileTreeManager {
 
         // 이벤트 리스너 바인딩
         document.getElementById('ctx-new-file-text')?.addEventListener('click', () => this.showNewItemModal('file', file.id));
-        document.getElementById('ctx-new-file-image')?.addEventListener('click', () => this.showNewImageModal()); // Note: showNewImageModal은 현재 parentId 지원 안함
+        document.getElementById('ctx-new-file-image')?.addEventListener('click', () => this.showNewImageModal());
         document.getElementById('ctx-new-file-stat')?.addEventListener('click', () => this.showNewStatModal(file.id));
+        document.getElementById('ctx-open-wizard')?.addEventListener('click', () => this.showNodeSelectModal());
         
         document.getElementById('ctx-new-folder')?.addEventListener('click', () => this.showNewItemModal('folder', file.id));
         document.getElementById('ctx-folder-stats')?.addEventListener('click', () => this.showFolderStatsModal(file));
@@ -943,12 +1665,13 @@ class FileTreeManager {
         menu.innerHTML = `
             <div class="context-menu-item has-submenu" id="ctx-root-new-file-group">
                 <div style="display: flex; align-items: center; gap: 10px;">
-                    <span class="context-menu-icon">📄</span> 새 파일
+                    <span class="context-menu-icon">➕</span> 새 노드 추가
                 </div>
                 <div class="context-submenu">
-                    <div class="context-menu-item" id="ctx-root-new-file-text"><span class="context-menu-icon">📄</span> 텍스트 파일</div>
-                    <div class="context-menu-item" id="ctx-root-new-file-image"><span class="context-menu-icon">🖼️</span> 이미지 파일</div>
-                    <div class="context-menu-item" id="ctx-root-new-file-stat"><span class="context-menu-icon">📊</span> 수치 계산기</div>
+                    <div class="context-menu-item" id="ctx-root-new-file-text"><span class="context-menu-icon">📄</span> 소설 / 원고 노드</div>
+                    <div class="context-menu-item" id="ctx-root-new-file-stat"><span class="context-menu-icon">📊</span> 수치 계산기 노드</div>
+                    <div class="context-menu-item" id="ctx-root-new-file-image"><span class="context-menu-icon">🖼️</span> 이미지 노드</div>
+                    <div class="context-menu-item" id="ctx-root-open-wizard"><span class="context-menu-icon">✨</span> 커스텀 노드 정의...</div>
                 </div>
             </div>
             <div class="context-menu-item" id="ctx-root-new-folder"><span class="context-menu-icon">📁</span> 새 폴더</div>
@@ -960,6 +1683,7 @@ class FileTreeManager {
         document.getElementById('ctx-root-new-file-text')?.addEventListener('click', () => this.showNewItemModal('file', null));
         document.getElementById('ctx-root-new-file-image')?.addEventListener('click', () => this.showNewImageModal());
         document.getElementById('ctx-root-new-file-stat')?.addEventListener('click', () => this.showNewStatModal(null));
+        document.getElementById('ctx-root-open-wizard')?.addEventListener('click', () => this.showNodeSelectModal());
         document.getElementById('ctx-root-new-folder')?.addEventListener('click', () => this.showNewItemModal('folder', null));
     }
 
