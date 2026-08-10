@@ -54,13 +54,19 @@
     <main class="editor-main">
       <!-- 왼쪽 파일 트리 패널 -->
       <aside class="file-tree-panel" id="fileTreePanel">
-        <div class="file-tree-header">
-          <span class="file-tree-title">노드 목록</span>
-          <div class="file-tree-actions">
-            <button class="btn btn-primary btn-sm" id="newNodeBtn" title="노드 추가 및 캔버스 열기">
+        <div class="file-tree-header" style="display: flex; flex-direction: column; gap: 10px; align-items: stretch; padding: 12px 14px 8px 14px;">
+          <div class="file-tree-actions" style="display: flex; flex-direction: column; gap: 6px; width: 100%;">
+            <button class="btn btn-primary btn-sm" id="newNodeBtn" title="노드 추가 및 캔버스 열기" style="width: 100%; justify-content: center;">
               <span>➕</span>
               <span>노드 추가</span>
             </button>
+            <button class="btn btn-secondary btn-sm" id="newNodeTemplateBtn" title="채워진 입력 보존 템플릿으로 노드 추가" style="width: 100%; justify-content: center; background: rgba(241, 224, 90, 0.12); border-color: rgba(241, 224, 90, 0.35); color: #f1e05a;">
+              <span>⭐</span>
+              <span>노드 템플릿 추가</span>
+            </button>
+          </div>
+          <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--color-border); padding-top: 10px; margin-top: 4px;">
+            <span class="file-tree-title" style="font-size: 14px; font-weight: 700; color: var(--color-text-secondary); letter-spacing: 0.5px;">노드 목록</span>
           </div>
         </div>
         <div class="file-tree-content" id="fileTree">
@@ -238,11 +244,11 @@
 
         </div>
 
-        <!-- 사용자 정의 커스텀 노드 프리셋 섹션 -->
+        <!-- 사용자 정의 커스텀 노드 형태 섹션 (구조 마법사) -->
         <div id="customPresetsSection" class="mt-lg" style="border-top: 1px solid var(--color-border); padding-top: 16px;">
-          <p class="node-select-subtitle" style="margin-bottom: 12px;">⭐️ 내가 정의한 커스텀 노드 형태</p>
+          <p class="node-select-subtitle" style="margin-bottom: 12px;">✨ 내가 만든 커스텀 노드 형태 (구조 정의)</p>
           <div id="customPresetsContainer" class="node-type-grid">
-            <!-- 동적으로 저장된 커스텀 노드 프리셋 카드가 렌더링됩니다 -->
+            <!-- 동적으로 저장된 커스텀 노드 구조 카드가 렌더링됩니다 -->
           </div>
         </div>
 
@@ -250,6 +256,26 @@
       <div class="modal-footer" style="display: flex; justify-content: space-between; align-items: center; gap: 12px;">
         <button class="btn btn-primary" id="openCustomWizardBtn">✨ 나만의 커스텀 노드 정의하기</button>
         <button class="btn btn-secondary" id="cancelNodeSelectBtn">닫기</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 노드 템플릿 선택 모달 (독립 모달) -->
+  <div id="nodeTemplateSelectModal" class="modal-overlay hidden">
+    <div class="modal modal-lg">
+      <div class="modal-header">
+        <h2 class="modal-title">⭐ 노드 템플릿 선택 (입력 내용 보존)</h2>
+        <button class="modal-close" id="closeNodeTemplateSelectModal">✕</button>
+      </div>
+      <div class="modal-body">
+        <p class="node-select-subtitle">원하는 템플릿을 선택하면 입력 칸이 채워진 상태의 노드가 캔버스에 즉시 생성됩니다.</p>
+        <div id="modalNodeTemplatesContainer" class="node-type-grid" style="margin-top: 16px;">
+          <!-- 템플릿 카드들이 동적으로 생성됩니다 -->
+        </div>
+      </div>
+      <div class="modal-footer" style="display: flex; justify-content: space-between; align-items: center;">
+        <button class="btn btn-secondary" id="manageTemplatesFromSelectBtn">⚙️ 템플릿 목록 관리</button>
+        <button class="btn btn-secondary" id="cancelNodeTemplateSelectBtn">닫기</button>
       </div>
     </div>
   </div>

@@ -531,14 +531,22 @@ class StorageManager {
 
   async createTemplate(template) {
     const newTemplate = {
-      id: this.generateId(),
+      id: template.id || this.generateId(),
       name: template.name,
-      content: template.content || '',
       icon: template.icon || '📄',
+      desc: template.desc || '입력 보존 노드 템플릿',
+      template: template.template || 'file',
+      isTextFieldsNode: !!template.isTextFieldsNode,
+      isFolderCollectorNode: !!template.isFolderCollectorNode,
+      isStatNode: !!template.isStatNode,
+      isSystemPromptNode: !!template.isSystemPromptNode,
+      isAiMetaNode: !!template.isAiMetaNode,
+      content: template.content || '',
+      portsConfig: template.portsConfig || null,
       createdAt: Date.now()
     };
     await this._transaction([TEMPLATES_STORE], 'readwrite', (tx) => {
-      tx.objectStore(TEMPLATES_STORE).add(newTemplate);
+      tx.objectStore(TEMPLATES_STORE).put(newTemplate);
     });
     return newTemplate;
   }

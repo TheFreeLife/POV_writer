@@ -689,13 +689,95 @@ class FileTreeManager {
         document.getElementById('nodeSelectModal')?.classList.add('hidden');
     }
 
+    getDefaultNodeTemplates() {
+        return [
+            {
+                id: 'preset_default_character',
+                name: '주인공 캐릭터 카드',
+                icon: '👤',
+                desc: '이름, 소속, 성격, 배경 등 입력값이 미리 채워진 캐릭터 속성 노드',
+                wizardType: 'text_fields',
+                isTextFieldsNode: true,
+                isDefault: true,
+                content: JSON.stringify({
+                    isTextFieldsNode: true,
+                    textFields: [
+                        { id: 'f_1', name: '이름', value: '강현우' },
+                        { id: 'f_2', name: '소속', value: '중앙 아카데미 3학년' },
+                        { id: 'f_3', name: '성격', value: '평소엔 침착하지만 동료를 위해 물불 가리지 않음' },
+                        { id: 'f_4', name: '특이사항', value: '10년 전 전생의 기억을 온전히 가지고 회귀함' }
+                    ],
+                    outputTemplate: `📌 《 {$이름$} 》\n• 소속: {$소속$}\n• 성격: {$성격$}\n• 특이사항: {$특이사항$}`
+                }, null, 2),
+                portsConfig: { inputs: [], outputs: [{ id: 'out_1', name: '캐릭터 정보', color: '#00ffcc' }] }
+            },
+            {
+                id: 'preset_default_item',
+                name: '전설의 무기 정보',
+                icon: '⚔️',
+                desc: '아이템명, 등급, 고유 효과 등 입력값이 미리 채워진 장비 노드',
+                wizardType: 'text_fields',
+                isTextFieldsNode: true,
+                isDefault: true,
+                content: JSON.stringify({
+                    isTextFieldsNode: true,
+                    textFields: [
+                        { id: 'f_1', name: '아이템명', value: '멸망의 성검' },
+                        { id: 'f_2', name: '등급', value: '🌟 신화 등급' },
+                        { id: 'f_3', name: '고유 효과', value: '모든 언데드/마족 속성 공격 시 300% 추가 치명타 피해' },
+                        { id: 'f_4', name: '배경 설화', value: '태초의 구원자가 신의 보혈을 적셔 탄생시킨 성검' }
+                    ],
+                    outputTemplate: `⚔️ 《 {$아이템명$} 》\n• 등급: {$등급$}\n• 효과: {$고유 효과$}\n• 설화: {$배경 설화$}`
+                }, null, 2),
+                portsConfig: { inputs: [], outputs: [{ id: 'out_1', name: '아이템 정보', color: '#00ffcc' }] }
+            },
+            {
+                id: 'preset_default_chapter',
+                name: '에피소드 개요 템플릿',
+                icon: '📜',
+                desc: '도입부, 주요 사건, 클라이맥스 전개 입력란이 채워진 노드',
+                wizardType: 'text_fields',
+                isTextFieldsNode: true,
+                isDefault: true,
+                content: JSON.stringify({
+                    isTextFieldsNode: true,
+                    textFields: [
+                        { id: 'f_1', name: '에피소드 제목', value: '회귀자의 첫 수업' },
+                        { id: 'f_2', name: '도입부', value: '아카데미 입학식 아침으로의 회귀' },
+                        { id: 'f_3', name: '주요 사건', value: '전생 라이벌과의 마력 실기 테스트 대결' },
+                        { id: 'f_4', name: '클라이맥스', value: '숨겨두었던 가문 전승 마력 기법 개방' }
+                    ],
+                    outputTemplate: `📜 《 1화: {$에피소드 제목$} 》\n1. 도입: {$도입부$}\n2. 사건: {$주요 사건$}\n3. 클라이맥스: {$클라이맥스$}`
+                }, null, 2),
+                portsConfig: { inputs: [], outputs: [{ id: 'out_1', name: '에피소드 개요', color: '#00ffcc' }] }
+            },
+            {
+                id: 'preset_default_sysprompt',
+                name: '웹소설 AI 집필 프롬프트',
+                icon: '🤖',
+                desc: '웹소설 에피소드 집필 전용 AI 시스템 프롬프트 노드',
+                wizardType: 'system_prompt',
+                isSystemPromptNode: true,
+                isDefault: true,
+                content: JSON.stringify({
+                    command: '웹소설 에피소드 집필',
+                    text: '당신은 한국 모던 웹소설 스타일 전문 작가입니다. 긴장감 있고 속도감 있는 전개, 생생한 인물 대사로 시나리오를 확장하여 집필하세요.'
+                }, null, 2),
+                portsConfig: { inputs: [{ id: 'in_1', name: '입력 프롬프트' }], outputs: [{ id: 'out_1', name: '생성 텍스트', color: '#00ffcc' }] }
+            }
+        ];
+    }
+
     async renderCustomNodePresets() {
         const container = document.getElementById('customPresetsContainer');
         const section = document.getElementById('customPresetsSection');
         if (!container) return;
 
         container.innerHTML = '';
-        const presets = await window.storage?.getCustomNodePresets() || [];
+        const userPresets = await window.storage?.getCustomNodePresets() || [];
+        const defaultTemplates = this.getDefaultNodeTemplates();
+
+        const presets = [...userPresets, ...defaultTemplates];
 
         if (presets.length === 0) {
             if (section) section.style.display = 'none';
@@ -709,9 +791,10 @@ class FileTreeManager {
             card.className = 'node-type-card';
             card.style.position = 'relative';
 
-            let typeBadge = '텍스트';
-            if (preset.wizardType === 'stat') typeBadge = '수치';
-            else if (preset.wizardType === 'text_fields') typeBadge = '속성';
+            let typeBadge = '입력 템플릿';
+            if (preset.isTextFieldsNode || preset.wizardType === 'text_fields') typeBadge = '속성 템플릿';
+            else if (preset.isStatNode || preset.wizardType === 'stat') typeBadge = '수치 템플릿';
+            else if (preset.isSystemPromptNode || preset.wizardType === 'system_prompt') typeBadge = 'AI 템플릿';
 
             let portsPreviewHtml = '';
             if (preset.portsConfig) {
@@ -732,35 +815,31 @@ class FileTreeManager {
                 <div class="node-type-info" style="flex: 1; padding-right: 48px;">
                     <div class="node-type-title" style="display: flex; align-items: center; justify-content: space-between;">
                         <span>${this.escapeHtml(preset.name)}</span>
-                        <span style="font-size: 10px; color: var(--color-accent-primary); background: var(--color-bg-secondary); padding: 2px 6px; border-radius: 8px;">${typeBadge} 커스텀</span>
+                        <span style="font-size: 10px; color: var(--color-accent-primary); background: var(--color-bg-secondary); padding: 2px 6px; border-radius: 8px;">${typeBadge}</span>
                     </div>
-                    <div class="node-type-desc">${this.escapeHtml(preset.desc || '사용자 정의 커스텀 노드')}</div>
+                    <div class="node-type-desc">${this.escapeHtml(preset.desc || '입력 보존 노드 템플릿')}</div>
                     ${portsPreviewHtml}
                 </div>
+                ${!preset.isDefault ? `
                 <div class="preset-card-actions" style="position: absolute; top: 6px; right: 6px; display: flex; gap: 2px;">
-                    <button class="edit-preset-btn" title="프리셋 수정" style="background: transparent; border: none; color: var(--color-text-secondary); cursor: pointer; font-size: 13px; padding: 2px 5px; border-radius: 4px;">✏️</button>
-                    <button class="delete-preset-btn" title="프리셋 삭제" style="background: transparent; border: none; color: var(--color-text-tertiary); cursor: pointer; font-size: 14px; padding: 2px 5px; border-radius: 4px;">✕</button>
+                    <button class="delete-preset-btn" title="템플릿 삭제" style="background: transparent; border: none; color: var(--color-text-tertiary); cursor: pointer; font-size: 14px; padding: 2px 5px; border-radius: 4px;">✕</button>
                 </div>
+                ` : ''}
             `;
 
-            // 프리셋 수정 버튼
-            card.querySelector('.edit-preset-btn')?.addEventListener('click', (e) => {
-                e.stopPropagation();
-                this.hideNodeSelectModal();
-                this.showCustomWizardModal(preset);
-            });
+            // 프리셋 삭제 버튼 (사용자 템플릿만)
+            if (!preset.isDefault) {
+                card.querySelector('.delete-preset-btn')?.addEventListener('click', async (e) => {
+                    e.stopPropagation();
+                    if (confirm(`'${preset.name}' 노드 템플릿을 삭제할까요?`)) {
+                        await window.storage?.deleteCustomNodePreset(preset.id);
+                        await this.renderCustomNodePresets();
+                        window.showToast?.('노드 템플릿이 삭제되었습니다.');
+                    }
+                });
+            }
 
-            // 프리셋 삭제 버튼
-            card.querySelector('.delete-preset-btn')?.addEventListener('click', async (e) => {
-                e.stopPropagation();
-                if (confirm(`'${preset.name}' 커스텀 노드 프리셋을 목록에서 삭제할까요?`)) {
-                    await window.storage?.deleteCustomNodePreset(preset.id);
-                    await this.renderCustomNodePresets();
-                    window.showToast?.('프리셋이 삭제되었습니다.');
-                }
-            });
-
-            // 카드 클릭 시 캔버스/목록에 이 프리셋의 신규 노드 생성!
+            // 카드 클릭 시 입력값들이 채워진 상태로 노드 즉시 생성!
             card.addEventListener('click', async () => {
                 this.hideNodeSelectModal();
                 await this.createNodeFromPreset(preset);
@@ -771,30 +850,26 @@ class FileTreeManager {
     }
 
     async createNodeFromPreset(preset) {
-        if (preset.wizardType === 'folder_collector' || preset.isFolderCollectorNode) {
-            await this.createCustomFolderCollectorNode(preset.name, preset.icon, preset.desc, preset.targetFolderId, preset.itemTemplate, preset.portsConfig);
-        } else if (preset.wizardType === 'stat') {
-            await this.createCustomStatNode(preset.name, preset.icon, preset.desc, preset.fields || [], preset.portsConfig);
-        } else if (preset.wizardType === 'text_fields') {
-            await this.createCustomTextFieldsNode(preset.name, preset.icon, preset.desc, preset.fields || [], preset.portsConfig, preset.outputTemplate);
-        } else {
-            let content = '';
-            if (preset.template && preset.template !== 'blank') {
-                content = await this.getTemplateContent(preset.template);
-            }
-            if (preset.desc) {
-                content = `<!-- 설명: ${preset.desc} -->\n` + content;
-            }
-            const fileData = {
-                name: `${preset.icon || '📄'} ${preset.name}`,
-                type: 'file',
-                description: preset.desc,
-                content,
-                defaultTemplate: preset.template === 'blank' ? null : preset.template,
-                portsConfig: preset.portsConfig
-            };
-            await this.createNewCustomNode(fileData);
+        let content = preset.content || '';
+        if (!content && preset.template && preset.template !== 'blank') {
+            content = await this.getTemplateContent(preset.template);
         }
+
+        const fileData = {
+            name: `${preset.icon || '📄'} ${preset.name}`,
+            type: 'file',
+            template: preset.wizardType || preset.template || 'file',
+            isTextFieldsNode: !!preset.isTextFieldsNode,
+            isFolderCollectorNode: !!preset.isFolderCollectorNode,
+            isStatNode: !!preset.isStatNode,
+            isSystemPromptNode: !!preset.isSystemPromptNode,
+            isAiMetaNode: !!preset.isAiMetaNode,
+            description: preset.desc || '템플릿에서 생성된 노드',
+            content: typeof content === 'object' ? JSON.stringify(content, null, 2) : content,
+            portsConfig: preset.portsConfig || null
+        };
+
+        await this.createNewCustomNode(fileData);
     }
 
     showCustomWizardModal(presetToEdit = null) {

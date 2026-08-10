@@ -473,7 +473,6 @@ class WindowManager {
 
         // 초기 하이라이트 적용
         this.updateHighlighter(fileId);
-
         // 이미지 창인 경우 원본 크기 표시
         const isImage = file.template === 'image' || (file.content && file.content.startsWith('data:image'));
         if (isImage && file.content) {
@@ -481,6 +480,110 @@ class WindowManager {
         }
 
         this.renderConnections();
+    }
+
+    /**
+     * 현재 노드의 입력값 및 모든 설정 상태를 그대로 보존하여 노드 템플릿으로 저장
+     */
+    async saveNodeAsTemplate(fileId) {
+        const info = this.windows.get(fileId);
+        if (!info || !info.file) return;
+
+        const file = info.file;
+        const winEl = info.element;
+
+        // 1. 현재 DOM 입력 필드 최신 상태를 file.content 객체/문자열로 집계
+        if (file.isTextFieldsNode || (file.content && typeof file.content === 'string' && file.content.includes('"isTextFieldsNode"'))) {
+            try {
+                const container = winEl.querySelector(`#textFieldContainer_${fileId}`);
+                if (container) {
+                    const data = typeof file.content === 'string' ? JSON.parse(file.content) : file.content;
+                    const fields = data.textFields || [];
+                    const rows = container.querySelectorAll('.stat-item-row');
+                    rows.forEach((row, idx) => {
+                        if (fields[idx]) {
+                            const valInput = row.querySelector('.stat-name-input:nth-child(2)');
+                            if (valInput) fields[idx].value = valInput.value;
+                        }
+                    });
+                    const outTplTextarea = container.querySelector('.memo-textarea');
+                    if (outTplTextarea) data.outputTemplate = outTplTextarea.value;
+
+                    file.content = JSON.stringify(data, null, 2);
+                }
+            } catch (e) {}
+        } else if (file.template === 'stat' || file.isStatNode) {
+            try {
+                const container = winEl.querySelector(`#statContainer_${fileId}`);
+                if (container) {
+                    const data = typeof file.content === 'string' ? JSON.parse(file.content) : file.content;
+                    const stats = data.stats || [];
+                    const rows = container.querySelectorAll('.stat-item-row');
+                    rows.forEach((row, idx) => {
+                        if (stats[idx]) {
+                            const valInput = row.querySelector('.stat-value');
+                            if (valInput) stats[idx].value = parseInt(valInput.value, 10) || 0;
+                        }
+                    });
+                    file.content = JSON.stringify(data, null, 2);
+                }
+            } catch (e) {}
+        } else if (file.isSystemPromptNode || (file.content && typeof file.content === 'string' && file.content.includes('"command"'))) {
+            try {
+                const cmdInput = winEl.querySelector(`#sysPromptCommand_${fileId}`);
+                const txtTextarea = winEl.querySelector(`#sysPromptText_${fileId}`);
+                if (cmdInput && txtTextarea) {
+                    const data = { command: cmdInput.value, text: txtTextarea.value };
+                    file.content = JSON.stringify(data, null, 2);
+                }
+            } catch (e) {}
+        } else if (file.isAiMetaNode || (file.content && typeof file.content === 'string' && file.content.includes('"role"'))) {
+            try {
+                const roleInput = winEl.querySelector(`#aiMetaRole_${fileId}`);
+                const taskTextarea = winEl.querySelector(`#aiMetaTask_${fileId}`);
+                const instTextarea = winEl.querySelector(`#aiMetaInstructions_${fileId}`);
+                if (roleInput && taskTextarea && instTextarea) {
+                    const data = { role: roleInput.value, task: taskTextarea.value, instructions: instTextarea.value };
+                    file.content = JSON.stringify(data, null, 2);
+                }
+            } catch (e) {}
+        } else {
+            const textarea = winEl.querySelector('.window-textarea');
+            if (textarea) {
+                file.content = textarea.value;
+            }
+        }
+
+        // 파일 최신 변경사항 DB 저장
+        await window.storage.updateFile(fileId, { content: file.content });
+
+        const rawName = (file.name || '새 노드').replace(/^[^\w\s가-힣]+\s*/, '').trim();
+        const customName = prompt('이 노드를 어떤 이름의 템플릿으로 저장하시겠습니까?', rawName);
+        if (!customName || !customName.trim()) return;
+
+        const templateObj = {
+            id: 'tpl_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
+            name: customName.trim(),
+            icon: file.icon || '📄',
+            desc: `입력 칸이 채워진 노드 템플릿 (${new Date().toLocaleDateString()})`,
+            wizardType: file.template || 'file',
+            template: file.template || 'file',
+            isTextFieldsNode: !!file.isTextFieldsNode,
+            isFolderCollectorNode: !!file.isFolderCollectorNode,
+            isStatNode: !!file.isStatNode,
+            isSystemPromptNode: !!file.isSystemPromptNode,
+            isAiMetaNode: !!file.isAiMetaNode,
+            content: file.content || '',
+            portsConfig: file.portsConfig || null,
+            createdAt: Date.now()
+        };
+
+        await window.storage.createTemplate(templateObj);
+        window.showToast?.(`'${templateObj.name}' 노드가 입력 보존 템플릿으로 저장되었습니다! ⭐`);
+
+        if (window.templateManager) {
+            await window.templateManager.renderNodeTemplatesInSelectModal();
+        }
     }
 
     /**
@@ -764,6 +867,7 @@ class WindowManager {
                     <span class="window-modified" data-indicator="${file.id}"></span>
                 </div>
                 <div class="window-titlebar-actions">
+                    <button class="window-btn window-btn-save-template" data-action="save-template" title="⭐ 현재 채워진 입력 상태 그대로 노드 템플릿 저장">⭐</button>
                     ${isImage ? `<button class="window-btn window-btn-rotate" data-action="rotate" title="90도 회전">🔄</button>` : ''}
                     ${(!isImage && !isStat) ? `<button class="window-btn window-btn-focus" data-action="line-focus" title="타자기 모드(집중)">🖋️</button>` : ''}
                     <button class="window-btn window-btn-collapse" data-action="collapse" title="접기/펴기">${collapseChar}</button>
@@ -984,6 +1088,7 @@ class WindowManager {
                 if (action === 'collapse') this.toggleCollapse(fileId);
                 if (action === 'rotate') this.rotateImage(fileId);
                 if (action === 'line-focus') this.toggleLineFocus(fileId);
+                if (action === 'save-template') this.saveNodeAsTemplate(fileId);
             });
         });
 
