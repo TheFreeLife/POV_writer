@@ -360,9 +360,96 @@
     box-shadow: var(--shadow-window);
     display: flex;
     flex-direction: column;
-    overflow: hidden;
+    overflow: visible;
     transition: box-shadow 0.2s ease;
+    margin: 0 24px; /* 노드 간 이음선을 위한 좌우 여백 공간 확보 */
 }
+
+/* SVG 노드 연결선 레이어 */
+.node-connections-svg {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 20000px !important;
+    height: 20000px !important;
+    pointer-events: none;
+    z-index: 999999 !important; /* 창들의 zIndexCounter보다 무조건 높은 최상단 최상급 레이어 */
+    overflow: visible !important;
+}
+
+.node-connection-line {
+    fill: none !important;
+    stroke: #00ffcc !important;
+    stroke-width: 4px !important;
+    stroke-linecap: round !important;
+    pointer-events: stroke !important;
+    cursor: pointer;
+    transition: stroke 0.2s, stroke-width 0.2s;
+    filter: drop-shadow(0px 0px 8px rgba(0, 255, 204, 0.9)) !important;
+}
+
+.node-connection-line:hover {
+    stroke: #ffffff !important;
+    stroke-width: 6px !important;
+}
+
+.node-connection-line.selected {
+    stroke: #ffcc00 !important;
+    stroke-width: 5px !important;
+    stroke-dasharray: 8 4 !important;
+    animation: node-dash-animation 1s linear infinite !important;
+}
+
+@keyframes node-dash-animation {
+    to {
+        stroke-dashoffset: -20;
+    }
+}
+
+.node-connection-draft {
+    fill: none !important;
+    stroke: #00ffcc !important;
+    stroke-width: 4px !important;
+    stroke-dasharray: 6 4 !important;
+    pointer-events: none !important;
+    opacity: 0.9 !important;
+    filter: drop-shadow(0px 0px 8px rgba(0, 255, 204, 0.9)) !important;
+}
+
+/* 노드 포트 핀 DOM 요소 */
+.node-port {
+    position: absolute;
+    top: 50%;
+    width: 16px;
+    height: 16px;
+    background: var(--color-bg-secondary);
+    border: 2px solid var(--color-accent-primary);
+    border-radius: 50%;
+    opacity: 0.7;
+    transition: all 0.2s ease;
+    cursor: crosshair;
+    z-index: 50;
+}
+
+.node-port.port-left {
+    left: -8px;
+    transform: translateY(-50%);
+}
+
+.node-port.port-right {
+    right: -8px;
+    transform: translateY(-50%);
+}
+
+.node-port:hover,
+.node-port.connecting {
+    opacity: 1;
+    transform: translateY(-50%) scale(1.35);
+    background: var(--color-accent-primary);
+    box-shadow: 0 0 10px rgba(88, 166, 255, 0.8);
+}
+
+
 
 .editor-window.focused {
     border-color: rgba(88, 166, 255, 0.3);

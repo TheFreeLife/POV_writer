@@ -569,6 +569,24 @@ class StorageManager {
       }
     });
   }
+
+  async saveProjectConnections(projectId, connections) {
+    if (!projectId) return;
+    await this.init();
+    const tx = this.db.transaction([SETTINGS_STORE], 'readwrite');
+    tx.objectStore(SETTINGS_STORE).put(connections, `connections_${projectId}`);
+  }
+
+  async getProjectConnections(projectId) {
+    if (!projectId) return [];
+    await this.init();
+    return new Promise((resolve) => {
+      const tx = this.db.transaction([SETTINGS_STORE], 'readonly');
+      const req = tx.objectStore(SETTINGS_STORE).get(`connections_${projectId}`);
+      req.onsuccess = () => resolve(req.result || []);
+      req.onerror = () => resolve([]);
+    });
+  }
 }
 
 const storage = new StorageManager();

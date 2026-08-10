@@ -30,6 +30,11 @@ class WindowManager {
         this.minScale = 0.25;
         this.maxScale = 3;
 
+        // 노드 간 연결선 상태
+        this.nodeConnections = []; // Array<{ id, fromId, fromPort, toId, toPort }>
+        this.connectionDragState = null;
+        this.selectedConnectionId = null;
+
         this.init();
     }
 
@@ -43,7 +48,12 @@ class WindowManager {
             this.onMouseUp(e);
             if (this.statResizeState) this.stopStatResizing(e);
         });
-        document.addEventListener('click', () => this.hideContextMenu());
+        document.addEventListener('click', (e) => {
+            this.hideContextMenu();
+            if (!e.target.closest('.node-connection-line')) {
+                this.deselectConnection();
+            }
+        });
 
         // 상단 헤더 저장 버튼
         document.getElementById('saveBtn')?.addEventListener('click', () => {
@@ -59,13 +69,20 @@ class WindowManager {
         document.getElementById('closeVersionModal')?.addEventListener('click', () => document.getElementById('versionModal').classList.add('hidden'));
         document.getElementById('cancelVersionBtn')?.addEventListener('click', () => document.getElementById('versionModal').classList.add('hidden'));
 
-        // 전역 단축키 (저장)
+        // 전역 단축키 (저장 및 연결선 삭제)
         window.addEventListener('keydown', (e) => {
             if ((e.ctrlKey || e.metaKey) && e.key === 's') {
                 const editorScreen = document.getElementById('editorScreen');
                 if (editorScreen && !editorScreen.classList.contains('hidden')) {
                     e.preventDefault();
                     this.saveActiveWindow();
+                }
+            } else if ((e.key === 'Delete' || e.key === 'Backspace') && this.selectedConnectionId) {
+                // 입력 필드 집중 시에는 동작하지 않도록 체크
+                const activeTag = document.activeElement ? document.activeElement.tagName : '';
+                if (activeTag !== 'INPUT' && activeTag !== 'TEXTAREA') {
+                    e.preventDefault();
+                    this.deleteConnection(this.selectedConnectionId);
                 }
             }
         });
@@ -325,6 +342,9 @@ class WindowManager {
         for (const file of openFiles) {
             await this.openWindow(file.id, file.windowState);
         }
+
+        // 노드 간 연결선 데이터 로드 및 렌더링
+        await this.loadProjectConnections(window.currentProjectId);
     }
 
     /**
@@ -415,6 +435,8 @@ class WindowManager {
         if (isImage && file.content) {
             this.updateImageSizeInfo(fileId, file.content);
         }
+
+        this.renderConnections();
     }
 
     /**
@@ -511,10 +533,10 @@ class WindowManager {
         const viewCenterX = (areaRect.width / 2 - this.panX) / this.scale;
         const viewCenterY = (areaRect.height / 2 - this.panY) / this.scale;
 
-        // 계단식 배열(Cascade)을 위한 오프셋 적용
-        const offsetStep = 32;
-        const x = viewCenterX - (width / 2) + (this.cascadeOffset * offsetStep) % 200;
-        const y = viewCenterY - (height / 2) + (this.cascadeOffset * offsetStep) % 150;
+        // 계단식 배열(Cascade)을 위한 오프셋 적용 (노드 간 여백 포함)
+        const offsetStep = 50;
+        const x = viewCenterX - (width / 2) + (this.cascadeOffset * offsetStep) % 250;
+        const y = viewCenterY - (height / 2) + (this.cascadeOffset * offsetStep) % 180;
         this.cascadeOffset++;
         
         return { x, y };
@@ -627,6 +649,8 @@ class WindowManager {
         }
 
         win.innerHTML = `
+            <div class="node-port port-left" data-file-id="${file.id}" data-port-type="left" title="연결 포트 (드래그하여 이으세요)"></div>
+            <div class="node-port port-right" data-file-id="${file.id}" data-port-type="right" title="연결 포트 (드래그하여 이으세요)"></div>
             <div class="window-titlebar" data-file-id="${file.id}">
                 <div class="window-titlebar-left">
                     <span class="window-titlebar-icon">${icon}</span>
@@ -770,6 +794,17 @@ class WindowManager {
      * 창 이벤트 바인딩
      */
     bindWindowEvents(win, fileId) {
+        // 노드 포트 드래그 연결 이벤트
+        const ports = win.querySelectorAll('.node-port');
+        ports.forEach(port => {
+            port.addEventListener('mousedown', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const portType = port.dataset.portType;
+                this.startConnectionDrag(e, fileId, portType, port);
+            });
+        });
+
         // 포커스 (클릭 시)
         win.addEventListener('mousedown', (e) => {
             const isMulti = e.shiftKey || e.ctrlKey || e.metaKey;
@@ -1176,6 +1211,7 @@ class WindowManager {
                 t.element.style.left = `${t.origLeft + dx}px`;
                 t.element.style.top = `${t.origTop + dy}px`;
             });
+            this.renderConnections();
         }
 
         // 영역 선택 드래그 (Marquee)
@@ -1217,6 +1253,12 @@ class WindowManager {
             if (s.element.classList.contains('image-window')) {
                 this.applyImageRotation(s.fileId);
             }
+            this.renderConnections();
+        }
+
+        // 노드 연결선 드래그 처리
+        if (this.connectionDragState) {
+            this.updateConnectionDrag(e);
         }
 
         // 캔버스 팬
@@ -1234,6 +1276,10 @@ class WindowManager {
      * 마우스 놓기 처리
      */
     onMouseUp(e) {
+        if (this.connectionDragState) {
+            this.endConnectionDrag(e);
+        }
+
         if (this.selectionState && this.selectionState.element) {
             this.selectionState.element.remove();
         }
@@ -1516,6 +1562,7 @@ class WindowManager {
 
         // 통계 업데이트
         window.toolsPanel?.updateStats();
+        this.renderConnections();
     }
 
     /**
@@ -1589,11 +1636,13 @@ class WindowManager {
         this.activeWindowId = null;
         this.cascadeOffset = 0;
 
-        // 캔버스 상태 리셋
+        // 캔버스 상태 리셋 및 노드 연결선 초기화
         this.scale = 1;
         this.panX = 0;
         this.panY = 0;
         this.applyTransform();
+        this.nodeConnections = [];
+        this.renderConnections();
     }
 
     /**
@@ -2421,6 +2470,343 @@ class WindowManager {
         }
         
         return fallbackText;
+    }
+
+    // ===================================
+    // 노드 간 연결선 (Node Connections) 시스템
+    // ===================================
+
+    /**
+     * 프로젝트 변경 시 노드 연결 정보 불러오기
+     */
+    async loadProjectConnections(projectId) {
+        // 기존에 이미 열려있는 창에 포트 핀이 없으면 보장 부착 및 이벤트 등록
+        this.windows.forEach((info, fileId) => {
+            if (info.element && !info.element.querySelector('.node-port')) {
+                const pLeft = document.createElement('div');
+                pLeft.className = 'node-port port-left';
+                pLeft.dataset.fileId = fileId;
+                pLeft.dataset.portType = 'left';
+                pLeft.title = '연결 포트 (드래그하여 이으세요)';
+
+                const pRight = document.createElement('div');
+                pRight.className = 'node-port port-right';
+                pRight.dataset.fileId = fileId;
+                pRight.dataset.portType = 'right';
+                pRight.title = '연결 포트 (드래그하여 이으세요)';
+
+                info.element.prepend(pLeft, pRight);
+
+                [pLeft, pRight].forEach(port => {
+                    port.addEventListener('mousedown', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        const portType = port.dataset.portType;
+                        this.startConnectionDrag(e, fileId, portType, port);
+                    });
+                });
+            }
+        });
+
+        if (!projectId) {
+            this.nodeConnections = [];
+            this.renderConnections();
+            return;
+        }
+        try {
+            if (window.storage) {
+                const conns = await window.storage.getProjectConnections(projectId);
+                this.nodeConnections = Array.isArray(conns) ? conns : [];
+            }
+        } catch (e) {
+            console.warn('노드 연결 정보 불러오기 실패:', e);
+            this.nodeConnections = [];
+        }
+        this.renderConnections();
+    }
+
+    /**
+     * 노드 연결 정보 저장
+     */
+    async saveConnections() {
+        if (!window.currentProjectId || !window.storage) return;
+        try {
+            await window.storage.saveProjectConnections(window.currentProjectId, this.nodeConnections);
+        } catch (e) {
+            console.error('노드 연결 정보 저장 실패:', e);
+        }
+    }
+
+    /**
+     * fileId 타입(String vs Number)에 무관하게 윈도우 객체 검색
+     */
+    getWindowInfo(fileId) {
+        if (!fileId && fileId !== 0) return null;
+        if (this.windows.has(fileId)) return this.windows.get(fileId);
+        if (this.windows.has(String(fileId))) return this.windows.get(String(fileId));
+        if (this.windows.has(Number(fileId))) return this.windows.get(Number(fileId));
+        return null;
+    }
+
+    /**
+     * 특정 포트의 캔버스 기준 중심 좌표 (X, Y) 계산
+     */
+    getPortCoordinates(fileId, portType) {
+        const info = this.getWindowInfo(fileId);
+        if (!info || !info.element) return null;
+
+        const winEl = info.element;
+        
+        let winX = winEl.offsetLeft || 0;
+        let winY = winEl.offsetTop || 0;
+        let winW = winEl.offsetWidth || 360;
+        let winH = winEl.offsetHeight || 280;
+
+        if (winX === 0 && winY === 0 && winEl.parentElement) {
+            const winRect = winEl.getBoundingClientRect();
+            const parentRect = winEl.parentElement.getBoundingClientRect();
+            winX = (winRect.left - parentRect.left) / (this.scale || 1);
+            winY = (winRect.top - parentRect.top) / (this.scale || 1);
+            if (winRect.width) winW = winRect.width / (this.scale || 1);
+            if (winRect.height) winH = winRect.height / (this.scale || 1);
+        }
+
+        const x = (portType === 'left') ? winX : (winX + winW);
+        const y = winY + (winH / 2);
+
+        return {
+            x: isNaN(x) ? 0 : x,
+            y: isNaN(y) ? 0 : y
+        };
+    }
+
+    /**
+     * 포트 드래그 연결 시작
+     */
+    startConnectionDrag(e, fromId, fromPort, portEl) {
+        const coords = this.getPortCoordinates(fromId, fromPort);
+        if (!coords) return;
+
+        const svg = document.getElementById('nodeConnectionsSvg');
+        const container = document.getElementById('canvasContainer');
+        if (!svg || !container) return;
+
+        if (container.lastElementChild !== svg) {
+            container.appendChild(svg);
+        }
+
+        let draftEl = svg.querySelector('#connectionDraftPath');
+        if (!draftEl) {
+            draftEl = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            draftEl.setAttribute('id', 'connectionDraftPath');
+            draftEl.setAttribute('class', 'node-connection-draft');
+            draftEl.setAttribute('stroke', '#00ffcc');
+            draftEl.setAttribute('stroke-width', '4');
+            draftEl.setAttribute('stroke-dasharray', '6 4');
+            draftEl.setAttribute('fill', 'none');
+            draftEl.setAttribute('marker-end', 'url(#arrowhead)');
+            svg.appendChild(draftEl);
+        }
+
+        this.connectionDragState = {
+            fromId,
+            fromPort,
+            startX: coords.x,
+            startY: coords.y,
+            draftEl
+        };
+
+        if (portEl) portEl.classList.add('connecting');
+        document.body.style.cursor = 'crosshair';
+    }
+
+    /**
+     * 드래그 중 임시 연결선 갱신
+     */
+    updateConnectionDrag(e) {
+        const state = this.connectionDragState;
+        if (!state || !state.draftEl) return;
+
+        const canvasContainer = document.getElementById('canvasContainer');
+        if (!canvasContainer) return;
+
+        const containerRect = canvasContainer.getBoundingClientRect();
+        const currentX = (e.clientX - containerRect.left) / (this.scale || 1);
+        const currentY = (e.clientY - containerRect.top) / (this.scale || 1);
+
+        const pathD = this.calculateBezierPath(state.startX, state.startY, state.fromPort, currentX, currentY, 'left');
+        state.draftEl.setAttribute('d', pathD);
+
+        const elemBelow = document.elementFromPoint(e.clientX, e.clientY);
+        const targetPort = elemBelow ? elemBelow.closest('.node-port') : null;
+        
+        document.querySelectorAll('.node-port.connecting').forEach(p => {
+            if (p !== elemBelow) p.classList.remove('connecting');
+        });
+        if (targetPort) targetPort.classList.add('connecting');
+    }
+
+    /**
+     * 연결 드래그 종료 및 노드 연결 체결
+     */
+    endConnectionDrag(e) {
+        const state = this.connectionDragState;
+        if (!state) return;
+
+        if (state.draftEl) state.draftEl.remove();
+
+        const elemBelow = document.elementFromPoint(e.clientX, e.clientY);
+        const targetPort = elemBelow ? elemBelow.closest('.node-port') : null;
+
+        if (targetPort) {
+            const toId = targetPort.dataset.fileId;
+            const toPort = targetPort.dataset.portType || 'left';
+
+            if (toId && String(toId) !== String(state.fromId)) {
+                this.addNodeConnection(state.fromId, state.fromPort, toId, toPort);
+            }
+        }
+
+        document.querySelectorAll('.node-port.connecting').forEach(p => p.classList.remove('connecting'));
+        this.connectionDragState = null;
+        document.body.style.cursor = '';
+    }
+
+    /**
+     * 노드 간 연결선 추가
+     */
+    addNodeConnection(fromId, fromPort, toId, toPort) {
+        const exists = this.nodeConnections.some(c => 
+            (String(c.fromId) === String(fromId) && String(c.toId) === String(toId)) || 
+            (String(c.fromId) === String(toId) && String(c.toId) === String(fromId))
+        );
+
+        if (exists) {
+            window.showToast?.('이미 두 노드가 연결되어 있습니다.', 'warn');
+            return;
+        }
+
+        const connId = 'conn_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
+        this.nodeConnections.push({
+            id: connId,
+            fromId,
+            fromPort,
+            toId,
+            toPort
+        });
+
+        this.renderConnections();
+        this.saveConnections();
+        window.showToast?.('노드가 연결되었습니다! 🔗', 'success');
+    }
+
+    /**
+     * 연결선 삭제
+     */
+    deleteConnection(connId) {
+        const idx = this.nodeConnections.findIndex(c => c.id === connId);
+        if (idx !== -1) {
+            this.nodeConnections.splice(idx, 1);
+            if (this.selectedConnectionId === connId) {
+                this.selectedConnectionId = null;
+            }
+            this.renderConnections();
+            this.saveConnections();
+            window.showToast?.('연결선이 삭제되었습니다.');
+        }
+    }
+
+    /**
+     * 연결선 선택
+     */
+    selectConnection(connId) {
+        this.selectedConnectionId = connId;
+        this.renderConnections();
+    }
+
+    /**
+     * 연결선 선택 해제
+     */
+    deselectConnection() {
+        if (this.selectedConnectionId) {
+            this.selectedConnectionId = null;
+            this.renderConnections();
+        }
+    }
+
+    /**
+     * 베지에 곡선 SVG Path 데이터 생성 (NaN 방지)
+     */
+    calculateBezierPath(x1, y1, port1, x2, y2, port2) {
+        x1 = Number(x1) || 0;
+        y1 = Number(y1) || 0;
+        x2 = Number(x2) || 0;
+        y2 = Number(y2) || 0;
+
+        const dx = Math.max(Math.abs(x2 - x1) * 0.5, 40);
+        const cx1 = (port1 === 'right') ? (x1 + dx) : (x1 - dx);
+        const cy1 = y1;
+        const cx2 = (port2 === 'left') ? (x2 - dx) : (x2 + dx);
+        const cy2 = y2;
+
+        return `M ${x1} ${y1} C ${cx1} ${cy1}, ${cx2} ${cy2}, ${x2} ${y2}`;
+    }
+
+    /**
+     * 모든 연결선 SVG 렌더링
+     */
+    renderConnections() {
+        const svg = document.getElementById('nodeConnectionsSvg');
+        const container = document.getElementById('canvasContainer');
+        if (!svg || !container) return;
+
+        if (container.lastElementChild !== svg) {
+            container.appendChild(svg);
+        }
+
+        const existingLines = svg.querySelectorAll('.node-connection-line');
+        existingLines.forEach(l => l.remove());
+
+        // 창이 닫혀있거나 지워진 연결선 자동 필터링
+        this.nodeConnections = this.nodeConnections.filter(c => {
+            const hasFrom = !!this.getWindowInfo(c.fromId);
+            const hasTo = !!this.getWindowInfo(c.toId);
+            return hasFrom && hasTo;
+        });
+
+        this.nodeConnections.forEach(conn => {
+            const start = this.getPortCoordinates(conn.fromId, conn.fromPort);
+            const end = this.getPortCoordinates(conn.toId, conn.toPort);
+
+            if (!start || !end) return;
+
+            const pathD = this.calculateBezierPath(start.x, start.y, conn.fromPort, end.x, end.y, conn.toPort);
+            
+            const isSelected = (this.selectedConnectionId === conn.id);
+            const pathEl = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            pathEl.setAttribute('d', pathD);
+            pathEl.setAttribute('class', `node-connection-line${isSelected ? ' selected' : ''}`);
+            pathEl.setAttribute('stroke', isSelected ? '#ffcc00' : '#00ffcc');
+            pathEl.setAttribute('stroke-width', isSelected ? '5' : '4');
+            pathEl.setAttribute('fill', 'none');
+            pathEl.setAttribute('marker-end', isSelected ? 'url(#arrowhead-selected)' : 'url(#arrowhead)');
+            pathEl.dataset.connId = conn.id;
+
+            pathEl.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.selectConnection(conn.id);
+            });
+
+            pathEl.addEventListener('contextmenu', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (confirm('이 노드 연결선을 삭제할까요?')) {
+                    this.deleteConnection(conn.id);
+                }
+            });
+
+            svg.appendChild(pathEl);
+        });
     }
 
     escapeHtml(text) {
