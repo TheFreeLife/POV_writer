@@ -822,13 +822,14 @@ class WindowManager {
         }
 
         const isFolderCollector = file.template === 'folder_collector' || file.isFolderCollectorNode || (file.content && typeof file.content === 'string' && file.content.includes('"isFolderCollectorNode"'));
-        const defaultInputs = isFolderCollector ? [] : [{ id: 'in_1', name: '입력 데이터' }];
+        const isImageNode = file.template === 'image' || (file.content && typeof file.content === 'string' && file.content.startsWith('data:image'));
+        const defaultInputs = (isFolderCollector || isImageNode) ? [] : [{ id: 'in_1', name: '입력 데이터' }];
         const portsConfig = file.portsConfig || {
             inputs: defaultInputs,
             outputs: [{ id: 'out_1', name: '출력 데이터' }]
         };
 
-        const inputsArr = Array.isArray(portsConfig.inputs) ? portsConfig.inputs : defaultInputs;
+        const inputsArr = isImageNode ? [] : (Array.isArray(portsConfig.inputs) ? portsConfig.inputs : defaultInputs);
         const outputsArr = Array.isArray(portsConfig.outputs) ? portsConfig.outputs : [{ id: 'out_1', name: '출력 데이터' }];
 
         const inputsHtml = inputsArr.map(p => {
@@ -1262,78 +1263,7 @@ class WindowManager {
             const pos = textarea.selectionStart;
             const text = textarea.value;
 
-            // 1. 상태창 불러오기 트리거 패턴 확인 ({{...}})
-            const settings = window.toolsPanel?.settings || window.toolsPanel?.loadSettingsSync() || {};
-            const tOpen = settings.triggerStatOpen || '{{';
-            const tClose = settings.triggerStatClose || '}}';
-            
-            const lastOpen = text.substring(0, pos + tOpen.length).lastIndexOf(tOpen);
-            const firstClose = text.indexOf(tClose, Math.max(0, pos - tClose.length));
-            
-            if (lastOpen !== -1 && firstClose !== -1 && lastOpen < firstClose && pos >= lastOpen && pos <= firstClose + tClose.length) {
-                e.preventDefault();
-                
-                const fullEndIdx = firstClose + tClose.length;
-                const pattern = text.substring(lastOpen, fullEndIdx);
-                const rawTag = pattern.replace(tOpen, '').replace(tClose, '').trim();
-                let statName = rawTag;
-                let targetPortName = null;
-
-                if (rawTag.includes(':')) {
-                    const parts = rawTag.split(':');
-                    statName = parts[0].trim();
-                    targetPortName = parts[1].trim();
-                }
-                
-                const files = await storage.getProjectFiles(window.currentProjectId);
-                const targetFile = files.find(f => f.name === statName || (f.name && f.name.includes(statName)));
-                
-                if (targetFile) {
-                    if (targetFile.template === 'stat' || targetFile.isStatNode) {
-                        try {
-                            const data = JSON.parse(targetFile.content);
-                            let resultText = data.outputTemplate || "";
-                            
-                            if (!resultText) {
-                                const statStrings = data.stats.map(s => `[${s.name}: ${s.value}]`).join(' ');
-                                resultText = `《 ${statName} 상태창 》\n${statStrings}`;
-                            } else {
-                                resultText = resultText.replace(/\{\$이름\$\}/g, statName);
-                                data.stats.forEach(s => {
-                                    const escapedName = s.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-                                    const regex = new RegExp(`\\{\\$${escapedName}\\$\\}`, 'g');
-                                    resultText = resultText.replace(regex, s.value);
-                                });
-                            }
-                            
-                            const newText = text.substring(0, lastOpen) + resultText + text.substring(fullEndIdx);
-                            textarea.value = newText;
-                            textarea.selectionStart = textarea.selectionEnd = lastOpen + resultText.length;
-                            
-                            this.onTextChange(fileId, newText);
-                            this.updateHighlighter(fileId);
-                            window.showToast?.(`"${statName}" 스탯 데이터를 불러왔습니다.`);
-                            return;
-                        } catch (err) {
-                            console.error('상태창 데이터 파싱 실패:', err);
-                        }
-                    } else if (targetFile.isTextFieldsNode || (targetFile.content && typeof targetFile.content === 'string' && targetFile.content.includes('"isTextFieldsNode"'))) {
-                        const resultText = this.getEvaluatedTextFieldsText(targetFile, targetPortName);
-                        if (resultText) {
-                            const newText = text.substring(0, lastOpen) + resultText + text.substring(fullEndIdx);
-                            textarea.value = newText;
-                            textarea.selectionStart = textarea.selectionEnd = lastOpen + resultText.length;
-                            
-                            this.onTextChange(fileId, newText);
-                            this.updateHighlighter(fileId);
-                            window.showToast?.(`"${targetFile.name}"${targetPortName ? ` (${targetPortName})` : ''} 포트 데이터를 불러왔습니다. ✨`);
-                            return;
-                        }
-                    }
-                }
-            }
-
-            // 2. 하이퍼링크 작동 (파일명 클릭 시 창 열기)
+            // 1. 하이퍼링크 작동 (파일명 클릭 시 창 열기)
             if (this.hyperlinkMap.size > 0) {
                 const sortedNames = Array.from(this.hyperlinkMap.keys()).sort((a, b) => b.length - a.length);
                 for (const name of sortedNames) {
@@ -1364,32 +1294,18 @@ class WindowManager {
             let foundStat = false;
             let targetFileId = null;
 
-            if (pos !== -1) {
-                // 1. 상태창 트리거 확인
-                const settings = window.toolsPanel?.settings || window.toolsPanel?.loadSettingsSync() || {};
-                const tOpen = settings.triggerStatOpen || '{{';
-                const tClose = settings.triggerStatClose || '}}';
-                const lastOpen = text.substring(0, pos + tOpen.length).lastIndexOf(tOpen);
-                const firstClose = text.indexOf(tClose, Math.max(0, pos - tClose.length));
-                
-                if (lastOpen !== -1 && firstClose !== -1 && lastOpen < firstClose && pos >= lastOpen && pos <= firstClose + tClose.length) {
-                    foundStat = true;
-                }
-
-                // 2. 하이퍼링크 확인 (트리거가 아닐 때만)
-                if (!foundStat && this.hyperlinkMap.size > 0) {
-                    for (const [name, id] of this.hyperlinkMap.entries()) {
-                        let index = text.indexOf(name);
-                        while (index !== -1) {
-                            if (pos >= index && pos <= index + name.length) {
-                                foundLink = true;
-                                targetFileId = id;
-                                break;
-                            }
-                            index = text.indexOf(name, index + 1);
+            if (pos !== -1 && this.hyperlinkMap.size > 0) {
+                for (const [name, id] of this.hyperlinkMap.entries()) {
+                    let index = text.indexOf(name);
+                    while (index !== -1) {
+                        if (pos >= index && pos <= index + name.length) {
+                            foundLink = true;
+                            targetFileId = id;
+                            break;
                         }
-                        if (foundLink) break;
+                        index = text.indexOf(name, index + 1);
                     }
+                    if (foundLink) break;
                 }
             }
 
@@ -1985,6 +1901,10 @@ class WindowManager {
 
         if (!isMulti) {
             menuHtml += `
+                <div class="context-menu-item" data-action="duplicate">
+                    <span class="context-menu-icon">📋</span>
+                    <span>노드 복사</span>
+                </div>
                 <div class="context-menu-item" data-action="edit-node-ports">
                     <span class="context-menu-icon">📌</span>
                     <span>노드 핀 (포트) 정보...</span>
@@ -2045,6 +1965,13 @@ class WindowManager {
             this.showNodePortEditModal(fileId);
             this.hideContextMenu();
         });
+
+        const duplicateBtn = menu.querySelector('[data-action="duplicate"]');
+        duplicateBtn?.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.duplicateNode(fileId);
+            this.hideContextMenu();
+        });
     }
 
     /**
@@ -2053,6 +1980,126 @@ class WindowManager {
     hideContextMenu() {
         const menu = document.getElementById('contextMenu');
         if (menu) menu.classList.add('hidden');
+    }
+
+    /**
+     * 선택한 노드의 모든 입력값과 커스텀 데이터, 포트 설정을 그대로 복제하여 새 노드로 캔버스에 생성
+     */
+    async duplicateNode(fileId) {
+        const info = this.windows.get(fileId);
+        if (!info || !info.file) return;
+
+        const originalFile = info.file;
+        const winEl = info.element;
+
+        // 1. 현재 DOM의 최신 입력 데이터(Text, Fields, Stat, Prompts) 집계 및 동기화
+        let currentContent = originalFile.content;
+
+        if (originalFile.isTextFieldsNode || (currentContent && typeof currentContent === 'string' && currentContent.includes('"isTextFieldsNode"'))) {
+            try {
+                const container = winEl.querySelector(`#textFieldContainer_${fileId}`);
+                if (container) {
+                    const data = typeof currentContent === 'string' ? JSON.parse(currentContent) : currentContent;
+                    const fields = data.textFields || [];
+                    const rows = container.querySelectorAll('.stat-item-row');
+                    rows.forEach((row, idx) => {
+                        if (fields[idx]) {
+                            const valInput = row.querySelector('.stat-name-input:nth-child(2)');
+                            if (valInput) fields[idx].value = valInput.value;
+                        }
+                    });
+                    const outTplTextarea = container.querySelector('.memo-textarea');
+                    if (outTplTextarea) data.outputTemplate = outTplTextarea.value;
+                    currentContent = JSON.stringify(data, null, 2);
+                }
+            } catch (e) {}
+        } else if (originalFile.template === 'stat' || originalFile.isStatNode) {
+            try {
+                const container = winEl.querySelector(`#statContainer_${fileId}`);
+                if (container) {
+                    const data = typeof currentContent === 'string' ? JSON.parse(currentContent) : currentContent;
+                    const stats = data.stats || [];
+                    const rows = container.querySelectorAll('.stat-item-row');
+                    rows.forEach((row, idx) => {
+                        if (stats[idx]) {
+                            const valInput = row.querySelector('.stat-value');
+                            if (valInput) stats[idx].value = parseInt(valInput.value, 10) || 0;
+                        }
+                    });
+                    currentContent = JSON.stringify(data, null, 2);
+                }
+            } catch (e) {}
+        } else if (originalFile.isSystemPromptNode || (currentContent && typeof currentContent === 'string' && currentContent.includes('"command"'))) {
+            try {
+                const cmdInput = winEl.querySelector(`#sysPromptCommand_${fileId}`);
+                const txtTextarea = winEl.querySelector(`#sysPromptText_${fileId}`);
+                if (cmdInput && txtTextarea) {
+                    const data = { command: cmdInput.value, text: txtTextarea.value };
+                    currentContent = JSON.stringify(data, null, 2);
+                }
+            } catch (e) {}
+        } else if (originalFile.isAiMetaNode || (currentContent && typeof currentContent === 'string' && currentContent.includes('"role"'))) {
+            try {
+                const roleInput = winEl.querySelector(`#aiMetaRole_${fileId}`);
+                const taskTextarea = winEl.querySelector(`#aiMetaTask_${fileId}`);
+                const instTextarea = winEl.querySelector(`#aiMetaInstructions_${fileId}`);
+                if (roleInput && taskTextarea && instTextarea) {
+                    const data = { role: roleInput.value, task: taskTextarea.value, instructions: instTextarea.value };
+                    currentContent = JSON.stringify(data, null, 2);
+                }
+            } catch (e) {}
+        } else {
+            const textarea = winEl.querySelector('.window-textarea');
+            if (textarea) {
+                currentContent = textarea.value;
+            }
+        }
+
+        // 원본 노드 업데이트
+        await storage.updateFile(fileId, { content: currentContent });
+
+        // 2. 원본 노드 위치 근처(오른쪽/아래로 40px offset)에 새 노드 윈도우 배치
+        const origX = parseInt(winEl.style.left, 10) || 100;
+        const origY = parseInt(winEl.style.top, 10) || 100;
+        const origWidth = parseInt(winEl.style.width, 10) || 480;
+        const origHeight = parseInt(winEl.style.height, 10) || 380;
+
+        const newWindowState = {
+            x: origX + 40,
+            y: origY + 40,
+            width: origWidth,
+            height: origHeight,
+            collapsed: false,
+            zIndex: (this.maxZIndex || 10) + 1
+        };
+
+        const fileData = {
+            projectId: originalFile.projectId,
+            name: originalFile.name, // storage.createFile 이 자동으로 중복 방지 (1), (2) 추가함!
+            type: originalFile.type || 'file',
+            parentId: originalFile.parentId || null,
+            content: currentContent,
+            template: originalFile.template || null,
+            isStatNode: !!originalFile.isStatNode,
+            isSystemPromptNode: !!originalFile.isSystemPromptNode,
+            isAiMetaNode: !!originalFile.isAiMetaNode,
+            isTextFieldsNode: !!originalFile.isTextFieldsNode,
+            isFolderCollectorNode: !!originalFile.isFolderCollectorNode,
+            portsConfig: originalFile.portsConfig ? JSON.parse(JSON.stringify(originalFile.portsConfig)) : null,
+            description: originalFile.description || '',
+            windowState: newWindowState
+        };
+
+        const duplicatedFile = await storage.createFile(fileData);
+
+        // 3. 파일 트리 갱신
+        if (window.fileTreeManager) {
+            await window.fileTreeManager.loadProjectFiles(originalFile.projectId);
+        }
+
+        // 4. 복제된 새 노드 창 즉시 열기 및 포커스
+        await this.openWindow(duplicatedFile.id);
+        window.showToast?.(`'${duplicatedFile.name}' 노드가 동일한 내용으로 복사되었습니다! 📋`);
     }
 
     addNodePortEditRow(type = 'input', name = '', color = '') {
@@ -2293,35 +2340,11 @@ class WindowManager {
 
         if (fileIds.length < 2) return alert('병합할 파일이 부족합니다.');
 
-        const settings = window.toolsPanel?.settings || {};
-        const trigger = settings.triggerLocation || '장소:';
-        const locations = [];
-
         let mergedContent = '';
         for (let i = 0; i < fileIds.length; i++) {
             const info = this.windows.get(fileIds[i]);
             if (info) {
                 let content = info.textarea.value;
-                
-                // 장소 추출 및 본문에서 제거
-                const lines = content.split('\n');
-                let processedLines = [];
-                let locationFoundForThisFile = false;
-
-                for (const line of lines) {
-                    const trimmedLine = line.trim();
-                    if (!locationFoundForThisFile && trimmedLine.startsWith(trigger)) {
-                        const loc = trimmedLine.substring(trigger.length).trim();
-                        if (loc) locations.push(loc);
-                        locationFoundForThisFile = true;
-                        continue; // 트리거 줄은 결과 본문에 포함하지 않음
-                    }
-                    processedLines.push(line);
-                }
-
-                content = processedLines.join('\n');
-
-                // 첫 번째 파일인 경우 앞쪽 공백 제거
                 if (i === 0) content = content.trimStart();
                 
                 mergedContent += content;
@@ -3162,9 +3185,7 @@ class WindowManager {
         const card = document.createElement('div');
         card.className = 'quick-view-card';
         
-        const settings = window.toolsPanel?.settings || window.toolsPanel?.loadSettingsSync() || {};
-        const trigger = settings.quickViewTrigger || '## 요약:';
-        const summary = this.extractSummary(file.content || '', trigger);
+        const summary = this.extractSummary(file.content || '');
         
         const icon = file.template ? this.getTemplateIcon(file.template) : '📄';
         
@@ -3206,38 +3227,11 @@ class WindowManager {
     /**
      * 본문에서 요약문 추출 로직
      */
-    extractSummary(content, trigger) {
+    extractSummary(content) {
         if (!content) return '내용이 없습니다.';
-        
-        // 1. 트리거 검색
-        const triggerIdx = content.indexOf(trigger);
-        if (triggerIdx !== -1) {
-            const startIdx = triggerIdx + trigger.length;
-            
-            // 트리거 뒤의 내용에서 첫 번째 줄바꿈(엔터) 위치 찾기
-            let lineBreakIdx = content.indexOf('\n', startIdx);
-            if (lineBreakIdx === -1) lineBreakIdx = content.length;
-            
-            // 줄바꿈 전까지만 추출
-            const summary = content.substring(startIdx, lineBreakIdx).trim();
-            if (summary) {
-                return summary.length > 800 ? summary.substring(0, 800) + '...' : summary;
-            }
-        }
-        
-        // 2. 폴백: 첫 10줄 추출
         const allLines = content.split('\n').filter(l => l.trim().length > 0);
-        const hasMoreLines = allLines.length > 10;
-        const lines = allLines.slice(0, 10);
-        let fallbackText = lines.join('\n');
-        
-        if (hasMoreLines) {
-            fallbackText += '...';
-        } else if (fallbackText.length > 500) {
-            fallbackText = fallbackText.substring(0, 500) + '...';
-        }
-        
-        return fallbackText;
+        const text = allLines.slice(0, 10).join('\n').trim();
+        return text.length > 800 ? text.substring(0, 800) + '...' : text;
     }
 
     // ===================================

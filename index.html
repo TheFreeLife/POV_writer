@@ -109,7 +109,6 @@
           <button class="tools-tab" data-tab="tools">도구</button>
           <button class="tools-tab" data-tab="memos">메모</button>
           <button class="tools-tab" data-tab="search">검색</button>
-          <button class="tools-tab" data-tab="timeline">타임라인</button>
           <button class="tools-tab" data-tab="settings">설정</button>
         </div>
         <div class="tools-content" id="toolsContent">
@@ -269,7 +268,7 @@
       </div>
       <div class="modal-body">
         <p class="node-select-subtitle">원하는 템플릿을 선택하면 입력 칸이 채워진 상태의 노드가 캔버스에 즉시 생성됩니다.</p>
-        <div id="modalNodeTemplatesContainer" class="node-type-grid" style="margin-top: 16px;">
+        <div id="modalNodeTemplatesContainer" style="margin-top: 16px; max-height: 60vh; overflow-y: auto; padding-right: 6px;">
           <!-- 템플릿 카드들이 동적으로 생성됩니다 -->
         </div>
       </div>
@@ -524,7 +523,7 @@
   <div id="templateModal" class="modal-overlay hidden">
     <div class="modal" style="width: 800px; max-width: 90vw;">
       <div class="modal-header">
-        <h2 class="modal-title">템플릿 관리</h2>
+        <h2 class="modal-title">노드 템플릿 목록 관리</h2>
         <button class="modal-close" id="closeTemplateModal">✕</button>
       </div>
       <div class="modal-body" style="display: grid; grid-template-columns: 250px 1fr; gap: 24px; min-height: 400px;">

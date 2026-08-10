@@ -117,10 +117,6 @@ class ToolsPanel {
                 content.innerHTML = this.renderSearch();
                 this.setupSearchEventListeners();
                 break;
-            case 'timeline':
-                content.innerHTML = await this.renderTimeline();
-                this.setupTimelineEventListeners();
-                break;
             case 'settings':
                 content.innerHTML = await this.renderSettings();
                 this.setupSettingsEventListeners();
@@ -462,32 +458,7 @@ class ToolsPanel {
                 
                 <div style="font-size: 12px; color: var(--color-text-tertiary); text-align: center;">
                     ${this.timerMode === 'pomodoro' ? '💡 25분 집중 후 5분 휴식을 권장합니다.' : '창작에 몰입하는 시간을 기록하세요.'}
-                </div>
-
-                <div class="settings-section" style="margin-top: 24px;">
-                    <h3 class="settings-section-title">🔗 트리거 설정</h3>
-                    
-                    <div class="form-group">
-                        <label class="form-label">장소 이동 트리거 (병합용)</label>
-                        <input type="text" class="input" id="triggerLocation" value="${this.settings.triggerLocation || '장소:'}" placeholder="예: 장소:">
-                    </div>
-
-                    <div class="form-group" style="margin-top: 12px;">
-                        <label class="form-label">상태창 불러오기 트리거</label>
-                        <div style="display: flex; align-items: center; gap: 8px;">
-                            <input type="text" class="input" id="triggerStatOpen" value="${this.settings.triggerStatOpen || '{{'}" style="width: 50px; text-align: center;">
-                            <span style="color: var(--color-text-tertiary); font-size: 12px;">이름</span>
-                            <input type="text" class="input" id="triggerStatClose" value="${this.settings.triggerStatClose || '}}'}" style="width: 50px; text-align: center;">
-                        </div>
-                        <p style="font-size: 11px; color: var(--color-text-tertiary); margin-top: 6px;">괄호 사이에 상태창 이름을 넣고 Ctrl+우클릭 하세요.</p>
-                    </div>
-
-                    <div class="form-group" style="margin-top: 12px;">
-                        <label class="form-label">퀵 뷰 요약 트리거</label>
-                        <input type="text" class="input" id="quickViewTrigger" value="${this.settings.quickViewTrigger || '## 요약:'}" placeholder="예: ## 요약:">
-                        <p style="font-size: 11px; color: var(--color-text-tertiary); margin-top: 6px;">이 문구 뒤의 내용이 하이퍼링크 호버 시 카드로 표시됩니다.</p>
-                    </div>
-                </div>
+                </div>                </div>
             </div>
         `;
     }
@@ -521,16 +492,6 @@ class ToolsPanel {
             if (display) display.textContent = this.formatTime(this.remainingTime);
         });
 
-        // 트리거 설정 실시간 저장
-        const saveTrigger = (key, val) => {
-            this.settings[key] = val;
-            localStorage.setItem('editorSettings', JSON.stringify(this.settings));
-        };
-
-        document.getElementById('triggerLocation')?.addEventListener('input', (e) => saveTrigger('triggerLocation', e.target.value));
-        document.getElementById('triggerStatOpen')?.addEventListener('input', (e) => saveTrigger('triggerStatOpen', e.target.value));
-        document.getElementById('triggerStatClose')?.addEventListener('input', (e) => saveTrigger('triggerStatClose', e.target.value));
-        document.getElementById('quickViewTrigger')?.addEventListener('input', (e) => saveTrigger('quickViewTrigger', e.target.value));
     }
 
     setTimerMode(mode) {
@@ -813,81 +774,6 @@ class ToolsPanel {
         }
     }
 
-    async renderTimeline() {
-        const events = await window.storage?.getGlobalSettings(`timeline_${this.currentProjectId}`) || [];
-        
-        return `
-            <div style="margin-bottom: 16px;">
-                <button class="btn btn-primary" style="width: 100%; height: 44px; font-weight: 600;" id="addEventBtn">+ 새 사건 추가</button>
-            </div>
-            
-            <div class="timeline-list" id="timelineList" style="position: relative; padding-left: 20px; border-left: 2px solid var(--color-border); margin-left: 10px;">
-                ${events.length === 0 ? '<div class="text-muted" style="padding: 20px 0; font-size: 13px;">등록된 사건이 없습니다.</div>' :
-                events.map((ev, idx) => `
-                    <div class="timeline-item" style="position: relative; margin-bottom: 24px;">
-                        <!-- 도트 -->
-                        <div style="position: absolute; left: -27px; top: 4px; width: 12px; height: 12px; border-radius: 50%; background: var(--color-accent-primary); border: 2px solid var(--color-bg-primary);"></div>
-                        
-                        <div style="background: var(--color-surface-2); padding: 12px; border-radius: 10px; border: 1px solid var(--color-border); cursor: pointer;" onclick="window.toolsPanel.editEvent(${idx})">
-                            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 4px;">
-                                <span style="font-size: 11px; font-weight: 700; color: var(--color-accent-primary); font-family: var(--font-mono);">${this.escapeHtml(ev.time || '시간 미지정')}</span>
-                                <button class="btn-icon" style="width: 20px; height: 20px; font-size: 10px; color: var(--color-text-muted); border: none; background: transparent;" onclick="event.stopPropagation(); window.toolsPanel.deleteEvent(${idx})">✕</button>
-                            </div>
-                            <div style="font-size: 14px; font-weight: 600; color: var(--color-text-primary); margin-bottom: 4px;">${this.escapeHtml(ev.title)}</div>
-                            ${ev.desc ? `<div style="font-size: 12px; color: var(--color-text-tertiary); line-height: 1.5;">${this.escapeHtml(ev.desc)}</div>` : ''}
-                        </div>
-                    </div>`).join('')}
-            </div>
-        `;
-    }
-
-    setupTimelineEventListeners() {
-        document.getElementById('addEventBtn')?.addEventListener('click', () => this.showEventModal());
-    }
-
-    async showEventModal(eventData = null, index = null) {
-        const title = eventData ? '사건 수정' : '새 사건 추가';
-        const evTitle = eventData ? eventData.title : '';
-        const evTime = eventData ? eventData.time : '';
-        const evDesc = eventData ? eventData.desc : '';
-
-        // 간단한 prompt/confirm 대신 커스텀 모달이 필요하지만, 여기서는 핵심 로직 구현을 위해 prompt를 우선 사용하거나 메모 모달을 재활용할 수 있습니다.
-        // 여기서는 새 모달을 index.html에 추가하는 대신, 일단 로직만 준비합니다.
-        const newTitle = prompt('사건 제목:', evTitle);
-        if (newTitle === null) return;
-        
-        const newTime = prompt('시간/시기 (예: 1일차 오전, 1990년):', evTime);
-        const newDesc = prompt('내용 요약:', evDesc);
-
-        const events = await window.storage?.getGlobalSettings(`timeline_${this.currentProjectId}`) || [];
-        const newEvent = { title: newTitle, time: newTime, desc: newDesc };
-
-        if (index !== null) {
-            events[index] = newEvent;
-        } else {
-            events.push(newEvent);
-        }
-
-        // 시간순 정렬 (단순 텍스트 정렬이므로 한계가 있지만 기본적인 순서 제공)
-        // events.sort((a, b) => a.time.localeCompare(b.time));
-
-        await window.storage?.saveGlobalSettings(`timeline_${this.currentProjectId}`, events);
-        this.renderTab('timeline');
-    }
-
-    async editEvent(idx) {
-        const events = await window.storage?.getGlobalSettings(`timeline_${this.currentProjectId}`) || [];
-        this.showEventModal(events[idx], idx);
-    }
-
-    async deleteEvent(idx) {
-        if (!confirm('이 사건을 삭제할까요?')) return;
-        const events = await window.storage?.getGlobalSettings(`timeline_${this.currentProjectId}`) || [];
-        events.splice(idx, 1);
-        await window.storage?.saveGlobalSettings(`timeline_${this.currentProjectId}`, events);
-        this.renderTab('timeline');
-    }
-
     renderSearch() { return `<div class="search-box"><input type="text" class="input" id="searchInput" placeholder="검색어..."><button class="btn btn-primary" style="width: 100%; margin-top: 8px;" id="searchBtn">검색</button></div><div id="searchResults" style="padding-top: 10px;"></div>`; }
     setupSearchEventListeners() {
         document.getElementById('searchBtn')?.addEventListener('click', () => this.performSearch());
@@ -993,13 +879,6 @@ class ToolsPanel {
             <div class="form-group" style="flex-direction: row; align-items: center; justify-content: space-between; padding: 8px 0;">
               <label for="autoCloseQuotes" style="cursor: pointer; font-size: 14px; font-weight: 500;">따옴표 자동 닫기</label>
               <input type="checkbox" id="autoCloseQuotes" ${s.autoCloseQuotes ? 'checked' : ''} style="width: 20px; height: 20px; cursor: pointer;">
-            </div>
-          </div>
-
-          <div class="settings-section">
-            <h3 class="settings-section-title">집필 양식 & 템플릿</h3>
-            <div class="form-group">
-              <button class="btn btn-primary" id="manageTemplatesBtn" style="width: 100%;">⚙️ 집필 템플릿 관리 모달 열기</button>
             </div>
           </div>
 
@@ -1138,10 +1017,6 @@ class ToolsPanel {
             hyperlinkColor: '#58a6ff',
             autoCloseQuotes: true,
             autoSave: true,
-            triggerLocation: '장소:',
-            triggerStatOpen: '{{',
-            triggerStatClose: '}}',
-            quickViewTrigger: '## 요약:',
             defaultWinWidth: 520,
             defaultWinHeight: 400
         };

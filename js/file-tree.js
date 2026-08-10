@@ -361,6 +361,7 @@ class FileTreeManager {
                     parentId: null,
                     content: base64,
                     template: 'image',
+                    portsConfig: { inputs: [], outputs: [{ id: 'out_1', name: '출력 데이터' }] },
                     order: maxOrder + 1
                 });
 
@@ -1675,23 +1676,13 @@ class FileTreeManager {
     }
 
     async getTemplateContent(template) {
-        if (template.startsWith('custom-')) {
+        if (template && template.startsWith('custom-')) {
             const tplId = template.replace('custom-', '');
             const templates = await window.storage?.getAllTemplates();
-            const found = templates.find(t => t.id === tplId);
-            return found ? found.content : '';
+            const found = templates?.find(t => t.id === tplId);
+            return found ? (typeof found.content === 'object' ? JSON.stringify(found.content, null, 2) : (found.content || '')) : '';
         }
-
-        switch (template) {
-            case 'image':
-                return ''; // 이미지는 콘텐츠가 base64로 채워질 것이므로 비워둠
-            case 'item':
-                return `# 아이템 이름: \n\n## 1. 개요\n- 아이템 분류: \n- 현재 소유자: \n\n## 2. 특징\n- 형태: \n- 능력/기능: \n- 희귀도: \n\n## 3. 배경 및 역사\n- 제작자: \n- 발견 장소: \n- 관련 전설: \n\n## 4. 기타 메모\n- `;
-            case 'place':
-                return `# 장소 이름: \n\n## 1. 개요\n- 대륙/지역: \n- 지형적 특징: \n\n## 2. 분위기 및 묘사\n- 주된 기후: \n- 시각적 특징: \n- 배경 음악/소리: \n\n## 3. 역사 및 주요 사건\n- 설립 시기: \n- 중요한 과거 사건: \n\n## 4. 주요 세력 및 인물\n- 통치 세력: \n- 주목할 만한 거주자: \n\n## 5. 기타 메모\n- `;
-            default:
-                return '';
-        }
+        return '';
     }
 
     showContextMenu(e, file) {

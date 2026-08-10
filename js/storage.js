@@ -203,11 +203,44 @@ class StorageManager {
     });
   }
 
+  async getUniqueFileName(projectId, rawName, excludeFileId = null) {
+    if (!rawName) return '제목 없음';
+    const files = await this.getProjectFiles(projectId);
+    const existingNames = new Set(
+      files
+        .filter(f => !excludeFileId || f.id !== excludeFileId)
+        .map(f => (f.name || '').trim())
+    );
+
+    let name = rawName.trim();
+    if (!existingNames.has(name)) {
+      return name;
+    }
+
+    let baseName = name;
+    let counter = 1;
+    const match = name.match(/^(.*?)\s*\((\d+)\)$/);
+    if (match) {
+      baseName = match[1].trim();
+      counter = parseInt(match[2], 10);
+    }
+
+    let uniqueName = `${baseName} (${counter})`;
+    while (existingNames.has(uniqueName)) {
+      counter++;
+      uniqueName = `${baseName} (${counter})`;
+    }
+
+    return uniqueName;
+  }
+
   async createFile(file) {
+    const uniqueName = await this.getUniqueFileName(file.projectId, file.name);
+
     const newFile = {
       id: this.generateId(),
       projectId: file.projectId,
-      name: file.name,
+      name: uniqueName,
       type: file.type || 'file',
       parentId: file.parentId || null,
       content: file.content || '',
@@ -237,9 +270,14 @@ class StorageManager {
       return null;
     }
 
+    let finalUpdates = { ...updates };
+    if (updates.name && updates.name.trim() !== (file.name || '').trim()) {
+      finalUpdates.name = await this.getUniqueFileName(file.projectId, updates.name, id);
+    }
+
     const updatedFile = {
       ...file,
-      ...updates,
+      ...finalUpdates,
       updatedAt: Date.now(),
     };
 
