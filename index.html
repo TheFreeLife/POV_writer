@@ -315,11 +315,33 @@
         <!-- 3-2. [동적] 텍스트 속성 항목 입력 구역 -->
         <div id="wizardTextFieldsSection" class="node-create-section mt-lg hidden">
           <div class="flex justify-between items-center mb-sm">
-            <label class="form-label" style="margin: 0;">3. 🏷️ 텍스트 입력 항목 구성</label>
+            <label class="form-label" style="margin: 0;">3. 🏷️ 텍스트 입력 항목 및 출력 양식 구성</label>
             <button type="button" class="btn btn-secondary btn-sm" id="wizardAddTextFieldBtn">➕ 텍스트 항목 추가</button>
           </div>
           <div id="wizardTextFieldsList" class="stat-fields-list">
             <!-- 동적 텍스트 항목 추가 -->
+          </div>
+          <div class="mt-md" style="border-top: 1px dashed var(--color-border); padding-top: 12px;">
+            <div class="flex justify-between items-center mb-xs">
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <label class="form-label" for="wizardTextFieldsTemplate" style="margin: 0;">📝 텍스트 출력 양식 (템플릿)</label>
+                <span id="wizardActivePortLabel" style="font-size: 11px; font-weight: 700; color: var(--color-accent-primary); background: var(--color-surface-3); padding: 2px 8px; border-radius: 4px;">📤 [출력 포트 1] 양식 편집 중</span>
+              </div>
+              <button type="button" class="btn btn-secondary btn-sm" id="wizardAutoTemplateBtn" style="font-size: 11px; padding: 2px 8px;" title="현재 항목으로 양식 자동 생성">🪄 양식 자동생성</button>
+            </div>
+
+            <!-- Output 포트 선택 탭 바 -->
+            <div id="wizardOutputPortTabs" style="display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; margin-top: 4px;">
+              <!-- 동적 Output 포트 탭 버튼들이 추가됩니다 -->
+            </div>
+
+            <div style="font-size: 11px; color: var(--color-text-tertiary); margin-bottom: 8px; line-height: 1.5; background: var(--color-surface-1); padding: 8px 10px; border-radius: 6px; border: 1px solid var(--color-border);">
+              💡 <b>사용 가능한 치환 변수:</b><br>
+              • <code style="color: var(--color-accent-primary); font-weight: bold;">{$속성이름$}</code> : 직접 입력 속성 값 (예: <code style="color: var(--color-accent-primary);">{$소속$}</code>)<br>
+              • <code style="color: var(--color-accent-primary); font-weight: bold;">{$Input포트이름$}</code> : 연결된 상위 노드의 Output 전체 텍스트 (예: <code style="color: var(--color-accent-primary);">{$입력 데이터 1$}</code>)<br>
+              • <code style="color: var(--color-accent-primary); font-weight: bold;">{$이름$}</code> : 현재 노드의 제목
+            </div>
+            <textarea class="input" id="wizardTextFieldsTemplate" rows="4" style="width: 100%; font-family: inherit; font-size: 12px; line-height: 1.6; min-height: 110px; resize: vertical;" placeholder="예: 📌 《 {$이름$} 》&#10;• 소속: {$소속$}&#10;• 수신 정보: {$입력 데이터 1$}"></textarea>
           </div>
         </div>
 
@@ -374,37 +396,37 @@
     </div>
   </div>
 
-  <!-- 노드 핀/포트 및 색상 수정 모달 -->
+  <!-- 노드 핀/포트 정보 조회 모달 -->
   <div id="nodePortEditModal" class="modal-overlay hidden">
     <div class="modal modal-md">
       <div class="modal-header">
-        <h2 class="modal-title" id="nodePortEditTitle">📌 노드 핀 (포트) & 색상 수정</h2>
+        <h2 class="modal-title" id="nodePortEditTitle">📌 노드 포트 핀 정보</h2>
         <button class="modal-close" id="closeNodePortEditModal">✕</button>
       </div>
       <div class="modal-body">
         <input type="hidden" id="nodePortEditFileId">
+        <div style="font-size: 12px; color: var(--color-text-tertiary); margin-bottom: 12px; background: var(--color-surface-1); padding: 8px 12px; border-radius: 6px;">
+          💡 포트 핀 추가/수정은 노드 목록의 <b>노드 ✏️ 수정</b> 마법사에서 하실 수 있습니다.
+        </div>
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px;">
           <!-- 왼쪽 Input 포트 -->
           <div style="background: var(--color-bg-secondary); padding: 12px; border-radius: 10px; border: 1px solid var(--color-border);">
-            <div class="flex justify-between items-center mb-xs">
+            <div class="mb-xs">
               <span style="font-size: 12px; font-weight: 700; color: #2ecc71;">📥 Input 포트</span>
-              <button type="button" class="btn btn-secondary btn-sm" id="editAddInputPortBtn" style="font-size: 11px; padding: 2px 8px;">➕ 추가</button>
             </div>
-            <div id="editInputPortList" class="stat-fields-list" style="max-height: 160px; padding: 6px;"></div>
+            <div id="editInputPortList" class="stat-fields-list" style="max-height: 200px; padding: 6px;"></div>
           </div>
           <!-- 오른쪽 Output 포트 -->
           <div style="background: var(--color-bg-secondary); padding: 12px; border-radius: 10px; border: 1px solid var(--color-border);">
-            <div class="flex justify-between items-center mb-xs">
+            <div class="mb-xs">
               <span style="font-size: 12px; font-weight: 700; color: #00ffcc;">📤 Output 포트</span>
-              <button type="button" class="btn btn-secondary btn-sm" id="editAddOutputPortBtn" style="font-size: 11px; padding: 2px 8px;">➕ 추가</button>
             </div>
-            <div id="editOutputPortList" class="stat-fields-list" style="max-height: 160px; padding: 6px;"></div>
+            <div id="editOutputPortList" class="stat-fields-list" style="max-height: 200px; padding: 6px;"></div>
           </div>
         </div>
       </div>
       <div class="modal-footer">
-        <button class="btn btn-secondary" id="cancelNodePortEditBtn">취소</button>
-        <button class="btn btn-primary" id="saveNodePortEditBtn">💾 포트 설정 저장</button>
+        <button class="btn btn-secondary" id="cancelNodePortEditBtn">닫기</button>
       </div>
     </div>
   </div>

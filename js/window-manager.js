@@ -434,6 +434,12 @@ class WindowManager {
             this.renderStatCalculator(fileId);
         }
 
+        // 텍스트 속성 노드인 경우 초기 렌더링
+        const isTextFields = file.isTextFieldsNode || (file.content && typeof file.content === 'string' && file.content.includes('"isTextFieldsNode"'));
+        if (isTextFields) {
+            this.renderTextFieldsNode(fileId);
+        }
+
         // 시스템 프롬프트 노드 및 AI META 노드 폼 초기 렌더링
         const isSystemPrompt = file.isSystemPromptNode || (file.content && typeof file.content === 'string' && file.content.includes('"command"'));
         const isAiMeta = file.isAiMetaNode || (file.content && typeof file.content === 'string' && file.content.includes('"role"'));
@@ -616,6 +622,7 @@ class WindowManager {
         const isCollapsed = file.windowState?.isCollapsed || false;
         const isImage = file.template === 'image' || (file.content && typeof file.content === 'string' && file.content.startsWith('data:image'));
         const isStat = file.template === 'stat' || file.isStatNode;
+        const isTextFields = file.isTextFieldsNode || (file.content && typeof file.content === 'string' && file.content.includes('"isTextFieldsNode"'));
         const isSystemPrompt = file.isSystemPromptNode || (file.content && typeof file.content === 'string' && file.content.includes('"command"'));
         const isAiMeta = file.isAiMetaNode || (file.content && typeof file.content === 'string' && file.content.includes('"role"'));
         
@@ -653,6 +660,12 @@ class WindowManager {
             bodyContent = `
                 <div class="stat-calculator-container" id="statContainer_${file.id}">
                     <!-- 계산기 UI가 여기에 렌더링됩니다 -->
+                </div>
+            `;
+        } else if (isTextFields) {
+            bodyContent = `
+                <div class="stat-calculator-container" id="textFieldContainer_${file.id}">
+                    <!-- 텍스트 속성 및 출력 양식 UI가 렌더링됩니다 -->
                 </div>
             `;
         } else if (isSystemPrompt) {
@@ -1128,41 +1141,60 @@ class WindowManager {
                 
                 const fullEndIdx = firstClose + tClose.length;
                 const pattern = text.substring(lastOpen, fullEndIdx);
-                const statName = pattern.replace(tOpen, '').replace(tClose, '').trim();
+                const rawTag = pattern.replace(tOpen, '').replace(tClose, '').trim();
+                let statName = rawTag;
+                let targetPortName = null;
+
+                if (rawTag.includes(':')) {
+                    const parts = rawTag.split(':');
+                    statName = parts[0].trim();
+                    targetPortName = parts[1].trim();
+                }
                 
                 const files = await storage.getProjectFiles(window.currentProjectId);
-                const statFile = files.find(f => f.name === statName && f.template === 'stat');
+                const targetFile = files.find(f => f.name === statName || (f.name && f.name.includes(statName)));
                 
-                if (statFile) {
-                    try {
-                        const data = JSON.parse(statFile.content);
-                        let resultText = data.outputTemplate || "";
-                        
-                        // 템플릿이 비어있으면 기본형 제공
-                        if (!resultText) {
-                            const statStrings = data.stats.map(s => `[${s.name}: ${s.value}]`).join(' ');
-                            resultText = `《 ${statName} 상태창 》\n${statStrings}`;
-                        } else {
-                            // 변수 치환 ({$이름$} 및 {$스탯명$})
-                            resultText = resultText.replace(/\{\$이름\$\}/g, statName);
-                            data.stats.forEach(s => {
-                                // 특수문자 이스케이프 후 {$스탯명$} 정규표현식 생성
-                                const escapedName = s.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-                                const regex = new RegExp(`\\{\\$${escapedName}\\$\\}`, 'g');
-                                resultText = resultText.replace(regex, s.value);
-                            });
+                if (targetFile) {
+                    if (targetFile.template === 'stat' || targetFile.isStatNode) {
+                        try {
+                            const data = JSON.parse(targetFile.content);
+                            let resultText = data.outputTemplate || "";
+                            
+                            if (!resultText) {
+                                const statStrings = data.stats.map(s => `[${s.name}: ${s.value}]`).join(' ');
+                                resultText = `《 ${statName} 상태창 》\n${statStrings}`;
+                            } else {
+                                resultText = resultText.replace(/\{\$이름\$\}/g, statName);
+                                data.stats.forEach(s => {
+                                    const escapedName = s.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                                    const regex = new RegExp(`\\{\\$${escapedName}\\$\\}`, 'g');
+                                    resultText = resultText.replace(regex, s.value);
+                                });
+                            }
+                            
+                            const newText = text.substring(0, lastOpen) + resultText + text.substring(fullEndIdx);
+                            textarea.value = newText;
+                            textarea.selectionStart = textarea.selectionEnd = lastOpen + resultText.length;
+                            
+                            this.onTextChange(fileId, newText);
+                            this.updateHighlighter(fileId);
+                            window.showToast?.(`"${statName}" 스탯 데이터를 불러왔습니다.`);
+                            return;
+                        } catch (err) {
+                            console.error('상태창 데이터 파싱 실패:', err);
                         }
-                        
-                        const newText = text.substring(0, lastOpen) + resultText + text.substring(fullEndIdx);
-                        textarea.value = newText;
-                        textarea.selectionStart = textarea.selectionEnd = lastOpen + resultText.length;
-                        
-                        this.onTextChange(fileId, newText);
-                        this.updateHighlighter(fileId);
-                        window.showToast?.(`"${statName}" 데이터를 불러왔습니다.`);
-                        return; // 상태창 처리 완료 시 종료
-                    } catch (err) {
-                        console.error('상태창 데이터 파싱 실패:', err);
+                    } else if (targetFile.isTextFieldsNode || (targetFile.content && typeof targetFile.content === 'string' && targetFile.content.includes('"isTextFieldsNode"'))) {
+                        const resultText = this.getEvaluatedTextFieldsText(targetFile, targetPortName);
+                        if (resultText) {
+                            const newText = text.substring(0, lastOpen) + resultText + text.substring(fullEndIdx);
+                            textarea.value = newText;
+                            textarea.selectionStart = textarea.selectionEnd = lastOpen + resultText.length;
+                            
+                            this.onTextChange(fileId, newText);
+                            this.updateHighlighter(fileId);
+                            window.showToast?.(`"${targetFile.name}"${targetPortName ? ` (${targetPortName})` : ''} 포트 데이터를 불러왔습니다. ✨`);
+                            return;
+                        }
                     }
                 }
             }
@@ -1755,7 +1787,7 @@ class WindowManager {
             menuHtml += `
                 <div class="context-menu-item" data-action="edit-node-ports">
                     <span class="context-menu-icon">📌</span>
-                    <span>노드 핀(포트) 및 색상 수정...</span>
+                    <span>노드 핀 (포트) 정보...</span>
                 </div>
                 <div class="context-menu-divider"></div>
             `;
@@ -1859,7 +1891,7 @@ class WindowManager {
         if (fileIdInput) fileIdInput.value = fileId;
 
         const titleEl = document.getElementById('nodePortEditTitle');
-        if (titleEl) titleEl.textContent = `📌 '${file.name}' 노드 핀(포트) & 색상 수정`;
+        if (titleEl) titleEl.textContent = `📌 '${file.name}' 노드 핀 (포트) 정보`;
 
         const portsConfig = file.portsConfig || {
             inputs: [{ id: 'in_1', name: '입력 데이터', color: '#2ecc71' }],
@@ -1868,14 +1900,22 @@ class WindowManager {
 
         const inList = document.getElementById('editInputPortList');
         if (inList) {
-            inList.innerHTML = '';
-            (portsConfig.inputs || []).forEach(p => this.addNodePortEditRow('input', p.name, p.color));
+            inList.innerHTML = (portsConfig.inputs || []).map(p => `
+                <div style="display: flex; align-items: center; gap: 8px; padding: 6px 10px; background: var(--color-surface-1); border-radius: 6px; margin-bottom: 6px; border: 1px solid var(--color-border);">
+                    <span style="width: 14px; height: 14px; border-radius: 50%; background: ${p.color || '#2ecc71'}; display: inline-block; flex-shrink: 0;"></span>
+                    <span style="font-size: 12px; font-weight: 600;">${this.escapeHtml(p.name)}</span>
+                </div>
+            `).join('') || '<div style="font-size: 11px; color: var(--color-text-tertiary);">Input 포트 없음</div>';
         }
 
         const outList = document.getElementById('editOutputPortList');
         if (outList) {
-            outList.innerHTML = '';
-            (portsConfig.outputs || []).forEach(p => this.addNodePortEditRow('output', p.name, p.color));
+            outList.innerHTML = (portsConfig.outputs || []).map(p => `
+                <div style="display: flex; align-items: center; gap: 8px; padding: 6px 10px; background: var(--color-surface-1); border-radius: 6px; margin-bottom: 6px; border: 1px solid var(--color-border);">
+                    <span style="width: 14px; height: 14px; border-radius: 50%; background: ${p.color || '#00ffcc'}; display: inline-block; flex-shrink: 0;"></span>
+                    <span style="font-size: 12px; font-weight: 600;">${this.escapeHtml(p.name)}</span>
+                </div>
+            `).join('') || '<div style="font-size: 11px; color: var(--color-text-tertiary);">Output 포트 없음</div>';
         }
 
         modal.classList.remove('hidden');
@@ -2474,10 +2514,298 @@ class WindowManager {
         
         await storage.updateFile(fileId, { content });
         this.renderStatCalculator(fileId);
+    }
 
-        // 수정됨 표시
-        const indicator = info.element.querySelector(`[data-indicator="${fileId}"]`);
-        if (indicator) indicator.classList.add('show');
+    /**
+     * 텍스트 속성 노드 (값/속성 입력형) 렌더링 및 양식 치환 (포트별 개별 양식 및 연결 데이터 수신 지원)
+     */
+    getEvaluatedTextFieldsText(file, portIdOrName = null) {
+        if (!file || !file.content) return '';
+        try {
+            const data = typeof file.content === 'string' ? JSON.parse(file.content) : file.content;
+            let template = '';
+
+            const outputs = file.portsConfig?.outputs || [];
+            if (portIdOrName && Array.isArray(outputs) && outputs.length > 0) {
+                const targetPort = outputs.find(p => p.id === portIdOrName || p.name === portIdOrName);
+                if (targetPort && targetPort.template) {
+                    template = targetPort.template;
+                }
+            }
+
+            if (!template) {
+                template = data.outputTemplate || '';
+            }
+            
+            const fields = data.textFields || [];
+            if (!template) {
+                template = `📌 《 {$이름$} 》\n` + fields.map(f => `• ${f.name}: {$${f.name}$}`).join('\n');
+            }
+
+            // 변수 맵 구성 (1순위: 현재 노드 직접 입력값, 2순위: Input 포트로 연결되어 들어오는 상위 노드 데이터)
+            const varMap = new Map();
+
+            // 1) Input 연결 선(상위 노드)에서 수신된 output 데이터 가공 (2순위)
+            const inConns = (this.nodeConnections || []).filter(c => c.toId === file.id);
+            const inPorts = file.portsConfig?.inputs || [];
+
+            inConns.forEach(conn => {
+                const upstreamInfo = this.windows.get(conn.fromId);
+                if (!upstreamInfo || !upstreamInfo.file) return;
+                const uFile = upstreamInfo.file;
+
+                // 상위 노드가 그 Output 포트에서 "그대로" 평가한 Output 텍스트 생성
+                let outputText = '';
+                if (uFile.isTextFieldsNode || (uFile.content && typeof uFile.content === 'string' && uFile.content.includes('"isTextFieldsNode"'))) {
+                    outputText = this.getEvaluatedTextFieldsText(uFile, conn.fromPortId);
+                } else if (uFile.template === 'stat' || uFile.isStatNode) {
+                    try {
+                        const uData = typeof uFile.content === 'string' ? JSON.parse(uFile.content) : uFile.content;
+                        outputText = uData.outputTemplate || '';
+                        if (!outputText) {
+                            outputText = `《 ${uFile.name} 상태창 》\n` + (uData.stats || []).map(s => `[${s.name}: ${s.value}]`).join(' ');
+                        } else {
+                            outputText = outputText.replace(/\{\$이름\$\}/g, uFile.name);
+                            (uData.stats || []).forEach(s => {
+                                const escapedName = s.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                                outputText = outputText.replace(new RegExp(`\\{\\$${escapedName}\\$\\}`, 'g'), s.value);
+                            });
+                        }
+                    } catch(e) {}
+                } else {
+                    outputText = typeof uFile.content === 'string' ? uFile.content : '';
+                }
+
+                if (outputText) {
+                    // 해당 Input 포트 핀 이름 및 ID로 "상위 노드의 Output 전체 텍스트 그대로" 정확히 치환!
+                    const inPortObj = inPorts.find(p => p.id === conn.toPortId);
+                    if (inPortObj && inPortObj.name) {
+                        varMap.set(inPortObj.name, outputText);
+                    }
+                    if (conn.toPortId) {
+                        varMap.set(conn.toPortId, outputText);
+                    }
+
+                    // 2) 텍스트 내부의 각 항목/변수 추출 ("• 항목명: 값" 또는 "항목명: 값")
+                    const lines = outputText.split('\n');
+                    lines.forEach(line => {
+                        const trimmed = line.trim();
+                        const match1 = trimmed.match(/^[•\-*\s]*([^:]+):\s*(.+)$/);
+                        if (match1) {
+                            const k = match1[1].trim();
+                            const v = match1[2].trim();
+                            if (k && !varMap.has(k)) {
+                                varMap.set(k, v);
+                            }
+                        }
+                    });
+
+                    // Raw fields에서도 변수 추출
+                    if (uFile.isTextFieldsNode || (uFile.content && typeof uFile.content === 'string' && uFile.content.includes('"isTextFieldsNode"'))) {
+                        try {
+                            const uData = typeof uFile.content === 'string' ? JSON.parse(uFile.content) : uFile.content;
+                            (uData.textFields || []).forEach(f => {
+                                if (f.name && f.val !== undefined && !varMap.has(f.name)) {
+                                    varMap.set(f.name, f.val);
+                                }
+                            });
+                        } catch(e) {}
+                    }
+                }
+            });
+
+            // 2) 현재 노드에 직접 입력된 값이 있다면 덮어쓰기 (1순위 - 직접 입력된 것 최우선!)
+            fields.forEach(f => {
+                if (f.name) {
+                    varMap.set(f.name, f.val !== undefined ? f.val : '');
+                }
+            });
+
+            // 템플릿 변수 치환
+            const cleanName = file.name || '노드';
+            let result = template.replace(/\{\$이름\$\}/g, cleanName);
+
+            varMap.forEach((val, key) => {
+                const escapedName = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                const regex = new RegExp(`\\{\\$${escapedName}\\$\\}`, 'g');
+                result = result.replace(regex, val !== undefined ? val : '');
+            });
+
+            return result;
+        } catch (e) {
+            return typeof file.content === 'string' ? file.content : '';
+        }
+    }
+
+    renderTextFieldsNode(fileId) {
+        const info = this.windows.get(fileId);
+        const container = document.getElementById(`textFieldContainer_${fileId}`);
+        if (!info || !container) return;
+
+        let data;
+        try {
+            data = typeof info.file.content === 'string' ? JSON.parse(info.file.content || '{}') : (info.file.content || {});
+            if (!data.textFields) data.textFields = [];
+            if (!data.outputTemplate) {
+                data.outputTemplate = `📌 《 {$이름$} 》\n` + data.textFields.map(f => `• ${f.name}: {$${f.name}$}`).join('\n');
+            }
+            if (data.currentTab === undefined) data.currentTab = 'manage';
+        } catch (e) {
+            data = { textFields: [], outputTemplate: '', currentTab: 'manage' };
+        }
+
+        const tab = data.currentTab;
+        const evaluatedText = this.getEvaluatedTextFieldsText(info.file);
+        const outputsArr = (info.file.portsConfig?.outputs && info.file.portsConfig.outputs.length > 0) 
+            ? info.file.portsConfig.outputs 
+            : [{ id: 'out_1', name: '기본 출력', color: '#00ffcc', template: data.outputTemplate }];
+
+        container.innerHTML = `
+            <div class="stat-tabs">
+                <div class="stat-tab ${tab === 'manage' ? 'active' : ''}" onclick="window.windowManager.switchTextFieldTab('${fileId}', 'manage')">⚙️ 속성/값 입력</div>
+                <div class="stat-tab ${tab === 'template' ? 'active' : ''}" onclick="window.windowManager.switchTextFieldTab('${fileId}', 'template')">📝 포트별 출력 양식 (${outputsArr.length})</div>
+            </div>
+            
+            <div class="stat-content" id="textContent_${fileId}">
+                ${tab === 'manage' ? `
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                        <span style="font-size: 14px; font-weight: 700; color: var(--color-text-secondary);">🏷️ 텍스트 속성 값 입력</span>
+                        <span style="font-size: 11px; color: var(--color-text-tertiary);">* 항목 수정은 프리셋 마법사에서 가능</span>
+                    </div>
+                    ${data.textFields.map((f, idx) => `
+                        <div class="stat-field-row mb-xs" style="display: flex; gap: 8px; align-items: center; margin-bottom: 10px; background: var(--color-surface-1); padding: 6px 10px; border-radius: 6px; border: 1px solid var(--color-border);">
+                            <span style="width: 110px; font-size: 12px; font-weight: 700; color: var(--color-accent-primary); display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${this.escapeHtml(f.name)}">• ${this.escapeHtml(f.name)}:</span>
+                            <input type="text" class="input field-val" style="flex: 1; font-size: 12px; height: 28px;" value="${this.escapeHtml(f.val || '')}" 
+                                oninput="window.windowManager.onTextFieldValueChange('${fileId}', ${idx}, this.value)" placeholder="내용 입력...">
+                        </div>
+                    `).join('')}
+                    ${data.textFields.length === 0 ? '<div style="text-align: center; padding: 20px; color: var(--color-text-tertiary); font-size: 13px;">등록된 속성 항목이 없습니다.</div>' : ''}
+
+                    <!-- 실시간 최종 출력 미리보기 카드 -->
+                    <div style="margin-top: 16px; border-top: 1px dashed var(--color-border); padding-top: 14px;">
+                        <div style="font-size: 12px; font-weight: 700; color: var(--color-accent-primary); margin-bottom: 6px;">👁️ 템플릿 기본 출력 미리보기</div>
+                        <pre style="background: var(--color-bg-primary); border: 1px solid var(--color-border); padding: 12px; border-radius: 8px; font-family: inherit; font-size: 12px; line-height: 1.6; white-space: pre-wrap; word-break: break-all; margin: 0; color: var(--color-text-primary);">${this.escapeHtml(evaluatedText)}</pre>
+                    </div>
+                ` : ''}
+
+                ${tab === 'template' ? `
+                    <div style="height: 100%; display: flex; flex-direction: column; gap: 12px; overflow-y: auto; max-height: 480px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <span style="font-size: 14px; font-weight: 700; color: var(--color-text-secondary);">📝 각 Output 포트별 출력 양식 (조회 전용)</span>
+                            <span style="font-size: 11px; color: var(--color-text-tertiary);">* 양식 수정은 프리셋 마법사에서 가능</span>
+                        </div>
+
+                        ${outputsArr.map(p => `
+                            <div class="port-template-card" style="background: var(--color-surface-1); border: 1px solid var(--color-border); padding: 12px; border-radius: 8px; margin-bottom: 6px;">
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                                    <span style="font-size: 13px; font-weight: 700; color: ${p.color || '#00ffcc'};">📤 포트: ${this.escapeHtml(p.name)}</span>
+                                    <span style="font-size: 10px; color: var(--color-text-tertiary);">핀 ID: ${p.id}</span>
+                                </div>
+                                <pre style="background: var(--color-bg-primary); border: 1px solid var(--color-border); padding: 10px; border-radius: 6px; font-family: inherit; font-size: 12px; line-height: 1.5; margin: 0; color: #e6edf3; white-space: pre-wrap; word-break: break-all;">${this.escapeHtml(p.template !== undefined && p.template !== '' ? p.template : data.outputTemplate)}</pre>
+                            </div>
+                        `).join('')}
+                    </div>
+                ` : ''}
+            </div>
+        `;
+    }
+
+    async updateAllPortTemplates(fileId) {
+        const info = this.windows.get(fileId);
+        const container = document.getElementById(`textFieldContainer_${fileId}`);
+        if (!info || !container) return;
+
+        const textareas = container.querySelectorAll(`.port-template-editor_${fileId}`);
+        const portsConfig = info.file.portsConfig || { inputs: [], outputs: [] };
+        if (!portsConfig.outputs) portsConfig.outputs = [];
+
+        textareas.forEach(ta => {
+            const portId = ta.dataset.portId;
+            const val = ta.value;
+            const targetPort = portsConfig.outputs.find(p => p.id === portId);
+            if (targetPort) {
+                targetPort.template = val;
+            }
+        });
+
+        info.file.portsConfig = portsConfig;
+        await window.storage?.updateFile(fileId, { portsConfig });
+
+        // 첫 번째 템플릿을 global outputTemplate에도 동기화
+        let data = typeof info.file.content === 'string' ? JSON.parse(info.file.content || '{}') : (info.file.content || {});
+        if (textareas[0]) {
+            data.outputTemplate = textareas[0].value;
+            info.file.content = JSON.stringify(data, null, 2);
+            await window.storage?.updateFile(fileId, { content: info.file.content });
+        }
+
+        window.showToast?.('각 Output 포트별 출력 양식이 저장되었습니다! 💾');
+        this.renderTextFieldsNode(fileId);
+    }
+
+    async switchTextFieldTab(fileId, tab) {
+        const info = this.windows.get(fileId);
+        if (!info) return;
+        let data = typeof info.file.content === 'string' ? JSON.parse(info.file.content || '{}') : (info.file.content || {});
+        data.currentTab = tab;
+        await this.saveTextFieldData(fileId, data);
+    }
+
+    async onTextFieldNameChange(fileId, index, newName) {
+        const info = this.windows.get(fileId);
+        if (!info) return;
+        let data = typeof info.file.content === 'string' ? JSON.parse(info.file.content || '{}') : (info.file.content || {});
+        if (data.textFields && data.textFields[index]) {
+            data.textFields[index].name = newName;
+            await this.saveTextFieldData(fileId, data);
+        }
+    }
+
+    async onTextFieldValueChange(fileId, index, newVal) {
+        const info = this.windows.get(fileId);
+        if (!info) return;
+        let data = typeof info.file.content === 'string' ? JSON.parse(info.file.content || '{}') : (info.file.content || {});
+        if (data.textFields && data.textFields[index]) {
+            data.textFields[index].val = newVal;
+            await this.saveTextFieldData(fileId, data);
+        }
+    }
+
+    async addTextFieldItem(fileId) {
+        const info = this.windows.get(fileId);
+        if (!info) return;
+        let data = typeof info.file.content === 'string' ? JSON.parse(info.file.content || '{}') : (info.file.content || {});
+        if (!data.textFields) data.textFields = [];
+        data.textFields.push({ name: `속성_${data.textFields.length + 1}`, val: '' });
+        await this.saveTextFieldData(fileId, data);
+    }
+
+    async removeTextFieldItem(fileId, index) {
+        const info = this.windows.get(fileId);
+        if (!info) return;
+        let data = typeof info.file.content === 'string' ? JSON.parse(info.file.content || '{}') : (info.file.content || {});
+        if (data.textFields) {
+            data.textFields.splice(index, 1);
+            await this.saveTextFieldData(fileId, data);
+        }
+    }
+
+    async updateTextFieldTemplate(fileId, template) {
+        const info = this.windows.get(fileId);
+        if (!info) return;
+        let data = typeof info.file.content === 'string' ? JSON.parse(info.file.content || '{}') : (info.file.content || {});
+        data.outputTemplate = template;
+        await this.saveTextFieldData(fileId, data);
+        window.showToast?.('출력 양식이 저장되었습니다.');
+    }
+
+    async saveTextFieldData(fileId, data) {
+        const info = this.windows.get(fileId);
+        if (!info) return;
+        const newContent = JSON.stringify(data, null, 2);
+        info.file.content = newContent;
+        await storage.updateFile(fileId, { content: newContent });
+        this.renderTextFieldsNode(fileId);
     }
 
     /**
@@ -2977,13 +3305,14 @@ class WindowManager {
             inPortId = inPin?.dataset.portId || 'in_1';
         }
 
-        const exists = this.nodeConnections.some(c => 
-            String(c.fromId) === String(outputId) && String(c.toId) === String(inputId) && c.fromPortId === outPortId && c.toPortId === inPortId
+        const existingInConnIndex = this.nodeConnections.findIndex(c => 
+            String(c.toId) === String(inputId) && c.toPortId === inPortId
         );
 
-        if (exists) {
-            window.showToast?.('이미 해당 포트 핀끼리 연결되어 있습니다.', 'warn');
-            return;
+        let replacedOld = false;
+        if (existingInConnIndex !== -1) {
+            this.nodeConnections.splice(existingInConnIndex, 1);
+            replacedOld = true;
         }
 
         const connId = 'conn_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
@@ -2999,7 +3328,14 @@ class WindowManager {
 
         this.renderConnections();
         this.saveConnections();
-        window.showToast?.('노드 포트 핀이 연결되었습니다! 🔗', 'success');
+        window.showToast?.(replacedOld ? 'Input 핀 연결이 새로 교체되었습니다! 🔗' : '노드 포트 핀이 연결되었습니다! 🔗', 'success');
+
+        // 연결된 노드들 실시간 데이터 미리보기 갱신
+        this.windows.forEach((info, fId) => {
+            if (info.file.isTextFieldsNode || (info.file.content && typeof info.file.content === 'string' && info.file.content.includes('"isTextFieldsNode"'))) {
+                this.renderTextFieldsNode(fId);
+            }
+        });
 
         // 포트 핀 CSS 애니메이션/트랜지션이 완전히 정돈된 후 연결선 위치 재동기화
         setTimeout(() => this.renderConnections(), 50);
@@ -3019,6 +3355,13 @@ class WindowManager {
             this.renderConnections();
             this.saveConnections();
             window.showToast?.('연결선이 삭제되었습니다.');
+
+            // 연결 해제 시 노드 실시간 미리보기 갱신
+            this.windows.forEach((info, fId) => {
+                if (info.file.isTextFieldsNode || (info.file.content && typeof info.file.content === 'string' && info.file.content.includes('"isTextFieldsNode"'))) {
+                    this.renderTextFieldsNode(fId);
+                }
+            });
         }
     }
 

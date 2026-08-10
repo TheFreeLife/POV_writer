@@ -90,7 +90,38 @@ class FileTreeManager {
             this.addPortConfigRow('input', '입력 데이터');
         });
         document.getElementById('wizardAddOutputPortBtn')?.addEventListener('click', () => {
-            this.addPortConfigRow('output', '출력 데이터');
+            this.addPortConfigRow('output', `출력 데이터 ${document.querySelectorAll('#wizardOutputPortList .stat-field-row').length + 1}`);
+        });
+
+        // 큰 양식 텍스트 상자 실시간 동기화
+        document.getElementById('wizardTextFieldsTemplate')?.addEventListener('input', (e) => {
+            const outRows = document.querySelectorAll('#wizardOutputPortList .stat-field-row');
+            const activeIdx = this.wizardActiveOutputPortIndex || 0;
+            if (outRows[activeIdx]) {
+                const targetTmpl = outRows[activeIdx].querySelector('.port-template');
+                if (targetTmpl) targetTmpl.value = e.target.value;
+            }
+        });
+
+        // 🪄 양식 자동생성 버튼 연동
+        document.getElementById('wizardAutoTemplateBtn')?.addEventListener('click', () => {
+            const fields = [];
+            document.querySelectorAll('#wizardTextFieldsList .stat-field-row').forEach(row => {
+                const fName = row.querySelector('.field-name')?.value.trim();
+                if (fName) fields.push(fName);
+            });
+            const tEl = document.getElementById('wizardTextFieldsTemplate');
+            if (tEl) {
+                tEl.value = `📌 《 {$이름$} 》\n` + fields.map(name => `• ${name}: {$${name}$}`).join('\n');
+                
+                // 동기화된 Output 포트 템플릿에도 즉시 반응
+                const outRows = document.querySelectorAll('#wizardOutputPortList .stat-field-row');
+                const activeIdx = this.wizardActiveOutputPortIndex || 0;
+                if (outRows[activeIdx]) {
+                    const targetTmpl = outRows[activeIdx].querySelector('.port-template');
+                    if (targetTmpl) targetTmpl.value = tEl.value;
+                }
+            }
         });
 
         // 커스텀 마법사 이모지 피커 연동 (다중 행 Grid 스타일)
@@ -742,7 +773,7 @@ class FileTreeManager {
         if (preset.wizardType === 'stat') {
             await this.createCustomStatNode(preset.name, preset.icon, preset.desc, preset.fields || [], preset.portsConfig);
         } else if (preset.wizardType === 'text_fields') {
-            await this.createCustomTextFieldsNode(preset.name, preset.icon, preset.desc, preset.fields || [], preset.portsConfig);
+            await this.createCustomTextFieldsNode(preset.name, preset.icon, preset.desc, preset.fields || [], preset.portsConfig, preset.outputTemplate);
         } else {
             let content = '';
             if (preset.template && preset.template !== 'blank') {
@@ -831,9 +862,9 @@ class FileTreeManager {
             outList.innerHTML = '';
             const outputs = presetToEdit?.portsConfig?.outputs;
             if (Array.isArray(outputs) && outputs.length > 0) {
-                outputs.forEach(p => this.addPortConfigRow('output', p.name, p.color));
+                outputs.forEach(p => this.addPortConfigRow('output', p.name, p.color, p.template));
             } else {
-                this.addPortConfigRow('output', '출력 데이터', '#00ffcc');
+                this.addPortConfigRow('output', '출력 데이터', '#00ffcc', presetToEdit?.outputTemplate || '');
             }
         }
 
@@ -841,6 +872,9 @@ class FileTreeManager {
         if (tmplSelect && presetToEdit?.template) {
             tmplSelect.value = presetToEdit.template;
         }
+
+        this.wizardActiveOutputPortIndex = 0;
+        this.renderWizardOutputPortTabs();
 
         this.updateCustomWizardUI();
         modal.classList.remove('hidden');
@@ -921,7 +955,79 @@ class FileTreeManager {
         list.appendChild(row);
     }
 
-    addPortConfigRow(type = 'input', defaultName = '', defaultColor = '') {
+    renderWizardOutputPortTabs() {
+        const tabsContainer = document.getElementById('wizardOutputPortTabs');
+        if (!tabsContainer) return;
+
+        const outRows = Array.from(document.querySelectorAll('#wizardOutputPortList .stat-field-row'));
+        tabsContainer.innerHTML = '';
+
+        if (outRows.length === 0) {
+            tabsContainer.innerHTML = '<span style="font-size: 11px; color: var(--color-text-tertiary);">Output 포트가 없습니다. 4번 구역에서 포트를 추가하세요.</span>';
+            const activeLabel = document.getElementById('wizardActivePortLabel');
+            if (activeLabel) activeLabel.textContent = 'Output 포트 없음';
+            return;
+        }
+
+        if (this.wizardActiveOutputPortIndex === undefined || this.wizardActiveOutputPortIndex >= outRows.length) {
+            this.wizardActiveOutputPortIndex = 0;
+        }
+
+        outRows.forEach((row, idx) => {
+            const name = row.querySelector('.field-name')?.value.trim() || `포트 ${idx + 1}`;
+            const color = row.querySelector('.port-color-picker')?.value || '#00ffcc';
+            const isActive = (idx === this.wizardActiveOutputPortIndex);
+
+            const tabBtn = document.createElement('button');
+            tabBtn.type = 'button';
+            tabBtn.className = `btn btn-sm ${isActive ? 'btn-primary' : 'btn-secondary'}`;
+            tabBtn.style.fontSize = '11px';
+            tabBtn.style.padding = '2px 10px';
+            tabBtn.style.borderLeft = `4px solid ${color}`;
+            tabBtn.style.fontWeight = isActive ? '700' : '400';
+            tabBtn.innerHTML = `📤 ${this.escapeHtml(name)}`;
+
+            tabBtn.addEventListener('click', () => {
+                this.switchWizardOutputPortTab(idx);
+            });
+
+            tabsContainer.appendChild(tabBtn);
+        });
+
+        // 라벨 업데이트 및 큰 텍스트 상자에 템플릿 값 채우기
+        const activeRow = outRows[this.wizardActiveOutputPortIndex];
+        const activeName = activeRow?.querySelector('.field-name')?.value.trim() || `포트 ${this.wizardActiveOutputPortIndex + 1}`;
+        const activeLabel = document.getElementById('wizardActivePortLabel');
+        if (activeLabel) {
+            activeLabel.textContent = `📤 [${activeName}] 양식 편집 중`;
+        }
+
+        const templateEl = document.getElementById('wizardTextFieldsTemplate');
+        if (templateEl && activeRow) {
+            const targetTmpl = activeRow.querySelector('.port-template');
+            templateEl.value = targetTmpl ? targetTmpl.value : '';
+        }
+    }
+
+    switchWizardOutputPortTab(newIdx) {
+        const outRows = Array.from(document.querySelectorAll('#wizardOutputPortList .stat-field-row'));
+        if (outRows.length === 0) return;
+
+        const templateEl = document.getElementById('wizardTextFieldsTemplate');
+        
+        // 현재 활성 포트 템플릿 저장
+        if (templateEl && this.wizardActiveOutputPortIndex !== undefined && outRows[this.wizardActiveOutputPortIndex]) {
+            const currentTmplBox = outRows[this.wizardActiveOutputPortIndex].querySelector('.port-template');
+            if (currentTmplBox) {
+                currentTmplBox.value = templateEl.value;
+            }
+        }
+
+        this.wizardActiveOutputPortIndex = Math.max(0, Math.min(newIdx, outRows.length - 1));
+        this.renderWizardOutputPortTabs();
+    }
+
+    addPortConfigRow(type = 'input', defaultName = '', defaultColor = '', defaultTemplate = '') {
         const listId = type === 'input' ? 'wizardInputPortList' : 'wizardOutputPortList';
         const list = document.getElementById(listId);
         if (!list) return;
@@ -933,19 +1039,50 @@ class FileTreeManager {
         row.className = 'stat-field-row';
         row.style.marginBottom = '6px';
         row.style.display = 'flex';
-        row.style.alignItems = 'center';
+        row.style.flexDirection = 'column';
         row.style.gap = '6px';
-        row.innerHTML = `
-            <input type="color" class="port-color-picker" value="${colorVal}" title="핀 색상 변경" style="width: 28px; height: 26px; padding: 1px 2px; border: 1px solid var(--color-border); border-radius: 6px; cursor: pointer; background: transparent; flex-shrink: 0;">
-            <input type="text" class="input field-name" placeholder="포트 핀 이름" value="${this.escapeHtml(defaultName)}" style="flex: 1; font-size: 11px; height: 26px; padding: 0 6px;">
-            <button type="button" class="btn btn-icon btn-secondary remove-field-btn" title="포트 삭제" style="color: var(--color-accent-danger); border: none; background: transparent; padding: 2px; flex-shrink: 0;">✕</button>
-        `;
+
+        if (type === 'input') {
+            row.innerHTML = `
+                <div style="display: flex; align-items: center; gap: 6px; width: 100%;">
+                    <input type="color" class="port-color-picker" value="${colorVal}" title="핀 색상 변경" style="width: 28px; height: 26px; padding: 1px 2px; border: 1px solid var(--color-border); border-radius: 6px; cursor: pointer; background: transparent; flex-shrink: 0;">
+                    <input type="text" class="input field-name" placeholder="포트 핀 이름" value="${this.escapeHtml(defaultName)}" style="flex: 1; font-size: 11px; height: 26px; padding: 0 6px;">
+                    <button type="button" class="btn btn-icon btn-secondary remove-field-btn" title="포트 삭제" style="color: var(--color-accent-danger); border: none; background: transparent; padding: 2px; flex-shrink: 0;">✕</button>
+                </div>
+            `;
+        } else {
+            row.innerHTML = `
+                <div style="display: flex; align-items: center; gap: 6px; width: 100%;">
+                    <input type="color" class="port-color-picker" value="${colorVal}" title="핀 색상 변경" style="width: 28px; height: 26px; padding: 1px 2px; border: 1px solid var(--color-border); border-radius: 6px; cursor: pointer; background: transparent; flex-shrink: 0;">
+                    <input type="text" class="input field-name" placeholder="포트 핀 이름 (예: 프로필, 칭호전용)" value="${this.escapeHtml(defaultName)}" style="flex: 1; font-size: 11px; height: 26px; padding: 0 6px;">
+                    <button type="button" class="btn btn-icon btn-secondary remove-field-btn" title="포트 삭제" style="color: var(--color-accent-danger); border: none; background: transparent; padding: 2px; flex-shrink: 0;">✕</button>
+                </div>
+                <!-- 숨겨진 저장소 (상단 템플릿 에디터와 실시간 연동) -->
+                <textarea class="port-template hidden">${this.escapeHtml(defaultTemplate)}</textarea>
+            `;
+
+            const nameInput = row.querySelector('.field-name');
+            nameInput?.addEventListener('input', () => {
+                this.renderWizardOutputPortTabs();
+            });
+
+            const colorInput = row.querySelector('.port-color-picker');
+            colorInput?.addEventListener('change', () => {
+                this.renderWizardOutputPortTabs();
+            });
+        }
 
         row.querySelector('.remove-field-btn')?.addEventListener('click', () => {
             row.remove();
+            if (type === 'output') {
+                this.renderWizardOutputPortTabs();
+            }
         });
 
         list.appendChild(row);
+        if (type === 'output') {
+            this.renderWizardOutputPortTabs();
+        }
     }
 
     async handleCustomWizardSubmit() {
@@ -977,7 +1114,7 @@ class FileTreeManager {
             });
         }
 
-        // 포트 핀 정보 수집 (이름 및 핀 색상)
+        // 포트 핀 정보 수집 (이름, 핀 색상 및 개별 출력 양식)
         const inputs = [];
         document.querySelectorAll('#wizardInputPortList .stat-field-row').forEach((row, idx) => {
             const pName = row.querySelector('.field-name')?.value.trim();
@@ -989,10 +1126,12 @@ class FileTreeManager {
         document.querySelectorAll('#wizardOutputPortList .stat-field-row').forEach((row, idx) => {
             const pName = row.querySelector('.field-name')?.value.trim();
             const pColor = row.querySelector('.port-color-picker')?.value || '#00ffcc';
-            if (pName) outputs.push({ id: `out_${idx + 1}`, name: pName, color: pColor });
+            const pTemplate = row.querySelector('.port-template')?.value.trim() || '';
+            if (pName) outputs.push({ id: `out_${idx + 1}`, name: pName, color: pColor, template: pTemplate });
         });
 
         const portsConfig = { inputs, outputs };
+        const outputTemplate = document.getElementById('wizardTextFieldsTemplate')?.value.trim() || '';
         const isEditing = !!this.editingCustomPresetId;
         const presetId = this.editingCustomPresetId || ('preset_' + Date.now());
 
@@ -1003,6 +1142,7 @@ class FileTreeManager {
             desc,
             wizardType: type,
             fields,
+            outputTemplate,
             portsConfig,
             template: type === 'file' ? (document.getElementById('wizardTemplate')?.value || 'blank') : null
         };
@@ -1016,19 +1156,25 @@ class FileTreeManager {
         window.showToast?.(isEditing ? `'${name}' 프리셋 수정이 저장되었습니다! ✏️` : `'${name}' 커스텀 노드가 노드 목록에 추가되었습니다! ✨`);
     }
 
-    async createCustomTextFieldsNode(name, icon, desc, fields, portsConfig = null) {
-        let textContent = `📌 《 ${name} 》\n\n`;
-        if (desc) textContent += `설명: ${desc}\n------------------------------\n`;
+    async createCustomTextFieldsNode(name, icon, desc, fields, portsConfig = null, outputTemplate = '') {
+        let finalTemplate = outputTemplate;
+        if (!finalTemplate) {
+            finalTemplate = `📌 《 {$이름$} 》\n` + fields.map(f => `• ${f.name}: {$${f.name}$}`).join('\n');
+        }
 
-        fields.forEach(f => {
-            textContent += `• ${f.name}: ${f.val}\n`;
-        });
+        const contentObj = {
+            isTextFieldsNode: true,
+            textFields: fields.map(f => ({ name: f.name, val: f.val })),
+            outputTemplate: finalTemplate,
+            currentTab: 'manage'
+        };
 
         const fileData = {
             name: `${icon} ${name}`,
             type: 'file',
+            isTextFieldsNode: true,
             description: desc,
-            content: textContent,
+            content: JSON.stringify(contentObj, null, 2),
             portsConfig
         };
 
