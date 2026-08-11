@@ -776,9 +776,8 @@ class FileTreeManager {
 
         container.innerHTML = '';
         const userPresets = await window.storage?.getCustomNodePresets() || [];
-        const defaultTemplates = this.getDefaultNodeTemplates();
 
-        const presets = [...userPresets, ...defaultTemplates];
+        const presets = [...userPresets];
 
         if (presets.length === 0) {
             if (section) section.style.display = 'none';
@@ -823,13 +822,19 @@ class FileTreeManager {
                 </div>
                 ${!preset.isDefault ? `
                 <div class="preset-card-actions" style="position: absolute; top: 6px; right: 6px; display: flex; gap: 2px;">
+                    <button class="edit-preset-btn" title="템플릿 수정" style="background: transparent; border: none; color: var(--color-text-tertiary); cursor: pointer; font-size: 14px; padding: 2px 5px; border-radius: 4px;">✏️</button>
                     <button class="delete-preset-btn" title="템플릿 삭제" style="background: transparent; border: none; color: var(--color-text-tertiary); cursor: pointer; font-size: 14px; padding: 2px 5px; border-radius: 4px;">✕</button>
                 </div>
                 ` : ''}
             `;
 
-            // 프리셋 삭제 버튼 (사용자 템플릿만)
+            // 프리셋 수정/삭제 버튼 (사용자 템플릿만)
             if (!preset.isDefault) {
+                card.querySelector('.edit-preset-btn')?.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    this.showCustomWizardModal(preset);
+                });
+
                 card.querySelector('.delete-preset-btn')?.addEventListener('click', async (e) => {
                     e.stopPropagation();
                     if (confirm(`'${preset.name}' 노드 템플릿을 삭제할까요?`)) {
