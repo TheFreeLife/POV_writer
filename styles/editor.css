@@ -2045,3 +2045,15 @@
   color: #ffd700 !important;
   transform: scale(1.25);
 }
+
+/* 수치 입력(number) 박스의 브라우저 기본 호버/클릭 화살표 스피너 완전 제거 */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}

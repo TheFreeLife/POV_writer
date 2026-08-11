@@ -444,30 +444,17 @@ class WindowManager {
         // 포커스
         this.focusWindow(fileId);
 
-        // 폴더 자동 수집 노드인 경우 초기 렌더링
+        // 폴더 자동 수집 노드 및 커스텀 노드(수치 노드 포함) 초기 렌더링
         const isFolderCollector = file.template === 'folder_collector' || file.isFolderCollectorNode || (file.content && typeof file.content === 'string' && file.content.includes('"isFolderCollectorNode"'));
-        const isCustomNode = !isFolderCollector && (file.isCustomNode || file.template === 'custom_node' || (file.content && typeof file.content === 'string' && file.content.includes('"isCustomNode"')));
+        const isCustomNode = !isFolderCollector && (file.isCustomNode || file.template === 'custom_node' || file.template === 'stat' || file.isStatNode || file.template === 'text_fields' || file.isTextFieldsNode || (file.content && typeof file.content === 'string' && (file.content.includes('"isCustomNode"') || file.content.includes('"stats"'))));
 
         if (isFolderCollector) {
             this.renderFolderCollectorNode(fileId);
         } else if (isCustomNode) {
             this.renderCustomNode(fileId);
-        } else if (file.template === 'stat' || file.isStatNode) {
-            this.renderStatCalculator(fileId);
-        } else if (file.isTextFieldsNode || (file.content && typeof file.content === 'string' && file.content.includes('"isTextFieldsNode"'))) {
-            this.renderTextFieldsNode(fileId);
         }
 
 
-        // 시스템 프롬프트 노드 및 AI META 노드 폼 초기 렌더링
-        const isSystemPrompt = file.isSystemPromptNode || (file.content && typeof file.content === 'string' && file.content.includes('"command"'));
-        const isAiMeta = file.isAiMetaNode || (file.content && typeof file.content === 'string' && file.content.includes('"role"'));
-
-        if (isSystemPrompt) {
-            this.renderSystemPromptNodeUI(file, windowEl);
-        } else if (isAiMeta) {
-            this.renderAiMetaNodeUI(file, windowEl);
-        }
 
         // 초기 하이라이트 적용
         this.updateHighlighter(fileId);
@@ -746,9 +733,10 @@ class WindowManager {
         const isStat = file.template === 'stat' || file.isStatNode;
         const isTextFields = file.isTextFieldsNode || (file.content && typeof file.content === 'string' && file.content.includes('"isTextFieldsNode"'));
         const isSystemPrompt = file.isSystemPromptNode || (file.content && typeof file.content === 'string' && file.content.includes('"command"'));
-        const isAiMeta = file.isAiMetaNode || (file.content && typeof file.content === 'string' && file.content.includes('"role"'));
         const isFolderCollector = file.template === 'folder_collector' || file.isFolderCollectorNode || (file.content && typeof file.content === 'string' && file.content.includes('"isFolderCollectorNode"'));
-        const isCustomNode = !isFolderCollector && (file.isCustomNode || file.template === 'custom_node' || (file.content && typeof file.content === 'string' && file.content.includes('"isCustomNode"')));
+        const isCustomNode = !isFolderCollector && (file.isCustomNode || file.template === 'custom_node' || file.template === 'stat' || file.isStatNode || file.template === 'text_fields' || file.isTextFieldsNode || (file.content && typeof file.content === 'string' && (file.content.includes('"isCustomNode"') || file.content.includes('"stats"'))));
+
+
 
         
         const win = document.createElement('div');
@@ -793,31 +781,6 @@ class WindowManager {
                     <!-- 커스텀 정의 노드 UI가 렌더링됩니다 -->
                 </div>
             `;
-        } else if (isStat) {
-            bodyContent = `
-                <div class="stat-calculator-container" id="statContainer_${file.id}">
-                    <!-- 계산기 UI가 여기에 렌더링됩니다 -->
-                </div>
-            `;
-        } else if (isTextFields) {
-            bodyContent = `
-                <div class="stat-calculator-container" id="textFieldContainer_${file.id}">
-                    <!-- 텍스트 속성 및 출력 양식 UI가 렌더링됩니다 -->
-                </div>
-            `;
-        }
- else if (isSystemPrompt) {
-            bodyContent = `
-                <div class="system-prompt-container" id="sysPromptContainer_${file.id}">
-                    <!-- 시스템 프롬프트 Key-Value 폼이 렌더링됩니다 -->
-                </div>
-            `;
-        } else if (isAiMeta) {
-            bodyContent = `
-                <div class="system-prompt-container" id="aiMetaContainer_${file.id}">
-                    <!-- AI META Key-Value 폼이 렌더링됩니다 -->
-                </div>
-            `;
         } else {
             bodyContent = `
                 <div class="window-editor">
@@ -828,6 +791,7 @@ class WindowManager {
                 </div>
             `;
         }
+
 
         const isImageNode = file.template === 'image' || (file.content && typeof file.content === 'string' && file.content.startsWith('data:image'));
         const defaultInputs = (isFolderCollector || isImageNode) ? [] : [{ id: 'in_1', name: '입력 데이터' }];
@@ -2891,9 +2855,20 @@ class WindowManager {
             data = {};
         }
 
-        const fields = data.fields || info.file.fields || [];
+        let fields = data.fields || info.file.fields || [];
+
+        // 구식 스탯 데이터(data.stats) 하위 호환 마이그레이션
+        if (fields.length === 0 && Array.isArray(data.stats) && data.stats.length > 0) {
+            fields = data.stats.map(s => ({ name: s.name, val: s.value, type: 'stat' }));
+        }
+        // 구식 텍스트 속성 데이터(data.textFields) 하위 호환 마이그레이션
+        if (fields.length === 0 && Array.isArray(data.textFields) && data.textFields.length > 0) {
+            fields = data.textFields.map(f => ({ name: f.name, val: f.val || '', type: 'text', rows: f.rows || 1 }));
+        }
+
         const code = data.code || info.file.code || '';
         const ports = info.file.portsConfig || data.portsConfig || { inputs: [], outputs: [] };
+
 
         // 수치형 항목 & 텍스트형 항목 분리
         const statFields = fields.filter(f => f.type === 'stat' || typeof f.val === 'number');
@@ -2907,9 +2882,13 @@ class WindowManager {
                 <div style="margin-bottom: 10px;">
                     <div style="font-size: 11px; font-weight: 700; color: var(--color-accent-primary); margin-bottom: 6px;">📊 수치 입력 항목</div>
                     ${statFields.map((f, i) => `
-                        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; background: var(--color-surface-1); padding: 6px 10px; border-radius: 6px; border: 1px solid var(--color-border);">
-                            <span style="font-size: 12px; font-weight: 600;">${this.escapeHtml(f.name)}</span>
-                            <input type="number" class="input stat-input-field" data-var-name="${this.escapeHtml(f.name)}" data-field-index="${i}" data-field-kind="stat" value="${f.val ?? 0}" style="width: 100px; font-size: 12px; text-align: right;">
+                        <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 8px; background: var(--color-surface-1); padding: 8px 10px; border-radius: 6px; border: 1px solid var(--color-border);">
+                            <span style="font-size: 12px; font-weight: 600; min-width: 75px; color: var(--color-text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${this.escapeHtml(f.name)}">• ${this.escapeHtml(f.name)}:</span>
+                            <div style="display: flex; align-items: center; gap: 4px; flex: 1;">
+                                <button type="button" class="btn btn-secondary" onclick="const inp=this.nextElementSibling; inp.stepDown(); inp.dispatchEvent(new Event('input'));" style="width: 32px; height: 30px; padding: 0; font-weight: 800; font-size: 16px; line-height: 1; border-radius: 6px; background: var(--color-surface-2); color: var(--color-text-primary); cursor: pointer; flex-shrink: 0; display: flex; align-items: center; justify-content: center;">−</button>
+                                <input type="number" class="input stat-input-field" data-var-name="${this.escapeHtml(f.name)}" data-field-index="${i}" data-field-kind="stat" style="flex: 1; font-size: 13px; font-weight: 700; text-align: center; height: 30px; padding: 0 4px; color: var(--color-accent-primary); background: var(--color-bg-primary); border: 1px solid var(--color-border); border-radius: 6px;" value="${f.val ?? 0}">
+                                <button type="button" class="btn btn-secondary" onclick="const inp=this.previousElementSibling; inp.stepUp(); inp.dispatchEvent(new Event('input'));" style="width: 32px; height: 30px; padding: 0; font-weight: 800; font-size: 16px; line-height: 1; border-radius: 6px; background: var(--color-surface-2); color: var(--color-text-primary); cursor: pointer; flex-shrink: 0; display: flex; align-items: center; justify-content: center;">＋</button>
+                            </div>
                         </div>
                     `).join('')}
                 </div>
@@ -2930,39 +2909,16 @@ class WindowManager {
             `;
         }
 
-
-
-
         if (fields.length === 0) {
-            fieldsHtml = `<div style="font-size: 11px; color: var(--color-text-tertiary); font-style: italic; margin-bottom: 10px; text-align: center; padding: 10px; background: var(--color-surface-1); border-radius: 6px; border: 1px dashed var(--color-border);">직접 입력 항목이 없습니다. (상위 노드 연결 전용)</div>`;
+            fieldsHtml = `<div style="font-size: 11px; color: var(--color-text-tertiary); font-style: italic; margin-bottom: 10px; text-align: center; padding: 10px; background: var(--color-surface-1); border-radius: 6px; border: 1px dashed var(--color-border);">직접 입력 항목이 없습니다.</div>`;
         }
 
-        // 전체 UI 조합
+        // 전체 UI 조합 (순수 입력 항목 전용 UI)
         body.innerHTML = `
             <div class="custom-node-container" style="padding: 12px; height: 100%; display: flex; flex-direction: column; gap: 10px; overflow-y: auto;">
                 
                 <!-- 입력 변수 항목 영역 -->
                 ${fieldsHtml}
-
-                <!-- 실행 및 컨트롤 영역 -->
-                <div style="display: flex; gap: 6px; align-items: center;">
-                    <button type="button" class="btn btn-primary btn-sm run-node-btn" style="flex: 1; font-size: 12px; font-weight: 700; padding: 6px 10px;">▶ 노드 실행</button>
-                    <button type="button" class="btn btn-secondary btn-sm toggle-code-btn" style="font-size: 11px; padding: 6px 10px;">⚡ 코드 보기</button>
-                </div>
-
-                <!-- 코드 확인/수정 아코디언 (접힘/펴짐) -->
-                <div class="code-view-section hidden" style="background: var(--color-bg-secondary); padding: 10px; border-radius: 8px; border: 1px solid var(--color-border);">
-                    <div style="font-size: 11px; font-weight: 700; color: var(--color-text-tertiary); margin-bottom: 6px;">⚡ 동작 코드 (JavaScript)</div>
-                    <textarea class="input node-code-editor" rows="5" style="width: 100%; font-family: 'Fira Code', 'Consolas', monospace; font-size: 11px; line-height: 1.5; resize: vertical;" placeholder="// return { 핀이름: 값 }">${this.escapeHtml(code)}</textarea>
-                </div>
-
-                <!-- 실행 결과 영역 -->
-                <div class="node-output-result-box" style="background: var(--color-surface-1); border: 1px solid var(--color-border); padding: 10px; border-radius: 8px; font-size: 12px;">
-                    <div style="font-size: 11px; font-weight: 700; color: var(--color-accent-primary); margin-bottom: 6px;">📤 Output 출력 결과</div>
-                    <div class="output-values-list" style="font-size: 11px; font-family: monospace; color: var(--color-text-secondary);">
-                        <span style="color: var(--color-text-tertiary);">'▶ 노드 실행' 버튼을 눌러 결과를 확인하세요.</span>
-                    </div>
-                </div>
 
             </div>
         `;
@@ -2982,233 +2938,13 @@ class WindowManager {
                 window.storage?.updateFile(fileId, { content: info.file.content });
             });
         });
-
-        // 2) 코드 에디터 변경 자동 저장
-        const codeEditor = body.querySelector('.node-code-editor');
-        if (codeEditor) {
-            codeEditor.addEventListener('input', () => {
-                data.code = codeEditor.value;
-                info.file.code = codeEditor.value;
-                info.file.content = JSON.stringify(data, null, 2);
-                window.storage?.updateFile(fileId, { content: info.file.content, code: codeEditor.value });
-            });
-        }
-
-        // 3) 코드 보기/숨기기 토글 버튼
-        const toggleBtn = body.querySelector('.toggle-code-btn');
-        const codeSec = body.querySelector('.code-view-section');
-        if (toggleBtn && codeSec) {
-            toggleBtn.addEventListener('click', () => {
-                codeSec.classList.toggle('hidden');
-                toggleBtn.textContent = codeSec.classList.contains('hidden') ? '⚡ 코드 보기' : '⚡ 코드 숨기기';
-            });
-        }
-
-        // 4) 노드 실행 버튼 클릭 이벤트
-        const runBtn = body.querySelector('.run-node-btn');
-        const resultList = body.querySelector('.output-values-list');
-
-        if (runBtn && resultList) {
-            runBtn.addEventListener('click', async () => {
-                if (!window.nodeEngine) return;
-                runBtn.textContent = '⏳ 실행 중...';
-
-                const { output, warnings } = await window.nodeEngine.runNode(fileId);
-                runBtn.textContent = '▶ 노드 실행';
-
-                let resHtml = '';
-                if (warnings && warnings.length > 0) {
-                    resHtml += `<div style="color: var(--color-accent-danger); margin-bottom: 6px; font-weight: bold; font-family: sans-serif;">${warnings.join('<br>')}</div>`;
-                }
-
-                const keys = Object.keys(output);
-                if (keys.length === 0) {
-                    resHtml += `<span style="color: var(--color-text-tertiary);">출력 결과가 없습니다.</span>`;
-                } else {
-                    resHtml += keys.map(k => `
-                        <div style="display: flex; justify-content: space-between; align-items: flex-start; padding: 4px 6px; background: var(--color-bg-secondary); border-radius: 4px; margin-bottom: 4px;">
-                            <span style="font-weight: bold; color: var(--color-accent-primary);">${this.escapeHtml(k)}:</span>
-                            <span style="word-break: break-all; margin-left: 8px; color: var(--color-text-primary);">${this.escapeHtml(typeof output[k] === 'object' ? JSON.stringify(output[k]) : String(output[k] ?? 'null'))}</span>
-                        </div>
-                    `).join('');
-                }
-
-                resultList.innerHTML = resHtml;
-            });
-        }
     }
 
-    renderTextFieldsNode(fileId) {
 
-        const info = this.windows.get(fileId);
-        const container = document.getElementById(`textFieldContainer_${fileId}`);
-        if (!info || !container) return;
 
-        let data;
-        try {
-            data = typeof info.file.content === 'string' ? JSON.parse(info.file.content || '{}') : (info.file.content || {});
-            if (!data.textFields) data.textFields = [];
-            if (!data.outputTemplate) {
-                data.outputTemplate = `📌 《 {$이름$} 》\n` + data.textFields.map(f => `• ${f.name}: {$${f.name}$}`).join('\n');
-            }
-            if (data.currentTab === undefined) data.currentTab = 'manage';
-        } catch (e) {
-            data = { textFields: [], outputTemplate: '', currentTab: 'manage' };
-        }
 
-        const tab = data.currentTab;
-        const evaluatedText = this.getEvaluatedTextFieldsText(info.file);
-        const outputsArr = (info.file.portsConfig?.outputs && info.file.portsConfig.outputs.length > 0) 
-            ? info.file.portsConfig.outputs 
-            : [{ id: 'out_1', name: '기본 출력', color: '#00ffcc', template: data.outputTemplate }];
 
-        container.innerHTML = `
-            <div class="stat-tabs">
-                <div class="stat-tab ${tab === 'manage' ? 'active' : ''}" onclick="window.windowManager.switchTextFieldTab('${fileId}', 'manage')">⚙️ 속성/값 입력</div>
-                <div class="stat-tab ${tab === 'template' ? 'active' : ''}" onclick="window.windowManager.switchTextFieldTab('${fileId}', 'template')">📝 포트별 출력 양식 (${outputsArr.length})</div>
-            </div>
-            
-            <div class="stat-content" id="textContent_${fileId}">
-                ${tab === 'manage' ? `
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-                        <span style="font-size: 14px; font-weight: 700; color: var(--color-text-secondary);">🏷️ 텍스트 속성 값 입력</span>
-                        <span style="font-size: 11px; color: var(--color-text-tertiary);">* 항목 수정은 프리셋 마법사에서 가능</span>
-                    </div>
-                    ${data.textFields.map((f, idx) => `
-                        <div class="stat-field-row mb-xs" style="display: flex; gap: 8px; align-items: center; margin-bottom: 10px; background: var(--color-surface-1); padding: 6px 10px; border-radius: 6px; border: 1px solid var(--color-border);">
-                            <span style="width: 110px; font-size: 12px; font-weight: 700; color: var(--color-accent-primary); display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${this.escapeHtml(f.name)}">• ${this.escapeHtml(f.name)}:</span>
-                            <input type="text" class="input field-val" style="flex: 1; font-size: 12px; height: 28px;" value="${this.escapeHtml(f.val || '')}" 
-                                oninput="window.windowManager.onTextFieldValueChange('${fileId}', ${idx}, this.value)" placeholder="내용 입력...">
-                        </div>
-                    `).join('')}
-                    ${data.textFields.length === 0 ? '<div style="text-align: center; padding: 20px; color: var(--color-text-tertiary); font-size: 13px;">등록된 속성 항목이 없습니다.</div>' : ''}
 
-                    <!-- 실시간 최종 출력 미리보기 카드 -->
-                    <div style="margin-top: 16px; border-top: 1px dashed var(--color-border); padding-top: 14px;">
-                        <div style="font-size: 12px; font-weight: 700; color: var(--color-accent-primary); margin-bottom: 6px;">👁️ 템플릿 기본 출력 미리보기</div>
-                        <pre style="background: var(--color-bg-primary); border: 1px solid var(--color-border); padding: 12px; border-radius: 8px; font-family: inherit; font-size: 12px; line-height: 1.6; white-space: pre-wrap; word-break: break-all; margin: 0; color: var(--color-text-primary);">${this.escapeHtml(evaluatedText)}</pre>
-                    </div>
-                ` : ''}
-
-                ${tab === 'template' ? `
-                    <div style="height: 100%; display: flex; flex-direction: column; gap: 12px; overflow-y: auto; max-height: 480px;">
-                        <div style="display: flex; justify-content: space-between; align-items: center;">
-                            <span style="font-size: 14px; font-weight: 700; color: var(--color-text-secondary);">📝 각 Output 포트별 출력 양식 (조회 전용)</span>
-                            <span style="font-size: 11px; color: var(--color-text-tertiary);">* 양식 수정은 프리셋 마법사에서 가능</span>
-                        </div>
-
-                        ${outputsArr.map(p => `
-                            <div class="port-template-card" style="background: var(--color-surface-1); border: 1px solid var(--color-border); padding: 12px; border-radius: 8px; margin-bottom: 6px;">
-                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-                                    <span style="font-size: 13px; font-weight: 700; color: ${p.color || '#00ffcc'};">📤 포트: ${this.escapeHtml(p.name)}</span>
-                                    <span style="font-size: 10px; color: var(--color-text-tertiary);">핀 ID: ${p.id}</span>
-                                </div>
-                                <pre style="background: var(--color-bg-primary); border: 1px solid var(--color-border); padding: 10px; border-radius: 6px; font-family: inherit; font-size: 12px; line-height: 1.5; margin: 0; color: #e6edf3; white-space: pre-wrap; word-break: break-all;">${this.escapeHtml(p.template !== undefined && p.template !== '' ? p.template : data.outputTemplate)}</pre>
-                            </div>
-                        `).join('')}
-                    </div>
-                ` : ''}
-            </div>
-        `;
-    }
-
-    async updateAllPortTemplates(fileId) {
-        const info = this.windows.get(fileId);
-        const container = document.getElementById(`textFieldContainer_${fileId}`);
-        if (!info || !container) return;
-
-        const textareas = container.querySelectorAll(`.port-template-editor_${fileId}`);
-        const portsConfig = info.file.portsConfig || { inputs: [], outputs: [] };
-        if (!portsConfig.outputs) portsConfig.outputs = [];
-
-        textareas.forEach(ta => {
-            const portId = ta.dataset.portId;
-            const val = ta.value;
-            const targetPort = portsConfig.outputs.find(p => p.id === portId);
-            if (targetPort) {
-                targetPort.template = val;
-            }
-        });
-
-        info.file.portsConfig = portsConfig;
-        await window.storage?.updateFile(fileId, { portsConfig });
-
-        // 첫 번째 템플릿을 global outputTemplate에도 동기화
-        let data = typeof info.file.content === 'string' ? JSON.parse(info.file.content || '{}') : (info.file.content || {});
-        if (textareas[0]) {
-            data.outputTemplate = textareas[0].value;
-            info.file.content = JSON.stringify(data, null, 2);
-            await window.storage?.updateFile(fileId, { content: info.file.content });
-        }
-
-        window.showToast?.('각 Output 포트별 출력 양식이 저장되었습니다! 💾');
-        this.renderTextFieldsNode(fileId);
-    }
-
-    async switchTextFieldTab(fileId, tab) {
-        const info = this.windows.get(fileId);
-        if (!info) return;
-        let data = typeof info.file.content === 'string' ? JSON.parse(info.file.content || '{}') : (info.file.content || {});
-        data.currentTab = tab;
-        await this.saveTextFieldData(fileId, data);
-    }
-
-    async onTextFieldNameChange(fileId, index, newName) {
-        const info = this.windows.get(fileId);
-        if (!info) return;
-        let data = typeof info.file.content === 'string' ? JSON.parse(info.file.content || '{}') : (info.file.content || {});
-        if (data.textFields && data.textFields[index]) {
-            data.textFields[index].name = newName;
-            await this.saveTextFieldData(fileId, data);
-        }
-    }
-
-    async onTextFieldValueChange(fileId, index, newVal) {
-        const info = this.windows.get(fileId);
-        if (!info) return;
-        let data = typeof info.file.content === 'string' ? JSON.parse(info.file.content || '{}') : (info.file.content || {});
-        if (data.textFields && data.textFields[index]) {
-            data.textFields[index].val = newVal;
-            await this.saveTextFieldData(fileId, data);
-        }
-    }
-
-    async addTextFieldItem(fileId) {
-        const info = this.windows.get(fileId);
-        if (!info) return;
-        let data = typeof info.file.content === 'string' ? JSON.parse(info.file.content || '{}') : (info.file.content || {});
-        if (!data.textFields) data.textFields = [];
-        data.textFields.push({ name: `속성_${data.textFields.length + 1}`, val: '' });
-        await this.saveTextFieldData(fileId, data);
-    }
-
-    async removeTextFieldItem(fileId, index) {
-        const info = this.windows.get(fileId);
-        if (!info) return;
-        let data = typeof info.file.content === 'string' ? JSON.parse(info.file.content || '{}') : (info.file.content || {});
-        if (data.textFields) {
-            data.textFields.splice(index, 1);
-            await this.saveTextFieldData(fileId, data);
-        }
-    }
-
-    async updateTextFieldTemplate(fileId, template) {
-        const info = this.windows.get(fileId);
-        if (!info) return;
-        let data = typeof info.file.content === 'string' ? JSON.parse(info.file.content || '{}') : (info.file.content || {});
-        data.outputTemplate = template;
-        await this.saveTextFieldData(fileId, data);
-        window.showToast?.('출력 양식이 저장되었습니다.');
-    }
-
-    async saveTextFieldData(fileId, data) {
-        const info = this.windows.get(fileId);
-        if (!info) return;
-        const newContent = JSON.stringify(data, null, 2);
-        info.file.content = newContent;
-        await storage.updateFile(fileId, { content: newContent });
-        this.renderTextFieldsNode(fileId);
-    }
 
     /**
      * 수치 계산기 내부 리사이징 시작

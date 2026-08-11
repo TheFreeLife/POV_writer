@@ -268,31 +268,35 @@ class FileTreeManager {
     }
 
     /**
-     * 수치 계산기 생성 모달 표시
+     * 수치 계산기 커스텀 노드 생성
      */
-    showNewStatModal(parentId = null) {
-        this.newItemType = 'file';
-        this.newItemParentId = parentId;
-        this.editingItem = null;
+    async showNewStatModal(parentId = null) {
+        const fileData = {
+            name: '📊 수치 계산기',
+            type: 'file',
+            parentId: parentId,
+            isCustomNode: true,
+            template: 'custom_node',
+            icon: '📊',
+            description: '스탯 입력값과 연산 코드가 포함된 노드',
+            fields: [
+                { name: '근력', val: 10, type: 'stat' },
+                { name: '민첩', val: 10, type: 'stat' },
+                { name: '지능', val: 10, type: 'stat' }
+            ],
+            code: `const 총합 = (Number(input.근력) || 0) + (Number(input.민첩) || 0) + (Number(input.지능) || 0);\nconst 전투력 = (Number(input.근력) || 0) * 2 + (Number(input.민첩) || 0) * 1.5 + (Number(input.지능) || 0);\nreturn { 총합, 전투력 };`,
+            portsConfig: {
+                inputs: [],
+                outputs: [
+                    { id: 'out_1', name: '총합', color: '#00ffcc' },
+                    { id: 'out_2', name: '전투력', color: '#00ffcc' }
+                ]
+            }
+        };
 
-        const modal = document.getElementById('newFileModal');
-        const title = document.getElementById('newFileModalTitle');
-        const templateGroup = document.getElementById('templateGroup');
-        const submitBtn = document.getElementById('createFileBtn');
-
-        if (modal && title) {
-            title.textContent = '새 수치 계산기(상태창) 생성';
-            submitBtn.textContent = '생성';
-            document.getElementById('fileName').value = '';
-            if (templateGroup) templateGroup.style.display = 'none';
-
-            // 강제로 stat 템플릿 타입을 지정하기 위해 플래그 설정
-            this.isStatCreation = true;
-
-            modal.classList.remove('hidden');
-            document.getElementById('fileName').focus();
-        }
+        await this.createNewCustomNode(fileData);
     }
+
 
     /**
      * 이미지 생성 모달 표시
@@ -1152,77 +1156,7 @@ class FileTreeManager {
     }
 
 
-    renderWizardOutputPortTabs() {
-        const tabsContainer = document.getElementById('wizardOutputPortTabs');
-        if (!tabsContainer) return;
 
-        const outRows = Array.from(document.querySelectorAll('#wizardOutputPortList .stat-field-row'));
-        tabsContainer.innerHTML = '';
-
-        if (outRows.length === 0) {
-            tabsContainer.innerHTML = '<span style="font-size: 11px; color: var(--color-text-tertiary);">Output 포트가 없습니다. 4번 구역에서 포트를 추가하세요.</span>';
-            const activeLabel = document.getElementById('wizardActivePortLabel');
-            if (activeLabel) activeLabel.textContent = 'Output 포트 없음';
-            return;
-        }
-
-        if (this.wizardActiveOutputPortIndex === undefined || this.wizardActiveOutputPortIndex >= outRows.length) {
-            this.wizardActiveOutputPortIndex = 0;
-        }
-
-        outRows.forEach((row, idx) => {
-            const name = row.querySelector('.field-name')?.value.trim() || `포트 ${idx + 1}`;
-            const color = row.querySelector('.port-color-picker')?.value || '#00ffcc';
-            const isActive = (idx === this.wizardActiveOutputPortIndex);
-
-            const tabBtn = document.createElement('button');
-            tabBtn.type = 'button';
-            tabBtn.className = `btn btn-sm ${isActive ? 'btn-primary' : 'btn-secondary'}`;
-            tabBtn.style.fontSize = '11px';
-            tabBtn.style.padding = '2px 10px';
-            tabBtn.style.borderLeft = `4px solid ${color}`;
-            tabBtn.style.fontWeight = isActive ? '700' : '400';
-            tabBtn.innerHTML = `📤 ${this.escapeHtml(name)}`;
-
-            tabBtn.addEventListener('click', () => {
-                this.switchWizardOutputPortTab(idx);
-            });
-
-            tabsContainer.appendChild(tabBtn);
-        });
-
-        // 라벨 업데이트 및 큰 텍스트 상자에 템플릿 값 채우기
-        const activeRow = outRows[this.wizardActiveOutputPortIndex];
-        const activeName = activeRow?.querySelector('.field-name')?.value.trim() || `포트 ${this.wizardActiveOutputPortIndex + 1}`;
-        const activeLabel = document.getElementById('wizardActivePortLabel');
-        if (activeLabel) {
-            activeLabel.textContent = `📤 [${activeName}] 양식 편집 중`;
-        }
-
-        const templateEl = document.getElementById('wizardTextFieldsTemplate');
-        if (templateEl && activeRow) {
-            const targetTmpl = activeRow.querySelector('.port-template');
-            templateEl.value = targetTmpl ? targetTmpl.value : '';
-        }
-    }
-
-    switchWizardOutputPortTab(newIdx) {
-        const outRows = Array.from(document.querySelectorAll('#wizardOutputPortList .stat-field-row'));
-        if (outRows.length === 0) return;
-
-        const templateEl = document.getElementById('wizardTextFieldsTemplate');
-        
-        // 현재 활성 포트 템플릿 저장
-        if (templateEl && this.wizardActiveOutputPortIndex !== undefined && outRows[this.wizardActiveOutputPortIndex]) {
-            const currentTmplBox = outRows[this.wizardActiveOutputPortIndex].querySelector('.port-template');
-            if (currentTmplBox) {
-                currentTmplBox.value = templateEl.value;
-            }
-        }
-
-        this.wizardActiveOutputPortIndex = Math.max(0, Math.min(newIdx, outRows.length - 1));
-        this.renderWizardOutputPortTabs();
-    }
 
     addPortConfigRow(type = 'input', defaultName = '', defaultColor = '', defaultTemplate = '') {
         const listId = type === 'input' ? 'wizardInputPortList' : 'wizardOutputPortList';
@@ -1465,59 +1399,7 @@ class FileTreeManager {
         }
     }
 
-    async createSystemPromptNode() {
-        const promptData = {
-            command: "WRITE_CHAPTER",
-            instruction: "아래의 [설정값]과 [지금까지의 줄거리]를 완벽히 분석하여, [현재 챕터 범위]에 해당하는 소설 본문을 즉시 작성하시오.",
-            outputRequirements: "JSON 분석이나 사족(인사말)을 붙이지 말고, 오직 소설 제목과 본문 텍스트만을 일반적인 텍스트로 출력할 것."
-        };
 
-        const fileData = {
-            name: `🤖 시스템 프롬프트`,
-            type: 'file',
-            isSystemPromptNode: true,
-            description: '명령, 지침, 출력 요구사항 설정 전용 Key-Value 노드',
-            content: JSON.stringify(promptData, null, 2),
-            portsConfig: {
-                inputs: [
-                    { id: 'in_1', name: '지침 데이터' },
-                    { id: 'in_2', name: '세계관 규칙' }
-                ],
-                outputs: [
-                    { id: 'out_1', name: '시스템 프롬프트 출력' }
-                ]
-            }
-        };
-
-        await this.createNewCustomNode(fileData);
-    }
-
-    async createAiMetaNode() {
-        const metaData = {
-            role: "대박을 친 한국의 웹소설 작가 (카카오페이지/네이버 시리즈 스타일)",
-            task: "현재 챕터 소설 본문 작성",
-            detailedInstructions: "1. 인물 간의 텐션 높은 대사와 빠른 스토리 전개감을 살릴 것.\n2. 챕터 마지막에 다음 회차에 대한 궁금증을 극대화하는 절벽엔딩(Cliffhanger)을 배치할 것.\n3. 설정 노드의 스탯/속성값들과 이전 챕터 줄거리를 완벽히 계승할 것."
-        };
-
-        const fileData = {
-            name: `🎭 AI META 지정`,
-            type: 'file',
-            isAiMetaNode: true,
-            description: '역할, 임무, 상세 지시사항 설정 전용 Key-Value 노드',
-            content: JSON.stringify(metaData, null, 2),
-            portsConfig: {
-                inputs: [
-                    { id: 'in_1', name: '작가 페르소나' }
-                ],
-                outputs: [
-                    { id: 'out_1', name: '메타 가이드' },
-                    { id: 'out_2', name: '세부 지시사항' }
-                ]
-            }
-        };
-
-        await this.createNewCustomNode(fileData);
-    }
 
     updateNodeWizardUI() {
         const type = this.selectedCreateNodeType || 'file';
