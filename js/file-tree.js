@@ -41,12 +41,11 @@ class FileTreeManager {
                     const presetType = card.dataset.presetType;
                     this.hideNodeSelectModal();
 
-                    if (presetType === 'system_prompt') this.createSystemPromptNode();
-                    else if (presetType === 'ai_meta') this.createAiMetaNode();
-                    else if (presetType === 'stat') this.showNewStatModal();
+                    if (presetType === 'stat') this.showNewStatModal();
                     else if (presetType === 'image') this.showNewImageModal();
                     else if (presetType === 'folder_collector') this.createCustomFolderCollectorNode('폴더 자동 수집기', '📂', '선택한 폴더의 모든 노드 자동 수집');
                     else this.showNewItemModal('file');
+
                 });
             });
         }
@@ -693,78 +692,22 @@ class FileTreeManager {
                 id: 'preset_default_character',
                 name: '주인공 캐릭터 카드',
                 icon: '👤',
-                desc: '이름, 소속, 성격, 배경 등 입력값이 미리 채워진 캐릭터 속성 노드',
-                wizardType: 'text_fields',
-                isTextFieldsNode: true,
+                desc: '이름, 소속, 성격, 특이사항 입력란과 프로필 생성 코드가 포함된 노드',
+                isCustomNode: true,
                 isDefault: true,
-                content: JSON.stringify({
-                    isTextFieldsNode: true,
-                    textFields: [
-                        { id: 'f_1', name: '이름', value: '강현우' },
-                        { id: 'f_2', name: '소속', value: '중앙 아카데미 3학년' },
-                        { id: 'f_3', name: '성격', value: '평소엔 침착하지만 동료를 위해 물불 가리지 않음' },
-                        { id: 'f_4', name: '특이사항', value: '10년 전 전생의 기억을 온전히 가지고 회귀함' }
-                    ],
-                    outputTemplate: `📌 《 {$이름$} 》\n• 소속: {$소속$}\n• 성격: {$성격$}\n• 특이사항: {$특이사항$}`
-                }, null, 2),
-                portsConfig: { inputs: [], outputs: [{ id: 'out_1', name: '캐릭터 정보', color: '#00ffcc' }] }
-            },
-            {
-                id: 'preset_default_item',
-                name: '전설의 무기 정보',
-                icon: '⚔️',
-                desc: '아이템명, 등급, 고유 효과 등 입력값이 미리 채워진 장비 노드',
-                wizardType: 'text_fields',
-                isTextFieldsNode: true,
-                isDefault: true,
-                content: JSON.stringify({
-                    isTextFieldsNode: true,
-                    textFields: [
-                        { id: 'f_1', name: '아이템명', value: '멸망의 성검' },
-                        { id: 'f_2', name: '등급', value: '🌟 신화 등급' },
-                        { id: 'f_3', name: '고유 효과', value: '모든 언데드/마족 속성 공격 시 300% 추가 치명타 피해' },
-                        { id: 'f_4', name: '배경 설화', value: '태초의 구원자가 신의 보혈을 적셔 탄생시킨 성검' }
-                    ],
-                    outputTemplate: `⚔️ 《 {$아이템명$} 》\n• 등급: {$등급$}\n• 효과: {$고유 효과$}\n• 설화: {$배경 설화$}`
-                }, null, 2),
-                portsConfig: { inputs: [], outputs: [{ id: 'out_1', name: '아이템 정보', color: '#00ffcc' }] }
-            },
-            {
-                id: 'preset_default_chapter',
-                name: '에피소드 개요 템플릿',
-                icon: '📜',
-                desc: '도입부, 주요 사건, 클라이맥스 전개 입력란이 채워진 노드',
-                wizardType: 'text_fields',
-                isTextFieldsNode: true,
-                isDefault: true,
-                content: JSON.stringify({
-                    isTextFieldsNode: true,
-                    textFields: [
-                        { id: 'f_1', name: '에피소드 제목', value: '회귀자의 첫 수업' },
-                        { id: 'f_2', name: '도입부', value: '아카데미 입학식 아침으로의 회귀' },
-                        { id: 'f_3', name: '주요 사건', value: '전생 라이벌과의 마력 실기 테스트 대결' },
-                        { id: 'f_4', name: '클라이맥스', value: '숨겨두었던 가문 전승 마력 기법 개방' }
-                    ],
-                    outputTemplate: `📜 《 1화: {$에피소드 제목$} 》\n1. 도입: {$도입부$}\n2. 사건: {$주요 사건$}\n3. 클라이맥스: {$클라이맥스$}`
-                }, null, 2),
-                portsConfig: { inputs: [], outputs: [{ id: 'out_1', name: '에피소드 개요', color: '#00ffcc' }] }
-            },
-            {
-                id: 'preset_default_sysprompt',
-                name: '웹소설 AI 집필 프롬프트',
-                icon: '🤖',
-                desc: '웹소설 에피소드 집필 전용 AI 시스템 프롬프트 노드',
-                wizardType: 'system_prompt',
-                isSystemPromptNode: true,
-                isDefault: true,
-                content: JSON.stringify({
-                    command: '웹소설 에피소드 집필',
-                    text: '당신은 한국 모던 웹소설 스타일 전문 작가입니다. 긴장감 있고 속도감 있는 전개, 생생한 인물 대사로 시나리오를 확장하여 집필하세요.'
-                }, null, 2),
-                portsConfig: { inputs: [{ id: 'in_1', name: '입력 프롬프트' }], outputs: [{ id: 'out_1', name: '생성 텍스트', color: '#00ffcc' }] }
+                fields: [
+                    { name: '이름', val: '강현우', type: 'text', rows: 1 },
+                    { name: '소속', val: '중앙 아카데미 3학년', type: 'text', rows: 1 },
+                    { name: '성격', val: '평소엔 침착하지만 동료를 위해 물불 가리지 않음', type: 'text', rows: 2 },
+                    { name: '특이사항', val: '10년 전 전생의 기억을 온전히 가지고 회귀함', type: 'text', rows: 2 }
+                ],
+                code: `const 프로필 = \`📌 《 \${input.이름} 》\\n• 소속: \${input.소속}\\n• 성격: \${input.성격}\\n• 특이사항: \${input.특이사항}\`;\nreturn { 프로필 };`,
+                portsConfig: { inputs: [], outputs: [{ id: 'out_1', name: '프로필', color: '#00ffcc' }] }
             }
         ];
     }
+
+
 
     async renderCustomNodePresets() {
         const container = document.getElementById('customPresetsContainer');

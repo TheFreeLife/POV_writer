@@ -444,28 +444,20 @@ class WindowManager {
         // 포커스
         this.focusWindow(fileId);
 
-        // 커스텀 정의 노드인 경우 초기 렌더링
-        const isCustomNode = file.isCustomNode || file.template === 'custom_node' || (file.content && typeof file.content === 'string' && file.content.includes('"isCustomNode"'));
-        if (isCustomNode) {
+        // 폴더 자동 수집 노드인 경우 초기 렌더링
+        const isFolderCollector = file.template === 'folder_collector' || file.isFolderCollectorNode || (file.content && typeof file.content === 'string' && file.content.includes('"isFolderCollectorNode"'));
+        const isCustomNode = !isFolderCollector && (file.isCustomNode || file.template === 'custom_node' || (file.content && typeof file.content === 'string' && file.content.includes('"isCustomNode"')));
+
+        if (isFolderCollector) {
+            this.renderFolderCollectorNode(fileId);
+        } else if (isCustomNode) {
             this.renderCustomNode(fileId);
-        }
-
-        // 수치 계산기인 경우 초기 렌더링
-        if (file.template === 'stat' || file.isStatNode) {
+        } else if (file.template === 'stat' || file.isStatNode) {
             this.renderStatCalculator(fileId);
-        }
-
-        // 텍스트 속성 노드인 경우 초기 렌더링
-        const isTextFields = file.isTextFieldsNode || (file.content && typeof file.content === 'string' && file.content.includes('"isTextFieldsNode"'));
-        if (isTextFields) {
+        } else if (file.isTextFieldsNode || (file.content && typeof file.content === 'string' && file.content.includes('"isTextFieldsNode"'))) {
             this.renderTextFieldsNode(fileId);
         }
 
-        // 폴더 자동 수집 노드인 경우 초기 렌더링
-        const isFolderCollector = file.template === 'folder_collector' || file.isFolderCollectorNode || (file.content && typeof file.content === 'string' && file.content.includes('"isFolderCollectorNode"'));
-        if (isFolderCollector) {
-            this.renderFolderCollectorNode(fileId);
-        }
 
         // 시스템 프롬프트 노드 및 AI META 노드 폼 초기 렌더링
         const isSystemPrompt = file.isSystemPromptNode || (file.content && typeof file.content === 'string' && file.content.includes('"command"'));
@@ -755,7 +747,9 @@ class WindowManager {
         const isTextFields = file.isTextFieldsNode || (file.content && typeof file.content === 'string' && file.content.includes('"isTextFieldsNode"'));
         const isSystemPrompt = file.isSystemPromptNode || (file.content && typeof file.content === 'string' && file.content.includes('"command"'));
         const isAiMeta = file.isAiMetaNode || (file.content && typeof file.content === 'string' && file.content.includes('"role"'));
-        const isCustomNode = file.isCustomNode || file.template === 'custom_node' || (file.content && typeof file.content === 'string' && file.content.includes('"isCustomNode"'));
+        const isFolderCollector = file.template === 'folder_collector' || file.isFolderCollectorNode || (file.content && typeof file.content === 'string' && file.content.includes('"isFolderCollectorNode"'));
+        const isCustomNode = !isFolderCollector && (file.isCustomNode || file.template === 'custom_node' || (file.content && typeof file.content === 'string' && file.content.includes('"isCustomNode"')));
+
         
         const win = document.createElement('div');
         win.className = `editor-window${isCollapsed ? ' collapsed' : ''}${isImage ? ' image-window' : ''}${isStat ? ' stat-window' : ''}`;
@@ -787,6 +781,12 @@ class WindowManager {
                     </div>
                 </div>
             `;
+        } else if (isFolderCollector) {
+            bodyContent = `
+                <div class="stat-calculator-container" id="folderCollectorContainer_${file.id}">
+                    <!-- 폴더 자동 수집 노드 UI가 렌더링됩니다 -->
+                </div>
+            `;
         } else if (isCustomNode) {
             bodyContent = `
                 <div class="window-body custom-node-body" style="padding:0; height:calc(100% - 35px); overflow:hidden;">
@@ -794,7 +794,6 @@ class WindowManager {
                 </div>
             `;
         } else if (isStat) {
-
             bodyContent = `
                 <div class="stat-calculator-container" id="statContainer_${file.id}">
                     <!-- 계산기 UI가 여기에 렌더링됩니다 -->
@@ -806,13 +805,8 @@ class WindowManager {
                     <!-- 텍스트 속성 및 출력 양식 UI가 렌더링됩니다 -->
                 </div>
             `;
-        } else if (file.template === 'folder_collector' || file.isFolderCollectorNode || (file.content && typeof file.content === 'string' && file.content.includes('"isFolderCollectorNode"'))) {
-            bodyContent = `
-                <div class="stat-calculator-container" id="folderCollectorContainer_${file.id}">
-                    <!-- 폴더 자동 수집 노드 UI가 렌더링됩니다 -->
-                </div>
-            `;
-        } else if (isSystemPrompt) {
+        }
+ else if (isSystemPrompt) {
             bodyContent = `
                 <div class="system-prompt-container" id="sysPromptContainer_${file.id}">
                     <!-- 시스템 프롬프트 Key-Value 폼이 렌더링됩니다 -->
@@ -835,9 +829,9 @@ class WindowManager {
             `;
         }
 
-        const isFolderCollector = file.template === 'folder_collector' || file.isFolderCollectorNode || (file.content && typeof file.content === 'string' && file.content.includes('"isFolderCollectorNode"'));
         const isImageNode = file.template === 'image' || (file.content && typeof file.content === 'string' && file.content.startsWith('data:image'));
         const defaultInputs = (isFolderCollector || isImageNode) ? [] : [{ id: 'in_1', name: '입력 데이터' }];
+
         const portsConfig = file.portsConfig || {
             inputs: defaultInputs,
             outputs: [{ id: 'out_1', name: '출력 데이터' }]
