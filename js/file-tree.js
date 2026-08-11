@@ -78,7 +78,8 @@ class FileTreeManager {
 
         // 수치 항목 추가 버튼
         document.getElementById('wizardAddStatBtn')?.addEventListener('click', () => {
-            this.addWizardStatRow('', 0);
+            const newName = '';
+            this.addWizardStatRow(newName, 0);
         });
 
         // 텍스트 항목 추가 버튼
@@ -88,42 +89,45 @@ class FileTreeManager {
 
         // 포트 항목 추가 버튼
         document.getElementById('wizardAddInputPortBtn')?.addEventListener('click', () => {
-            this.addPortConfigRow('input', '입력 데이터');
+            const existing = this.getWizardAllVarNames();
+            let candidate = '입력 데이터';
+            let idx = 1;
+            while (existing.includes(candidate)) { candidate = `입력 데이터 ${++idx}`; }
+            this.addPortConfigRow('input', candidate);
         });
         document.getElementById('wizardAddOutputPortBtn')?.addEventListener('click', () => {
-            this.addPortConfigRow('output', `출력 데이터 ${document.querySelectorAll('#wizardOutputPortList .stat-field-row').length + 1}`);
+            const existing = this.getWizardAllVarNames();
+            let candidate = `출력 데이터 ${document.querySelectorAll('#wizardOutputPortList .stat-field-row').length + 1}`;
+            let idx = document.querySelectorAll('#wizardOutputPortList .stat-field-row').length + 1;
+            while (existing.includes(candidate)) { candidate = `출력 데이터 ${++idx}`; }
+            this.addPortConfigRow('output', candidate);
         });
 
-        // 큰 양식 텍스트 상자 실시간 동기화
-        document.getElementById('wizardTextFieldsTemplate')?.addEventListener('input', (e) => {
-            const outRows = document.querySelectorAll('#wizardOutputPortList .stat-field-row');
-            const activeIdx = this.wizardActiveOutputPortIndex || 0;
-            if (outRows[activeIdx]) {
-                const targetTmpl = outRows[activeIdx].querySelector('.port-template');
-                if (targetTmpl) targetTmpl.value = e.target.value;
-            }
+        // 테스트 실행 버튼
+        document.getElementById('wizardTestRunBtn')?.addEventListener('click', () => {
+            this.runWizardCodeTest();
         });
 
-        // 🪄 양식 자동생성 버튼 연동
-        document.getElementById('wizardAutoTemplateBtn')?.addEventListener('click', () => {
-            const fields = [];
-            document.querySelectorAll('#wizardTextFieldsList .stat-field-row').forEach(row => {
-                const fName = row.querySelector('.field-name')?.value.trim();
-                if (fName) fields.push(fName);
-            });
-            const tEl = document.getElementById('wizardTextFieldsTemplate');
-            if (tEl) {
-                tEl.value = `📌 《 {$이름$} 》\n` + fields.map(name => `• ${name}: {$${name}$}`).join('\n');
-                
-                // 동기화된 Output 포트 템플릿에도 즉시 반응
-                const outRows = document.querySelectorAll('#wizardOutputPortList .stat-field-row');
-                const activeIdx = this.wizardActiveOutputPortIndex || 0;
-                if (outRows[activeIdx]) {
-                    const targetTmpl = outRows[activeIdx].querySelector('.port-template');
-                    if (targetTmpl) targetTmpl.value = tEl.value;
-                }
-            }
+        // 사용 설명서 모달 열기/닫기
+        const manualModal = document.getElementById('wizardCodeManualModal');
+        document.getElementById('wizardCodeManualBtn')?.addEventListener('click', () => {
+            manualModal?.classList.remove('hidden');
         });
+        document.getElementById('closeWizardCodeManualModal')?.addEventListener('click', () => {
+            manualModal?.classList.add('hidden');
+        });
+        document.getElementById('confirmWizardCodeManualBtn')?.addEventListener('click', () => {
+            manualModal?.classList.add('hidden');
+        });
+
+        // 변수 칩 업데이트: input 변수가 바뀔 때마다 칩 업데이트
+        const updateVarChips = () => this.updateWizardVarChips();
+        document.getElementById('wizardStatList')?.addEventListener('input', updateVarChips);
+        document.getElementById('wizardTextFieldsList')?.addEventListener('input', updateVarChips);
+        document.getElementById('wizardInputPortList')?.addEventListener('input', updateVarChips);
+        document.getElementById('wizardStatList')?.addEventListener('click', () => setTimeout(updateVarChips, 50));
+        document.getElementById('wizardTextFieldsList')?.addEventListener('click', () => setTimeout(updateVarChips, 50));
+        document.getElementById('wizardInputPortList')?.addEventListener('click', () => setTimeout(updateVarChips, 50));
 
         // 커스텀 마법사 이모지 피커 연동 (다중 행 Grid 스타일)
         const wizardIconBtn = document.getElementById('wizardIconBtn');
@@ -909,24 +913,20 @@ class FileTreeManager {
         const list = document.getElementById('wizardStatList');
         if (list) {
             list.innerHTML = '';
-            if (presetToEdit?.wizardType === 'stat' && Array.isArray(presetToEdit.fields) && presetToEdit.fields.length > 0) {
-                presetToEdit.fields.forEach(f => this.addWizardStatRow(f.name, f.val));
-            } else {
-                this.addWizardStatRow('근력', 10);
-                this.addWizardStatRow('민첩', 10);
-                this.addWizardStatRow('지능', 10);
+            if (Array.isArray(presetToEdit?.fields) && presetToEdit.fields.some(f => typeof f.val === 'number')) {
+                presetToEdit.fields.filter(f => typeof f.val === 'number').forEach(f => this.addWizardStatRow(f.name, f.val));
+            } else if (!presetToEdit) {
+                this.addWizardStatRow('', 0);
             }
         }
 
         const textList = document.getElementById('wizardTextFieldsList');
         if (textList) {
             textList.innerHTML = '';
-            if (presetToEdit?.wizardType === 'text_fields' && Array.isArray(presetToEdit.fields) && presetToEdit.fields.length > 0) {
-                presetToEdit.fields.forEach(f => this.addWizardTextFieldRow(f.name, f.val));
-            } else {
-                this.addWizardTextFieldRow('소속', '황실 기사단');
-                this.addWizardTextFieldRow('칭호', '검성');
-                this.addWizardTextFieldRow('특기', '신속 베기');
+            if (Array.isArray(presetToEdit?.fields) && presetToEdit.fields.some(f => typeof f.val === 'string')) {
+                presetToEdit.fields.filter(f => typeof f.val === 'string').forEach(f => this.addWizardTextFieldRow(f.name, f.val));
+            } else if (!presetToEdit) {
+                this.addWizardTextFieldRow('', '');
             }
         }
 
@@ -966,21 +966,22 @@ class FileTreeManager {
             outList.innerHTML = '';
             const outputs = presetToEdit?.portsConfig?.outputs;
             if (Array.isArray(outputs) && outputs.length > 0) {
-                outputs.forEach(p => this.addPortConfigRow('output', p.name, p.color, p.template));
+                outputs.forEach(p => this.addPortConfigRow('output', p.name, p.color));
             } else {
-                this.addPortConfigRow('output', '출력 데이터', '#00ffcc', presetToEdit?.outputTemplate || '');
+                this.addPortConfigRow('output', '출력 데이터', '#00ffcc');
             }
         }
 
-        const tmplSelect = document.getElementById('wizardTemplate');
-        if (tmplSelect && presetToEdit?.template) {
-            tmplSelect.value = presetToEdit.template;
+        // 동작 코드 에디터 로드
+        const codeEditor = document.getElementById('wizardCodeEditor');
+        if (codeEditor) {
+            codeEditor.value = presetToEdit?.code || '';
         }
-
-        this.wizardActiveOutputPortIndex = 0;
-        this.renderWizardOutputPortTabs();
+        const testResult = document.getElementById('wizardTestResult');
+        if (testResult) testResult.style.display = 'none';
 
         this.updateCustomWizardUI();
+        this.updateWizardVarChips();
         modal.classList.remove('hidden');
         if (nameInput) nameInput.focus();
     }
@@ -991,35 +992,151 @@ class FileTreeManager {
     }
 
     updateCustomWizardUI() {
-        const type = this.selectedWizardType || 'file';
-        const statSection = document.getElementById('wizardStatSection');
-        const textSection = document.getElementById('wizardTextFieldsSection');
-        const templateSection = document.getElementById('wizardTemplateSection');
-        const iconBtn = document.getElementById('wizardIconBtn');
-        const iconInput = document.getElementById('wizardIcon');
+        // 섹션들은 항상 표시 — 노드 형식 구분 없이 자유롭게 조합
+    }
 
-        if (statSection) {
-            if (type === 'stat') statSection.classList.remove('hidden');
-            else statSection.classList.add('hidden');
+    /**
+     * 현재 input 변수 목록을 칩(chip) 형태로 wizardVarChips에 표시합니다.
+     * 클릭하면 코드 에디터에 input.변수명 을 삽입합니다.
+     */
+    updateWizardVarChips() {
+        const container = document.getElementById('wizardVarChips');
+        if (!container) return;
+
+        const inputVarSelectors = [
+            '#wizardStatList .stat-field-row .field-name',
+            '#wizardTextFieldsList .stat-field-row .field-name',
+            '#wizardInputPortList .stat-field-row .field-name',
+        ];
+        const names = [];
+        inputVarSelectors.forEach(sel => {
+            document.querySelectorAll(sel).forEach(el => {
+                const v = el.value.trim();
+                if (v && !names.includes(v)) names.push(v);
+            });
+        });
+
+        container.innerHTML = '';
+        if (names.length === 0) {
+            container.innerHTML = '<span style="font-size: 11px; color: var(--color-text-tertiary);">↑ input 변수를 정의하면 여기에 표시됩니다</span>';
+            return;
         }
 
-        if (textSection) {
-            if (type === 'text_fields') textSection.classList.remove('hidden');
-            else textSection.classList.add('hidden');
+        names.forEach(name => {
+            const chip = document.createElement('button');
+            chip.type = 'button';
+            chip.textContent = `input.${name}`;
+            chip.title = `코드 에디터에 'input.${name}' 삽입`;
+            chip.style.cssText = 'font-size: 11px; font-family: monospace; padding: 2px 8px; border-radius: 12px; border: 1px solid var(--color-accent-primary); background: transparent; color: var(--color-accent-primary); cursor: pointer;';
+            chip.addEventListener('click', () => {
+                const editor = document.getElementById('wizardCodeEditor');
+                if (!editor) return;
+                const start = editor.selectionStart;
+                const end = editor.selectionEnd;
+                const insert = `input.${name}`;
+                editor.value = editor.value.slice(0, start) + insert + editor.value.slice(end);
+                editor.selectionStart = editor.selectionEnd = start + insert.length;
+                editor.focus();
+            });
+            container.appendChild(chip);
+        });
+    }
+
+    /**
+     * 위자드 코드 에디터의 코드를 샘플 input 값으로 테스트 실행합니다.
+     */
+    async runWizardCodeTest() {
+        const code = document.getElementById('wizardCodeEditor')?.value.trim();
+        const resultEl = document.getElementById('wizardTestResult');
+        if (!resultEl) return;
+
+        if (!code) {
+            resultEl.style.display = 'block';
+            resultEl.style.color = 'var(--color-text-tertiary)';
+            resultEl.textContent = '코드가 없습니다. 동작 코드를 작성해 주세요.';
+            return;
         }
 
-        if (templateSection) {
-            if (type === 'file') templateSection.classList.remove('hidden');
-            else templateSection.classList.add('hidden');
+        // input 변수 수집 (샘플 값 자동 생성)
+        const input = {};
+        document.querySelectorAll('#wizardStatList .stat-field-row').forEach(row => {
+            const name = row.querySelector('.field-name')?.value.trim();
+            const val = parseFloat(row.querySelector('.field-val')?.value) || 0;
+            if (name) input[name] = val;
+        });
+        document.querySelectorAll('#wizardTextFieldsList .stat-field-row').forEach(row => {
+            const name = row.querySelector('.field-name')?.value.trim();
+            const val = row.querySelector('.field-val')?.value.trim() || '(샘플)';
+            if (name) input[name] = val;
+        });
+        document.querySelectorAll('#wizardInputPortList .stat-field-row').forEach(row => {
+            const name = row.querySelector('.field-name')?.value.trim();
+            if (name) input[name] = `[${name} 샘플 값]`;
+        });
+
+        try {
+            const fn = new Function('input', `return (async () => { ${code} })()`);
+            const result = await fn(input);
+            resultEl.style.display = 'block';
+            resultEl.style.color = '#2ecc71';
+            resultEl.textContent = '✅ 실행 성공\n\n' + JSON.stringify(result, null, 2);
+        } catch (err) {
+            resultEl.style.display = 'block';
+            resultEl.style.color = 'var(--color-accent-danger)';
+            resultEl.textContent = '❌ 오류: ' + err.message;
         }
+    }
 
-        let defaultIcon = '📄';
-        if (type === 'stat') defaultIcon = '📊';
-        else if (type === 'text_fields') defaultIcon = '🏷️';
-        else if (type === 'folder_collector') defaultIcon = '📂';
+    /**
+     * Wizard 내 현재 정의된 모든 변수 이름 목록을 반환합니다.
+     * stat 항목, textfield 항목, input 핀, output 핀 이름을 모두 포함합니다.
+     * @param {HTMLElement|null} excludeEl - 중복 검사에서 제외할 input 요소 (자기 자신 수정 시)
+     */
+    getWizardAllVarNames(excludeEl = null) {
+        const names = [];
+        const selectors = [
+            '#wizardStatList .stat-field-row .field-name',
+            '#wizardTextFieldsList .stat-field-row .field-name',
+            '#wizardInputPortList .stat-field-row .field-name',
+            '#wizardOutputPortList .stat-field-row .field-name',
+        ];
+        selectors.forEach(sel => {
+            document.querySelectorAll(sel).forEach(el => {
+                if (el === excludeEl) return;
+                const v = el.value.trim();
+                if (v) names.push(v);
+            });
+        });
+        return names;
+    }
 
-        if (iconBtn) iconBtn.textContent = defaultIcon;
-        if (iconInput) iconInput.value = defaultIcon;
+    /**
+     * field-name input에 중복 검사 이벤트를 연결합니다.
+     * blur 시 중복이면 빨간 테두리 + title 툴팁 표시, 아니면 초기화.
+     */
+    attachVarNameDuplicateCheck(inputEl) {
+        inputEl.addEventListener('blur', () => {
+            const val = inputEl.value.trim();
+            if (!val) {
+                inputEl.style.borderColor = '';
+                inputEl.title = '';
+                return;
+            }
+            const others = this.getWizardAllVarNames(inputEl);
+            if (others.includes(val)) {
+                inputEl.style.outline = '2px solid var(--color-accent-danger)';
+                inputEl.title = `⚠️ '${val}' 이름이 이미 사용 중입니다. 변수명은 노드 내에서 유일해야 합니다.`;
+                window.showToast?.(`⚠️ '${val}' 이름이 이미 사용 중입니다!`, 'error');
+            } else {
+                inputEl.style.outline = '';
+                inputEl.title = '';
+            }
+        });
+        inputEl.addEventListener('input', () => {
+            // 입력 중에는 에러 표시 초기화
+            inputEl.style.outline = '';
+            inputEl.title = '';
+        });
     }
 
     addWizardStatRow(name = '', val = 0) {
@@ -1037,6 +1154,9 @@ class FileTreeManager {
         row.querySelector('.remove-field-btn')?.addEventListener('click', () => {
             row.remove();
         });
+
+        const nameInput = row.querySelector('.field-name');
+        if (nameInput) this.attachVarNameDuplicateCheck(nameInput);
 
         list.appendChild(row);
     }
@@ -1056,6 +1176,9 @@ class FileTreeManager {
         row.querySelector('.remove-field-btn')?.addEventListener('click', () => {
             row.remove();
         });
+
+        const nameInput = row.querySelector('.field-name');
+        if (nameInput) this.attachVarNameDuplicateCheck(nameInput);
 
         list.appendChild(row);
     }
@@ -1155,6 +1278,9 @@ class FileTreeManager {
                     <button type="button" class="btn btn-icon btn-secondary remove-field-btn" title="포트 삭제" style="color: var(--color-accent-danger); border: none; background: transparent; padding: 2px; flex-shrink: 0;">✕</button>
                 </div>
             `;
+
+            const nameInput = row.querySelector('.field-name');
+            if (nameInput) this.attachVarNameDuplicateCheck(nameInput);
         } else {
             row.innerHTML = `
                 <div style="display: flex; align-items: center; gap: 6px; width: 100%;">
@@ -1162,32 +1288,17 @@ class FileTreeManager {
                     <input type="text" class="input field-name" placeholder="포트 핀 이름 (예: 프로필, 칭호전용)" value="${this.escapeHtml(defaultName)}" style="flex: 1; font-size: 11px; height: 26px; padding: 0 6px;">
                     <button type="button" class="btn btn-icon btn-secondary remove-field-btn" title="포트 삭제" style="color: var(--color-accent-danger); border: none; background: transparent; padding: 2px; flex-shrink: 0;">✕</button>
                 </div>
-                <!-- 숨겨진 저장소 (상단 템플릿 에디터와 실시간 연동) -->
-                <textarea class="port-template hidden">${this.escapeHtml(defaultTemplate)}</textarea>
             `;
 
             const nameInput = row.querySelector('.field-name');
-            nameInput?.addEventListener('input', () => {
-                this.renderWizardOutputPortTabs();
-            });
-
-            const colorInput = row.querySelector('.port-color-picker');
-            colorInput?.addEventListener('change', () => {
-                this.renderWizardOutputPortTabs();
-            });
+            if (nameInput) this.attachVarNameDuplicateCheck(nameInput);
         }
 
         row.querySelector('.remove-field-btn')?.addEventListener('click', () => {
             row.remove();
-            if (type === 'output') {
-                this.renderWizardOutputPortTabs();
-            }
         });
 
         list.appendChild(row);
-        if (type === 'output') {
-            this.renderWizardOutputPortTabs();
-        }
     }
 
     async handleCustomWizardSubmit() {
@@ -1201,6 +1312,35 @@ class FileTreeManager {
         if (!name) {
             alert('노드 이름을 입력해 주세요.');
             nameInput?.focus();
+            return;
+        }
+
+        // 변수명 중복 검사
+        const allVarInputs = [
+            ...document.querySelectorAll('#wizardStatList .stat-field-row .field-name'),
+            ...document.querySelectorAll('#wizardTextFieldsList .stat-field-row .field-name'),
+            ...document.querySelectorAll('#wizardInputPortList .stat-field-row .field-name'),
+            ...document.querySelectorAll('#wizardOutputPortList .stat-field-row .field-name'),
+        ];
+        const seen = new Set();
+        let duplicateEl = null;
+        let duplicateName = '';
+        for (const el of allVarInputs) {
+            const v = el.value.trim();
+            if (!v) continue;
+            if (seen.has(v)) {
+                duplicateEl = el;
+                duplicateName = v;
+                break;
+            }
+            seen.add(v);
+        }
+        if (duplicateEl) {
+            duplicateEl.style.outline = '2px solid var(--color-accent-danger)';
+            duplicateEl.title = `⚠️ '${duplicateName}' 이름이 중복되었습니다. 변수명은 노드 내에서 유일해야 합니다.`;
+            duplicateEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            duplicateEl.focus();
+            window.showToast?.(`⚠️ 변수명 '${duplicateName}'이 중복됩니다. 저장할 수 없습니다.`, 'error');
             return;
         }
 
@@ -1219,7 +1359,7 @@ class FileTreeManager {
             });
         }
 
-        // 포트 핀 정보 수집 (이름, 핀 색상 및 개별 출력 양식)
+        // 포트 핀 정보 수집 (이름, 핀 색상)
         const inputs = [];
         document.querySelectorAll('#wizardInputPortList .stat-field-row').forEach((row, idx) => {
             const pName = row.querySelector('.field-name')?.value.trim();
@@ -1231,12 +1371,11 @@ class FileTreeManager {
         document.querySelectorAll('#wizardOutputPortList .stat-field-row').forEach((row, idx) => {
             const pName = row.querySelector('.field-name')?.value.trim();
             const pColor = row.querySelector('.port-color-picker')?.value || '#00ffcc';
-            const pTemplate = row.querySelector('.port-template')?.value.trim() || '';
-            if (pName) outputs.push({ id: `out_${idx + 1}`, name: pName, color: pColor, template: pTemplate });
+            if (pName) outputs.push({ id: `out_${idx + 1}`, name: pName, color: pColor });
         });
 
         const portsConfig = { inputs, outputs };
-        const outputTemplate = document.getElementById('wizardTextFieldsTemplate')?.value.trim() || '';
+        const code = document.getElementById('wizardCodeEditor')?.value.trim() || '';
         const isEditing = !!this.editingCustomPresetId;
         const presetId = this.editingCustomPresetId || ('preset_' + Date.now());
 
@@ -1247,10 +1386,9 @@ class FileTreeManager {
             desc,
             wizardType: type,
             fields,
-            outputTemplate,
+            code,
             portsConfig,
             isFolderCollectorNode: type === 'folder_collector',
-            template: type === 'folder_collector' ? 'folder_collector' : (type === 'file' ? (document.getElementById('wizardTemplate')?.value || 'blank') : null)
         };
 
         await window.storage?.saveCustomNodePreset(presetData);

@@ -302,82 +302,28 @@
           </div>
           <input type="text" class="input" id="wizardDesc" placeholder="노드에 대한 간단한 설명을 입력하세요 (선택)" style="width: 100%;">
         </div>
-
-        <!-- 2. 노드 형식 선택 -->
+        <!-- 2. 입력 변수 정의 (수치형) -->
         <div class="node-create-section mt-lg">
-          <label class="form-label">2. 노드 형식 선택</label>
-          <div class="node-type-grid">
-            
-            <div class="wizard-type-card active" data-wizard-type="file">
-              <div class="node-type-icon">📄</div>
-              <div class="node-type-info">
-                <div class="node-type-title">텍스트 작성형</div>
-                <div class="node-type-desc">소설/원고/설정집 텍스트 작성용 노드</div>
-              </div>
-            </div>
-
-            <div class="wizard-type-card" data-wizard-type="stat">
-              <div class="node-type-icon">📊</div>
-              <div class="node-type-info">
-                <div class="node-type-title">수치 조율/계산기형</div>
-                <div class="node-type-desc">원하는 수치 항목들을 직접 입력받는 노드</div>
-              </div>
-            </div>
-
-            <div class="wizard-type-card" data-wizard-type="text_fields">
-              <div class="node-type-icon">🏷️</div>
-              <div class="node-type-info">
-                <div class="node-type-title">텍스트 값/속성 입력형</div>
-                <div class="node-type-desc">소속, 칭호, 무기 등 여러 텍스트 항목들을 정의하고 입력받는 노드</div>
-              </div>
-            </div>
-
-          </div>
-        </div>
-
-        <!-- 3-1. [동적] 수치 항목 입력 구역 -->
-        <div id="wizardStatSection" class="node-create-section mt-lg hidden">
           <div class="flex justify-between items-center mb-sm">
-            <label class="form-label" style="margin: 0;">3. 📊 수치 입력 항목 구성</label>
-            <button type="button" class="btn btn-secondary btn-sm" id="wizardAddStatBtn">➕ 수치 항목 추가</button>
+            <label class="form-label" style="margin: 0;">2. 📊 수치형 입력 항목 <span style="font-size: 11px; color: var(--color-text-tertiary); font-weight: 400;">(숫자로 직접 입력받을 항목)</span></label>
+            <button type="button" class="btn btn-secondary btn-sm" id="wizardAddStatBtn">➕ 항목 추가</button>
           </div>
           <div id="wizardStatList" class="stat-fields-list">
             <!-- 동적 항목 추가 -->
           </div>
         </div>
 
-        <!-- 3-2. [동적] 텍스트 속성 항목 입력 구역 -->
-        <div id="wizardTextFieldsSection" class="node-create-section mt-lg hidden">
+        <!-- 3. 입력 변수 정의 (텍스트형) -->
+        <div class="node-create-section mt-lg">
           <div class="flex justify-between items-center mb-sm">
-            <label class="form-label" style="margin: 0;">3. 🏷️ 텍스트 입력 항목 및 출력 양식 구성</label>
-            <button type="button" class="btn btn-secondary btn-sm" id="wizardAddTextFieldBtn">➕ 텍스트 항목 추가</button>
+            <label class="form-label" style="margin: 0;">3. 🏷️ 텍스트형 입력 항목 <span style="font-size: 11px; color: var(--color-text-tertiary); font-weight: 400;">(텍스트로 직접 입력받을 항목)</span></label>
+            <button type="button" class="btn btn-secondary btn-sm" id="wizardAddTextFieldBtn">➕ 항목 추가</button>
           </div>
           <div id="wizardTextFieldsList" class="stat-fields-list">
             <!-- 동적 텍스트 항목 추가 -->
           </div>
-          <div class="mt-md" style="border-top: 1px dashed var(--color-border); padding-top: 12px;">
-            <div class="flex justify-between items-center mb-xs">
-              <div style="display: flex; align-items: center; gap: 8px;">
-                <label class="form-label" for="wizardTextFieldsTemplate" style="margin: 0;">📝 텍스트 출력 양식 (템플릿)</label>
-                <span id="wizardActivePortLabel" style="font-size: 11px; font-weight: 700; color: var(--color-accent-primary); background: var(--color-surface-3); padding: 2px 8px; border-radius: 4px;">📤 [출력 포트 1] 양식 편집 중</span>
-              </div>
-              <button type="button" class="btn btn-secondary btn-sm" id="wizardAutoTemplateBtn" style="font-size: 11px; padding: 2px 8px;" title="현재 항목으로 양식 자동 생성">🪄 양식 자동생성</button>
-            </div>
-
-            <!-- Output 포트 선택 탭 바 -->
-            <div id="wizardOutputPortTabs" style="display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; margin-top: 4px;">
-              <!-- 동적 Output 포트 탭 버튼들이 추가됩니다 -->
-            </div>
-
-            <div style="font-size: 11px; color: var(--color-text-tertiary); margin-bottom: 8px; line-height: 1.5; background: var(--color-surface-1); padding: 8px 10px; border-radius: 6px; border: 1px solid var(--color-border);">
-              💡 <b>사용 가능한 치환 변수:</b><br>
-              • <code style="color: var(--color-accent-primary); font-weight: bold;">{$속성이름$}</code> : 직접 입력 속성 값 (예: <code style="color: var(--color-accent-primary);">{$소속$}</code>)<br>
-              • <code style="color: var(--color-accent-primary); font-weight: bold;">{$Input포트이름$}</code> : 연결된 상위 노드의 Output 전체 텍스트 (예: <code style="color: var(--color-accent-primary);">{$입력 데이터 1$}</code>)<br>
-              • <code style="color: var(--color-accent-primary); font-weight: bold;">{$이름$}</code> : 현재 노드의 제목
-            </div>
-            <textarea class="input" id="wizardTextFieldsTemplate" rows="4" style="width: 100%; font-family: inherit; font-size: 12px; line-height: 1.6; min-height: 110px; resize: vertical;" placeholder="예: 📌 《 {$이름$} 》&#10;• 소속: {$소속$}&#10;• 수신 정보: {$입력 데이터 1$}"></textarea>
-          </div>
         </div>
+
 
         <!-- 4. [포트 구성] Input & Output 포트 종류, 이름 및 핀 색상 설정 -->
         <div class="node-create-section mt-lg">
@@ -409,18 +355,28 @@
           </div>
         </div>
 
-        <!-- 5. 템플릿 선택 -->
-        <div id="wizardTemplateSection" class="node-create-section mt-lg">
+        <!-- 5. 동작 코드 -->
+        <div class="node-create-section mt-lg">
           <div class="flex justify-between items-center mb-xs">
-            <label class="form-label" for="wizardTemplate" style="margin: 0;">설정집 템플릿 선택 (선택 사항)</label>
-            <button type="button" class="btn btn-secondary btn-sm" id="manageTemplatesBtn">⚙️ 템플릿 관리</button>
+            <label class="form-label" style="margin: 0;">5. ⚡ 동작 코드 (JavaScript)</label>
+            <div style="display: flex; gap: 6px;">
+              <button type="button" class="btn btn-secondary btn-sm" id="wizardCodeManualBtn" style="font-size: 11px; padding: 2px 8px;">📖 사용 설명서</button>
+              <button type="button" class="btn btn-secondary btn-sm" id="wizardTestRunBtn" style="font-size: 11px; padding: 2px 8px;">▶ 테스트 실행</button>
+            </div>
           </div>
-          <select class="input" id="wizardTemplate" style="width: 100%;">
-            <option value="blank">빈 소설 파일</option>
-            <option value="character">👤 캐릭터 설정집 양식</option>
-            <option value="world">🗺️ 세계관/지명 설정집 양식</option>
-            <option value="chapter">📜 장/절 구성 서식</option>
-          </select>
+          <div id="wizardVarChips" style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; min-height: 24px;"></div>
+          <div style="font-size: 11px; color: var(--color-text-tertiary); margin-bottom: 8px; line-height: 1.8; background: var(--color-surface-1); padding: 10px 12px; border-radius: 6px; border: 1px solid var(--color-border);">
+            💡 <b>input</b> 객체로 모든 입력 변수에 접근합니다. &nbsp;|&nbsp; 반드시 <code><b>return { 핀이름: 값, ... }</b></code> 으로 반환하세요.<br>
+            &nbsp;&nbsp;&nbsp;• return 키 이름 = output 핀 이름이 <b>정확히 일치</b>해야 해당 핀으로 전달됩니다.<br>
+            &nbsp;&nbsp;&nbsp;• 코드를 작성하지 않으면 노드는 데이터만 보관합니다 (input 값 → output 핀 이름 매칭으로 통과).
+          </div>
+          <textarea class="input" id="wizardCodeEditor" rows="8" style="width: 100%; font-family: 'Fira Code', 'Consolas', monospace; font-size: 12px; line-height: 1.7; min-height: 160px; resize: vertical; tab-size: 2;" placeholder="// [input 변수] 이름(텍스트), 직업(텍스트), 공격력(수치), 방어력(수치)
+// [output 핀]  프로필,  전투력
+
+const 프로필 = `${input.이름} / ${input.직업}`;
+const 전투력 = input.공격력 * 2 + input.방어력;
+return { 프로필, 전투력 };"></textarea>
+          <div id="wizardTestResult" style="display:none; margin-top: 8px; padding: 10px; border-radius: 6px; font-size: 12px; font-family: monospace; white-space: pre-wrap; word-break: break-all; border: 1px solid var(--color-border); background: var(--color-surface-1);"></div>
         </div>
       </div>
       <div class="modal-footer">
@@ -429,6 +385,74 @@
       </div>
     </div>
   </div>
+
+  <!-- 동작 코드 사용 설명서 모달 -->
+  <div id="wizardCodeManualModal" class="modal-overlay hidden">
+    <div class="modal modal-md">
+      <div class="modal-header">
+        <h2 class="modal-title">📖 동작 코드(JavaScript) 사용 설명서</h2>
+        <button class="modal-close" id="closeWizardCodeManualModal">✕</button>
+      </div>
+      <div class="modal-body" style="font-size: 13px; line-height: 1.7; max-height: 70vh; overflow-y: auto;">
+        
+        <h4 style="margin-top: 0; color: var(--color-accent-primary);">1. 입력 변수 접근 (input)</h4>
+        <p style="margin-bottom: 12px;">
+          노드에 정의된 모든 입력 항목(수치, 텍스트, Input 포트 핀)은 <code>input.변수명</code> 으로 접근할 수 있습니다.<br>
+          <span style="color: var(--color-text-tertiary); font-size: 12px;">예: <code>input.체력</code>, <code>input.이름</code>, <code>input.상위데이터</code></span>
+        </p>
+
+        <h4 style="color: var(--color-accent-primary);">2. 출력 반환 (return 객체)</h4>
+        <p style="margin-bottom: 12px;">
+          반드시 <code>return { output핀이름: 값, ... }</code> 형태로 객체를 반환해야 합니다.<br>
+          <strong>이름 매칭 방식:</strong> <code>return</code> 객체의 키(Key) 이름과 <strong>Output 포트 핀 이름</strong>이 정확히 일치해야 합니다.
+        </p>
+
+        <div style="background: var(--color-surface-1); padding: 12px; border-radius: 8px; border: 1px solid var(--color-border); margin-bottom: 16px;">
+          <strong style="color: var(--color-text-primary);">💡 단축 표기법 vs 풀어서 쓰기</strong>
+          <pre style="margin: 8px 0 0 0; font-family: monospace; font-size: 12px; color: var(--color-accent-primary);">
+// 1) 단축 표기법 (변수명이 핀 이름과 같을 때)
+const 프로필 = input.이름 + ' / ' + input.직업;
+const 전투력 = input.공격력 * 2;
+return { 프로필, 전투력 };
+
+// 2) 풀어서 쓰기 (키 이름 = output 핀 이름)
+return {
+  프로필: input.이름 + ' / ' + input.직업,
+  전투력: input.공격력 * 2
+};</pre>
+        </div>
+
+        <h4 style="color: var(--color-accent-primary);">3. 다양한 사용 예시</h4>
+        
+        <div style="margin-bottom: 12px;">
+          <strong>🔹 예시 A. 텍스트 가공 및 결합</strong>
+          <pre style="background: var(--color-surface-1); padding: 8px; border-radius: 6px; font-family: monospace; font-size: 11px; margin-top: 4px;">
+const 결과 = `📌 [${input.제목}]\n• 작가: ${input.작가}\n• 내용: ${input.본문}`;
+return { 결과 };</pre>
+        </div>
+
+        <div style="margin-bottom: 12px;">
+          <strong>🔹 예시 B. 수치 계산 및 조건문</strong>
+          <pre style="background: var(--color-surface-1); padding: 8px; border-radius: 6px; font-family: monospace; font-size: 11px; margin-top: 4px;">
+const 총합 = input.근력 + input.민첩 + input.지능;
+const 랭크 = 총합 >= 100 ? 'S랭크' : 'A랭크';
+return { 총합, 랭크 };</pre>
+        </div>
+
+        <div>
+          <strong>🔹 예시 C. 코드가 없는 경우 (데이터 보관 노드)</strong>
+          <p style="font-size: 12px; color: var(--color-text-tertiary); margin: 4px 0 0 0;">
+            동작 코드를 작성하지 않으면, 입력받은 값이 이름이 같은 Output 핀으로 자동 전달됩니다.
+          </p>
+        </div>
+
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="confirmWizardCodeManualBtn">확인</button>
+      </div>
+    </div>
+  </div>
+
 
   <!-- 노드 핀/포트 정보 조회 모달 -->
   <div id="nodePortEditModal" class="modal-overlay hidden">
@@ -817,6 +841,8 @@
   <script src="js/file-tree.js"></script>
   <script src="js/template-manager.js"></script>
   <script src="js/window-manager.js"></script>
+  <script src="js/node-engine.js"></script>
+
   <script src="js/project-manager.js"></script>
   <script src="js/tools-panel.js"></script>
   <script src="js/resizer.js"></script>
