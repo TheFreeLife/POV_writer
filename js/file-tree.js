@@ -68,11 +68,20 @@ class FileTreeManager {
             });
         }
 
+        // 상단 탭 전환 이벤트
+        document.querySelectorAll('.wizard-tab-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const targetTab = btn.dataset.wizardTab;
+                if (targetTab) this.switchWizardTab(targetTab);
+            });
+        });
+
         // 수치 항목 추가 버튼
         document.getElementById('wizardAddStatBtn')?.addEventListener('click', () => {
             const newName = '';
             this.addWizardStatRow(newName, 0);
         });
+
 
         // 텍스트 항목 추가 버튼
         document.getElementById('wizardAddTextFieldBtn')?.addEventListener('click', () => {
@@ -839,12 +848,34 @@ class FileTreeManager {
         await this.createNewCustomNode(fileData);
     }
 
+    switchWizardTab(tabName) {
+        document.querySelectorAll('.wizard-tab-btn').forEach(btn => {
+            const isActive = (btn.dataset.wizardTab === tabName);
+            btn.classList.toggle('active', isActive);
+            btn.style.background = isActive ? 'var(--color-surface-2)' : 'transparent';
+            btn.style.color = isActive ? 'var(--color-accent-primary)' : 'var(--color-text-secondary)';
+            btn.style.borderColor = isActive ? 'var(--color-border)' : 'transparent';
+        });
+
+        const dataContent = document.getElementById('wizardTabContentData');
+        const codeContent = document.getElementById('wizardTabContentCode');
+        const configContent = document.getElementById('wizardTabContentConfig');
+
+        if (dataContent) dataContent.classList.toggle('hidden', tabName !== 'data');
+        if (codeContent) codeContent.classList.toggle('hidden', tabName !== 'code');
+        if (configContent) configContent.classList.toggle('hidden', tabName !== 'config');
+    }
+
     showCustomWizardModal(presetToEdit = null) {
         this.selectedWizardType = presetToEdit?.wizardType || 'file';
         this.editingCustomPresetId = presetToEdit?.id || null;
 
         const modal = document.getElementById('customWizardModal');
         if (!modal) return;
+
+        this.switchWizardTab('config');
+
+
 
         const titleEl = modal.querySelector('.modal-title');
         const submitBtn = document.getElementById('submitCustomWizardBtn');

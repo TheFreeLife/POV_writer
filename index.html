@@ -271,103 +271,131 @@
         <h2 class="modal-title">✨ 나만의 커스텀 노드 정의 & 목록 추가</h2>
         <button class="modal-close" id="closeCustomWizardModal">✕</button>
       </div>
-      <div class="modal-body">
-        <!-- 1. 기본 정보 -->
-        <div class="node-create-section">
-          <label class="form-label">1. 노드 기본 정보</label>
-          <div class="flex gap-md items-center mb-xs">
-            <div class="icon-picker-container" style="position: relative;">
-              <button type="button" class="btn btn-secondary" id="wizardIconBtn" style="font-size: 20px; padding: 6px 14px;">📄</button>
-              <input type="hidden" id="wizardIcon" value="📄">
-              <div id="wizardIconPopover" class="icon-picker-popover hidden"></div>
-            </div>
-            <div style="flex: 1;">
-              <input type="text" class="input" id="wizardName" placeholder="노드 이름을 입력하세요 (예: 주인공 상태창)" style="width: 100%;">
-            </div>
-          </div>
-          <input type="text" class="input" id="wizardDesc" placeholder="노드에 대한 간단한 설명을 입력하세요 (선택)" style="width: 100%;">
-        </div>
-        <!-- 2. 입력 변수 정의 (수치형) -->
-        <div class="node-create-section mt-lg">
-          <div class="flex justify-between items-center mb-sm">
-            <label class="form-label" style="margin: 0;">2. 📊 수치형 입력 항목 <span style="font-size: 11px; color: var(--color-text-tertiary); font-weight: 400;">(숫자로 직접 입력받을 항목)</span></label>
-            <button type="button" class="btn btn-secondary btn-sm" id="wizardAddStatBtn">➕ 항목 추가</button>
-          </div>
-          <div id="wizardStatList" class="stat-fields-list">
-            <!-- 동적 항목 추가 -->
-          </div>
+      <div class="modal-body" style="padding-top: 10px;">
+        <!-- 상단 탭 Nav 버튼 -->
+        <div class="wizard-tabs-nav" style="display: flex; gap: 8px; border-bottom: 2px solid var(--color-border); padding-bottom: 8px; margin-bottom: 16px;">
+          <button type="button" class="wizard-tab-btn active" data-wizard-tab="config" style="padding: 8px 16px; font-size: 13px; font-weight: 700; border-radius: 8px; cursor: pointer; border: 1px solid transparent; background: var(--color-surface-2); color: var(--color-accent-primary); transition: all 0.2s;">
+            ⚙️ 노드 기본 설정
+          </button>
+          <button type="button" class="wizard-tab-btn" data-wizard-tab="data" style="padding: 8px 16px; font-size: 13px; font-weight: 700; border-radius: 8px; cursor: pointer; border: 1px solid transparent; background: transparent; color: var(--color-text-secondary); transition: all 0.2s;">
+            📊 데이터 항목 & 포트
+          </button>
+          <button type="button" class="wizard-tab-btn" data-wizard-tab="code" style="padding: 8px 16px; font-size: 13px; font-weight: 700; border-radius: 8px; cursor: pointer; border: 1px solid transparent; background: transparent; color: var(--color-text-secondary); transition: all 0.2s;">
+            ⚡ 동작 코드 (JS)
+          </button>
         </div>
 
-        <!-- 3. 입력 변수 정의 (텍스트형) -->
-        <div class="node-create-section mt-lg">
-          <div class="flex justify-between items-center mb-sm">
-            <label class="form-label" style="margin: 0;">3. 🏷️ 텍스트형 입력 항목 <span style="font-size: 11px; color: var(--color-text-tertiary); font-weight: 400;">(텍스트로 직접 입력받을 항목)</span></label>
-            <button type="button" class="btn btn-secondary btn-sm" id="wizardAddTextFieldBtn">➕ 항목 추가</button>
-          </div>
-          <div id="wizardTextFieldsList" class="stat-fields-list">
-            <!-- 동적 텍스트 항목 추가 -->
+        <!-- 1. 노드 기본 설정 탭 (기본 정보) -->
+        <div id="wizardTabContentConfig" class="wizard-tab-content">
+          <div class="node-create-section">
+            <label class="form-label">노드 기본 정보 및 스타일 설정</label>
+            <div class="flex gap-md items-center mb-md">
+              <div class="icon-picker-container" style="position: relative;">
+                <button type="button" class="btn btn-secondary" id="wizardIconBtn" style="font-size: 24px; padding: 10px 18px;">📄</button>
+                <input type="hidden" id="wizardIcon" value="📄">
+                <div id="wizardIconPopover" class="icon-picker-popover hidden"></div>
+              </div>
+              <div style="flex: 1;">
+                <label style="font-size: 12px; font-weight: 700; color: var(--color-text-secondary); display: block; margin-bottom: 4px;">노드 이름</label>
+                <input type="text" class="input" id="wizardName" placeholder="노드 이름을 입력하세요 (예: 주인공 상태창)" style="width: 100%; font-size: 13px; font-weight: 600;">
+              </div>
+            </div>
+            <div>
+              <label style="font-size: 12px; font-weight: 700; color: var(--color-text-secondary); display: block; margin-bottom: 4px;">노드 설명 (선택)</label>
+              <input type="text" class="input" id="wizardDesc" placeholder="노드 카드에 표시될 간단한 설명이나 메모를 작성하세요" style="width: 100%;">
+            </div>
           </div>
         </div>
 
+        <!-- 2. 데이터 탭 (수치 항목 + 텍스트 항목 + 포트 핀 설정) -->
+        <div id="wizardTabContentData" class="wizard-tab-content hidden">
 
-        <!-- 4. [포트 구성] Input & Output 포트 종류, 이름 및 핀 색상 설정 -->
-        <div class="node-create-section mt-lg">
-          <label class="form-label">4. 노드 포트 (Input / Output 핀) 이름 및 핀 색상 설정</label>
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px;">
-            
-            <!-- 왼쪽 Input 포트 목록 -->
-            <div style="background: var(--color-bg-secondary); padding: 12px; border-radius: 10px; border: 1px solid var(--color-border);">
-              <div class="flex justify-between items-center mb-xs">
-                <span style="font-size: 12px; font-weight: 700; color: #2ecc71;">📥 Input 포트 (왼쪽)</span>
-                <button type="button" class="btn btn-secondary btn-sm" id="wizardAddInputPortBtn" style="font-size: 11px; padding: 2px 8px;">➕ 추가</button>
-              </div>
-              <div id="wizardInputPortList" class="stat-fields-list" style="max-height: 140px; padding: 6px;">
-                <!-- 동적 Input 포트 행 -->
-              </div>
+          <!-- 수치형 입력 항목 -->
+          <div class="node-create-section">
+            <div class="flex justify-between items-center mb-sm">
+              <label class="form-label" style="margin: 0;">📊 수치형 입력 항목 <span style="font-size: 11px; color: var(--color-text-tertiary); font-weight: 400;">(숫자로 직접 입력받을 항목)</span></label>
+              <button type="button" class="btn btn-secondary btn-sm" id="wizardAddStatBtn">➕ 항목 추가</button>
             </div>
-
-            <!-- 오른쪽 Output 포트 목록 -->
-            <div style="background: var(--color-bg-secondary); padding: 12px; border-radius: 10px; border: 1px solid var(--color-border);">
-              <div class="flex justify-between items-center mb-xs">
-                <span style="font-size: 12px; font-weight: 700; color: #00ffcc;">📤 Output 포트 (오른쪽)</span>
-                <button type="button" class="btn btn-secondary btn-sm" id="wizardAddOutputPortBtn" style="font-size: 11px; padding: 2px 8px;">➕ 추가</button>
-              </div>
-              <div id="wizardOutputPortList" class="stat-fields-list" style="max-height: 140px; padding: 6px;">
-                <!-- 동적 Output 포트 행 -->
-              </div>
+            <div id="wizardStatList" class="stat-fields-list">
+              <!-- 동적 수치 항목 추가 -->
             </div>
+          </div>
 
+          <!-- 텍스트형 입력 항목 -->
+          <div class="node-create-section mt-lg">
+            <div class="flex justify-between items-center mb-sm">
+              <label class="form-label" style="margin: 0;">🏷️ 텍스트형 입력 항목 <span style="font-size: 11px; color: var(--color-text-tertiary); font-weight: 400;">(텍스트로 직접 입력받을 항목)</span></label>
+              <button type="button" class="btn btn-secondary btn-sm" id="wizardAddTextFieldBtn">➕ 항목 추가</button>
+            </div>
+            <div id="wizardTextFieldsList" class="stat-fields-list">
+              <!-- 동적 텍스트 항목 추가 -->
+            </div>
+          </div>
+
+          <!-- 포트 핀 설정 -->
+          <div class="node-create-section mt-lg">
+            <label class="form-label">노드 포트 (Input / Output 핀) 이름 및 핀 색상 설정</label>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px;">
+              
+              <!-- 왼쪽 Input 포트 목록 -->
+              <div style="background: var(--color-bg-secondary); padding: 12px; border-radius: 10px; border: 1px solid var(--color-border);">
+                <div class="flex justify-between items-center mb-xs">
+                  <span style="font-size: 12px; font-weight: 700; color: #2ecc71;">📥 Input 포트 (왼쪽)</span>
+                  <button type="button" class="btn btn-secondary btn-sm" id="wizardAddInputPortBtn" style="font-size: 11px; padding: 2px 8px;">➕ 추가</button>
+                </div>
+                <div id="wizardInputPortList" class="stat-fields-list" style="max-height: 180px; padding: 6px;">
+                  <!-- 동적 Input 포트 행 -->
+                </div>
+              </div>
+
+              <!-- 오른쪽 Output 포트 목록 -->
+              <div style="background: var(--color-bg-secondary); padding: 12px; border-radius: 10px; border: 1px solid var(--color-border);">
+                <div class="flex justify-between items-center mb-xs">
+                  <span style="font-size: 12px; font-weight: 700; color: #00ffcc;">📤 Output 포트 (오른쪽)</span>
+                  <button type="button" class="btn btn-secondary btn-sm" id="wizardAddOutputPortBtn" style="font-size: 11px; padding: 2px 8px;">➕ 추가</button>
+                </div>
+                <div id="wizardOutputPortList" class="stat-fields-list" style="max-height: 180px; padding: 6px;">
+                  <!-- 동적 Output 포트 행 -->
+                </div>
+              </div>
+
+            </div>
           </div>
         </div>
 
-        <!-- 5. 동작 코드 -->
-        <div class="node-create-section mt-lg">
-          <div class="flex justify-between items-center mb-xs">
-            <label class="form-label" style="margin: 0;">5. ⚡ 동작 코드 (JavaScript)</label>
-            <div style="display: flex; gap: 6px;">
-              <button type="button" class="btn btn-secondary btn-sm" id="wizardCodeManualBtn" style="font-size: 11px; padding: 2px 8px;">📖 사용 설명서</button>
-              <button type="button" class="btn btn-secondary btn-sm" id="wizardTestRunBtn" style="font-size: 11px; padding: 2px 8px;">▶ 테스트 실행</button>
+        <!-- 3. 동작 코드 탭 -->
+        <div id="wizardTabContentCode" class="wizard-tab-content hidden">
+          <div class="node-create-section">
+            <div class="flex justify-between items-center mb-xs">
+              <label class="form-label" style="margin: 0;">⚡ 동작 코드 (JavaScript)</label>
+              <div style="display: flex; gap: 6px;">
+                <button type="button" class="btn btn-secondary btn-sm" id="wizardCodeManualBtn" style="font-size: 11px; padding: 2px 8px;">📖 사용 설명서</button>
+                <button type="button" class="btn btn-secondary btn-sm" id="wizardTestRunBtn" style="font-size: 11px; padding: 2px 8px;">▶ 테스트 실행</button>
+              </div>
             </div>
-          </div>
-          <div id="wizardVarChips" style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; min-height: 24px;"></div>
-          <div style="font-size: 11px; color: var(--color-text-tertiary); margin-bottom: 8px; line-height: 1.8; background: var(--color-surface-1); padding: 10px 12px; border-radius: 6px; border: 1px solid var(--color-border);">
-            💡 <b>input</b> 객체로 모든 입력 변수에 접근합니다. &nbsp;|&nbsp; 반드시 <code><b>return { 핀이름: 값, ... }</b></code> 으로 반환하세요.<br>
-            &nbsp;&nbsp;&nbsp;• return 키 이름 = output 핀 이름이 <b>정확히 일치</b>해야 해당 핀으로 전달됩니다.<br>
-            &nbsp;&nbsp;&nbsp;• 코드를 작성하지 않으면 노드는 데이터만 보관합니다 (input 값 → output 핀 이름 매칭으로 통과).
-          </div>
-          <textarea class="input" id="wizardCodeEditor" rows="8" style="width: 100%; font-family: 'Fira Code', 'Consolas', monospace; font-size: 12px; line-height: 1.7; min-height: 160px; resize: vertical; tab-size: 2;" placeholder="// [input 변수] 이름(텍스트), 직업(텍스트), 공격력(수치), 방어력(수치)
+            <div id="wizardVarChips" style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; min-height: 24px;"></div>
+            <div style="font-size: 11px; color: var(--color-text-tertiary); margin-bottom: 8px; line-height: 1.8; background: var(--color-surface-1); padding: 10px 12px; border-radius: 6px; border: 1px solid var(--color-border);">
+              💡 <b>input</b> 객체로 모든 입력 변수에 접근합니다. &nbsp;|&nbsp; 반드시 <code><b>return { 핀이름: 값, ... }</b></code> 으로 반환하세요.<br>
+              &nbsp;&nbsp;&nbsp;• return 키 이름 = output 핀 이름이 <b>정확히 일치</b>해야 해당 핀으로 전달됩니다.<br>
+              &nbsp;&nbsp;&nbsp;• 코드를 작성하지 않으면 노드는 데이터만 보관합니다 (input 값 → output 핀 이름 매칭으로 통과).
+            </div>
+            <textarea class="input" id="wizardCodeEditor" rows="10" style="width: 100%; font-family: 'Fira Code', 'Consolas', monospace; font-size: 12px; line-height: 1.7; min-height: 200px; resize: vertical; tab-size: 2;" placeholder="// [input 변수] 이름(텍스트), 직업(텍스트), 공격력(수치), 방어력(수치)
 // [output 핀]  프로필,  전투력
 
 const 프로필 = `${input.이름} / ${input.직업}`;
 const 전투력 = input.공격력 * 2 + input.방어력;
 return { 프로필, 전투력 };"></textarea>
-          <div id="wizardTestResult" style="display:none; margin-top: 8px; padding: 10px; border-radius: 6px; font-size: 12px; font-family: monospace; white-space: pre-wrap; word-break: break-all; border: 1px solid var(--color-border); background: var(--color-surface-1);"></div>
+            <div id="wizardTestResult" style="display:none; margin-top: 8px; padding: 10px; border-radius: 6px; font-size: 12px; font-family: monospace; white-space: pre-wrap; word-break: break-all; border: 1px solid var(--color-border); background: var(--color-surface-1);"></div>
+          </div>
         </div>
+
       </div>
+
       <div class="modal-footer">
         <button class="btn btn-secondary" id="cancelCustomWizardBtn">취소</button>
         <button class="btn btn-primary" id="submitCustomWizardBtn">✨ 노드 목록에 추가</button>
       </div>
+
     </div>
   </div>
 
