@@ -35,10 +35,6 @@ class FileTreeManager {
 
         const nodeSelectModal = document.getElementById('nodeSelectModal');
         if (nodeSelectModal) {
-            nodeSelectModal.addEventListener('click', (e) => {
-                if (e.target === nodeSelectModal) this.hideNodeSelectModal();
-            });
-
             // 기본 프리셋 노드 형태 선택 카드 이벤트
             nodeSelectModal.querySelectorAll('.node-type-card').forEach(card => {
                 card.addEventListener('click', () => {
@@ -62,11 +58,8 @@ class FileTreeManager {
 
         const customWizardModal = document.getElementById('customWizardModal');
         if (customWizardModal) {
-            customWizardModal.addEventListener('click', (e) => {
-                if (e.target === customWizardModal) this.hideCustomWizardModal();
-            });
-
             customWizardModal.querySelectorAll('.wizard-type-card').forEach(card => {
+
                 card.addEventListener('click', () => {
                     customWizardModal.querySelectorAll('.wizard-type-card').forEach(c => c.classList.remove('active'));
                     card.classList.add('active');
@@ -860,22 +853,39 @@ class FileTreeManager {
     }
 
     async createNodeFromPreset(preset) {
-        let content = preset.content || '';
-        if (!content && preset.template && preset.template !== 'blank') {
-            content = await this.getTemplateContent(preset.template);
+        let contentObj = {
+            isCustomNode: true,
+            fields: preset.fields || [],
+            code: preset.code || '',
+            portsConfig: preset.portsConfig || null
+        };
+
+        if (preset.content) {
+            if (typeof preset.content === 'object') {
+                contentObj = { ...contentObj, ...preset.content };
+            } else {
+                try {
+                    contentObj = { ...contentObj, ...JSON.parse(preset.content) };
+                } catch (e) {
+                    contentObj.rawText = preset.content;
+                }
+            }
         }
 
         const fileData = {
             name: `${preset.icon || '📄'} ${preset.name}`,
             type: 'file',
-            template: preset.wizardType || preset.template || 'file',
+            template: 'custom_node',
+            isCustomNode: true,
             isTextFieldsNode: !!preset.isTextFieldsNode,
             isFolderCollectorNode: !!preset.isFolderCollectorNode,
             isStatNode: !!preset.isStatNode,
             isSystemPromptNode: !!preset.isSystemPromptNode,
             isAiMetaNode: !!preset.isAiMetaNode,
-            description: preset.desc || '템플릿에서 생성된 노드',
-            content: typeof content === 'object' ? JSON.stringify(content, null, 2) : content,
+            description: preset.desc || '커스텀 정의 노드',
+            code: preset.code || '',
+            fields: preset.fields || [],
+            content: JSON.stringify(contentObj, null, 2),
             portsConfig: preset.portsConfig || null
         };
 
@@ -923,12 +933,14 @@ class FileTreeManager {
         const textList = document.getElementById('wizardTextFieldsList');
         if (textList) {
             textList.innerHTML = '';
-            if (Array.isArray(presetToEdit?.fields) && presetToEdit.fields.some(f => typeof f.val === 'string')) {
-                presetToEdit.fields.filter(f => typeof f.val === 'string').forEach(f => this.addWizardTextFieldRow(f.name, f.val));
+            if (Array.isArray(presetToEdit?.fields) && presetToEdit.fields.some(f => typeof f.val === 'string' || f.type === 'text')) {
+                presetToEdit.fields.filter(f => typeof f.val === 'string' || f.type === 'text').forEach(f => this.addWizardTextFieldRow(f.name, f.val, f.rows || 1));
             } else if (!presetToEdit) {
-                this.addWizardTextFieldRow('', '');
+                this.addWizardTextFieldRow('', '', 1);
             }
         }
+
+
 
         const folderSelect = document.getElementById('wizardTargetFolder');
         if (folderSelect) {
@@ -1161,17 +1173,30 @@ class FileTreeManager {
         list.appendChild(row);
     }
 
-    addWizardTextFieldRow(name = '', val = '') {
+    addWizardTextFieldRow(name = '', val = '', rows = 1) {
         const list = document.getElementById('wizardTextFieldsList');
         if (!list) return;
 
         const row = document.createElement('div');
         row.className = 'stat-field-row';
+        row.style.cssText = 'display: flex; gap: 6px; align-items: center;';
         row.innerHTML = `
-            <input type="text" class="input field-name" placeholder="항목 이름 (예: 소속, 칭호)" value="${this.escapeHtml(name)}" style="width: 140px;">
+            <input type="text" class="input field-name" placeholder="항목 이름 (예: 소속)" value="${this.escapeHtml(name)}" style="width: 130px;">
             <input type="text" class="input field-val" placeholder="기본 텍스트 내용" value="${this.escapeHtml(val)}" style="flex: 1;">
+            <div style="display: flex; align-items: center; gap: 2px; font-size: 11px; color: var(--color-text-tertiary);" title="입력창 기본 줄 수 (높이)">
+                <span>📏</span>
+                <select class="input field-rows" style="font-size: 11px; padding: 2px 4px; width: 62px; height: 26px;">
+                    <option value="1" ${rows == 1 || !rows ? 'selected' : ''}>1줄</option>
+                    <option value="2" ${rows == 2 ? 'selected' : ''}>2줄</option>
+                    <option value="3" ${rows == 3 ? 'selected' : ''}>3줄</option>
+                    <option value="5" ${rows == 5 ? 'selected' : ''}>5줄</option>
+                    <option value="8" ${rows == 8 ? 'selected' : ''}>8줄</option>
+                    <option value="12" ${rows == 12 ? 'selected' : ''}>12줄</option>
+                </select>
+            </div>
             <button type="button" class="btn btn-icon btn-secondary remove-field-btn" title="항목 삭제" style="color: var(--color-accent-danger); border: none; background: transparent;">✕</button>
         `;
+
 
         row.querySelector('.remove-field-btn')?.addEventListener('click', () => {
             row.remove();
@@ -1182,6 +1207,7 @@ class FileTreeManager {
 
         list.appendChild(row);
     }
+
 
     renderWizardOutputPortTabs() {
         const tabsContainer = document.getElementById('wizardOutputPortTabs');
@@ -1345,19 +1371,20 @@ class FileTreeManager {
         }
 
         const fields = [];
-        if (type === 'stat') {
-            document.querySelectorAll('#wizardStatList .stat-field-row').forEach(row => {
-                const fName = row.querySelector('.field-name')?.value.trim();
-                const fVal = parseFloat(row.querySelector('.field-val')?.value) || 0;
-                if (fName) fields.push({ name: fName, val: fVal });
-            });
-        } else if (type === 'text_fields') {
-            document.querySelectorAll('#wizardTextFieldsList .stat-field-row').forEach(row => {
-                const fName = row.querySelector('.field-name')?.value.trim();
-                const fVal = row.querySelector('.field-val')?.value.trim() || '';
-                if (fName) fields.push({ name: fName, val: fVal });
-            });
-        }
+        // 1) 수치형 항목 수집
+        document.querySelectorAll('#wizardStatList .stat-field-row').forEach(row => {
+            const fName = row.querySelector('.field-name')?.value.trim();
+            const fVal = parseFloat(row.querySelector('.field-val')?.value) || 0;
+            if (fName) fields.push({ name: fName, val: fVal, type: 'stat' });
+        });
+        // 2) 텍스트형 항목 수집
+        document.querySelectorAll('#wizardTextFieldsList .stat-field-row').forEach(row => {
+            const fName = row.querySelector('.field-name')?.value.trim();
+            const fVal = row.querySelector('.field-val')?.value.trim() || '';
+            const fRows = parseInt(row.querySelector('.field-rows')?.value) || 3;
+            if (fName) fields.push({ name: fName, val: fVal, type: 'text', rows: fRows });
+        });
+
 
         // 포트 핀 정보 수집 (이름, 핀 색상)
         const inputs = [];
@@ -1384,6 +1411,7 @@ class FileTreeManager {
             name,
             icon,
             desc,
+            isCustomNode: true,
             wizardType: type,
             fields,
             code,
@@ -1467,11 +1495,14 @@ class FileTreeManager {
                 type: fileData.type || 'file',
                 description: fileData.description || '',
                 content: fileData.content || '',
+                isCustomNode: fileData.isCustomNode !== undefined ? !!fileData.isCustomNode : true,
+                isTextFieldsNode: !!fileData.isTextFieldsNode,
+                isFolderCollectorNode: !!fileData.isFolderCollectorNode,
                 isStatNode: !!fileData.isStatNode,
                 isSystemPromptNode: !!fileData.isSystemPromptNode,
                 isAiMetaNode: !!fileData.isAiMetaNode,
                 portsConfig: fileData.portsConfig || null,
-                template: fileData.defaultTemplate || null,
+                template: fileData.template || fileData.defaultTemplate || 'custom_node',
                 parentId: null,
                 order: maxOrder + 1
             });

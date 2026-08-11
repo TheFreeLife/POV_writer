@@ -444,6 +444,12 @@ class WindowManager {
         // 포커스
         this.focusWindow(fileId);
 
+        // 커스텀 정의 노드인 경우 초기 렌더링
+        const isCustomNode = file.isCustomNode || file.template === 'custom_node' || (file.content && typeof file.content === 'string' && file.content.includes('"isCustomNode"'));
+        if (isCustomNode) {
+            this.renderCustomNode(fileId);
+        }
+
         // 수치 계산기인 경우 초기 렌더링
         if (file.template === 'stat' || file.isStatNode) {
             this.renderStatCalculator(fileId);
@@ -749,6 +755,7 @@ class WindowManager {
         const isTextFields = file.isTextFieldsNode || (file.content && typeof file.content === 'string' && file.content.includes('"isTextFieldsNode"'));
         const isSystemPrompt = file.isSystemPromptNode || (file.content && typeof file.content === 'string' && file.content.includes('"command"'));
         const isAiMeta = file.isAiMetaNode || (file.content && typeof file.content === 'string' && file.content.includes('"role"'));
+        const isCustomNode = file.isCustomNode || file.template === 'custom_node' || (file.content && typeof file.content === 'string' && file.content.includes('"isCustomNode"'));
         
         const win = document.createElement('div');
         win.className = `editor-window${isCollapsed ? ' collapsed' : ''}${isImage ? ' image-window' : ''}${isStat ? ' stat-window' : ''}`;
@@ -780,7 +787,14 @@ class WindowManager {
                     </div>
                 </div>
             `;
+        } else if (isCustomNode) {
+            bodyContent = `
+                <div class="window-body custom-node-body" style="padding:0; height:calc(100% - 35px); overflow:hidden;">
+                    <!-- 커스텀 정의 노드 UI가 렌더링됩니다 -->
+                </div>
+            `;
         } else if (isStat) {
+
             bodyContent = `
                 <div class="stat-calculator-container" id="statContainer_${file.id}">
                     <!-- 계산기 UI가 여기에 렌더링됩니다 -->
@@ -2862,7 +2876,176 @@ class WindowManager {
         }
     }
 
+    /**
+     * 커스텀 정의 노드의 UI를 렌더링합니다.
+     * (수치/텍스트 입력 항목 + 동작 코드 실행/보기 + Output 결과)
+     */
+    async renderCustomNode(fileId) {
+        const info = this.getWindowInfo(fileId);
+        if (!info) return;
+
+        const windowEl = info.element;
+        if (!windowEl) return;
+
+        const body = windowEl.querySelector('.window-body');
+        if (!body) return;
+
+        let data = {};
+        try {
+            data = JSON.parse(info.file.content || '{}');
+        } catch (e) {
+            data = {};
+        }
+
+        const fields = data.fields || info.file.fields || [];
+        const code = data.code || info.file.code || '';
+        const ports = info.file.portsConfig || data.portsConfig || { inputs: [], outputs: [] };
+
+        // 수치형 항목 & 텍스트형 항목 분리
+        const statFields = fields.filter(f => f.type === 'stat' || typeof f.val === 'number');
+        const textFields = fields.filter(f => f.type === 'text' || typeof f.val === 'string');
+
+        // 입력 폼 HTML 생성
+        let fieldsHtml = '';
+
+        if (statFields.length > 0) {
+            fieldsHtml += `
+                <div style="margin-bottom: 10px;">
+                    <div style="font-size: 11px; font-weight: 700; color: var(--color-accent-primary); margin-bottom: 6px;">📊 수치 입력 항목</div>
+                    ${statFields.map((f, i) => `
+                        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; background: var(--color-surface-1); padding: 6px 10px; border-radius: 6px; border: 1px solid var(--color-border);">
+                            <span style="font-size: 12px; font-weight: 600;">${this.escapeHtml(f.name)}</span>
+                            <input type="number" class="input stat-input-field" data-var-name="${this.escapeHtml(f.name)}" data-field-index="${i}" data-field-kind="stat" value="${f.val ?? 0}" style="width: 100px; font-size: 12px; text-align: right;">
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        }
+
+        if (textFields.length > 0) {
+            fieldsHtml += `
+                <div style="margin-bottom: 10px;">
+                    <div style="font-size: 11px; font-weight: 700; color: var(--color-accent-primary); margin-bottom: 6px;">🏷️ 텍스트 입력 항목</div>
+                    ${textFields.map((f, i) => `
+                        <div style="margin-bottom: 8px; background: var(--color-surface-1); padding: 8px 10px; border-radius: 6px; border: 1px solid var(--color-border);">
+                            <div style="font-size: 11px; font-weight: 600; margin-bottom: 4px; color: var(--color-text-secondary);">${this.escapeHtml(f.name)}</div>
+                            <textarea class="input stat-input-field" data-var-name="${this.escapeHtml(f.name)}" data-field-index="${i}" data-field-kind="text" rows="${f.rows || 1}" style="width: 100%; font-size: 12px; line-height: 1.5; resize: vertical; min-height: ${Math.max(30, (f.rows || 1) * 22)}px;" placeholder="${this.escapeHtml(f.name)} 입력">${this.escapeHtml(f.val ?? '')}</textarea>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        }
+
+
+
+
+        if (fields.length === 0) {
+            fieldsHtml = `<div style="font-size: 11px; color: var(--color-text-tertiary); font-style: italic; margin-bottom: 10px; text-align: center; padding: 10px; background: var(--color-surface-1); border-radius: 6px; border: 1px dashed var(--color-border);">직접 입력 항목이 없습니다. (상위 노드 연결 전용)</div>`;
+        }
+
+        // 전체 UI 조합
+        body.innerHTML = `
+            <div class="custom-node-container" style="padding: 12px; height: 100%; display: flex; flex-direction: column; gap: 10px; overflow-y: auto;">
+                
+                <!-- 입력 변수 항목 영역 -->
+                ${fieldsHtml}
+
+                <!-- 실행 및 컨트롤 영역 -->
+                <div style="display: flex; gap: 6px; align-items: center;">
+                    <button type="button" class="btn btn-primary btn-sm run-node-btn" style="flex: 1; font-size: 12px; font-weight: 700; padding: 6px 10px;">▶ 노드 실행</button>
+                    <button type="button" class="btn btn-secondary btn-sm toggle-code-btn" style="font-size: 11px; padding: 6px 10px;">⚡ 코드 보기</button>
+                </div>
+
+                <!-- 코드 확인/수정 아코디언 (접힘/펴짐) -->
+                <div class="code-view-section hidden" style="background: var(--color-bg-secondary); padding: 10px; border-radius: 8px; border: 1px solid var(--color-border);">
+                    <div style="font-size: 11px; font-weight: 700; color: var(--color-text-tertiary); margin-bottom: 6px;">⚡ 동작 코드 (JavaScript)</div>
+                    <textarea class="input node-code-editor" rows="5" style="width: 100%; font-family: 'Fira Code', 'Consolas', monospace; font-size: 11px; line-height: 1.5; resize: vertical;" placeholder="// return { 핀이름: 값 }">${this.escapeHtml(code)}</textarea>
+                </div>
+
+                <!-- 실행 결과 영역 -->
+                <div class="node-output-result-box" style="background: var(--color-surface-1); border: 1px solid var(--color-border); padding: 10px; border-radius: 8px; font-size: 12px;">
+                    <div style="font-size: 11px; font-weight: 700; color: var(--color-accent-primary); margin-bottom: 6px;">📤 Output 출력 결과</div>
+                    <div class="output-values-list" style="font-size: 11px; font-family: monospace; color: var(--color-text-secondary);">
+                        <span style="color: var(--color-text-tertiary);">'▶ 노드 실행' 버튼을 눌러 결과를 확인하세요.</span>
+                    </div>
+                </div>
+
+            </div>
+        `;
+
+        // 1) 입력 필드 실시간 자동 저장
+        body.querySelectorAll('.stat-input-field').forEach(inputEl => {
+            inputEl.addEventListener('input', () => {
+                const varName = inputEl.dataset.varName;
+                const val = inputEl.type === 'number' ? (parseFloat(inputEl.value) || 0) : inputEl.value;
+
+                // data 객체 및 file 업데이트
+                const targetField = fields.find(f => f.name === varName);
+                if (targetField) targetField.val = val;
+
+                data.fields = fields;
+                info.file.content = JSON.stringify(data, null, 2);
+                window.storage?.updateFile(fileId, { content: info.file.content });
+            });
+        });
+
+        // 2) 코드 에디터 변경 자동 저장
+        const codeEditor = body.querySelector('.node-code-editor');
+        if (codeEditor) {
+            codeEditor.addEventListener('input', () => {
+                data.code = codeEditor.value;
+                info.file.code = codeEditor.value;
+                info.file.content = JSON.stringify(data, null, 2);
+                window.storage?.updateFile(fileId, { content: info.file.content, code: codeEditor.value });
+            });
+        }
+
+        // 3) 코드 보기/숨기기 토글 버튼
+        const toggleBtn = body.querySelector('.toggle-code-btn');
+        const codeSec = body.querySelector('.code-view-section');
+        if (toggleBtn && codeSec) {
+            toggleBtn.addEventListener('click', () => {
+                codeSec.classList.toggle('hidden');
+                toggleBtn.textContent = codeSec.classList.contains('hidden') ? '⚡ 코드 보기' : '⚡ 코드 숨기기';
+            });
+        }
+
+        // 4) 노드 실행 버튼 클릭 이벤트
+        const runBtn = body.querySelector('.run-node-btn');
+        const resultList = body.querySelector('.output-values-list');
+
+        if (runBtn && resultList) {
+            runBtn.addEventListener('click', async () => {
+                if (!window.nodeEngine) return;
+                runBtn.textContent = '⏳ 실행 중...';
+
+                const { output, warnings } = await window.nodeEngine.runNode(fileId);
+                runBtn.textContent = '▶ 노드 실행';
+
+                let resHtml = '';
+                if (warnings && warnings.length > 0) {
+                    resHtml += `<div style="color: var(--color-accent-danger); margin-bottom: 6px; font-weight: bold; font-family: sans-serif;">${warnings.join('<br>')}</div>`;
+                }
+
+                const keys = Object.keys(output);
+                if (keys.length === 0) {
+                    resHtml += `<span style="color: var(--color-text-tertiary);">출력 결과가 없습니다.</span>`;
+                } else {
+                    resHtml += keys.map(k => `
+                        <div style="display: flex; justify-content: space-between; align-items: flex-start; padding: 4px 6px; background: var(--color-bg-secondary); border-radius: 4px; margin-bottom: 4px;">
+                            <span style="font-weight: bold; color: var(--color-accent-primary);">${this.escapeHtml(k)}:</span>
+                            <span style="word-break: break-all; margin-left: 8px; color: var(--color-text-primary);">${this.escapeHtml(typeof output[k] === 'object' ? JSON.stringify(output[k]) : String(output[k] ?? 'null'))}</span>
+                        </div>
+                    `).join('');
+                }
+
+                resultList.innerHTML = resHtml;
+            });
+        }
+    }
+
     renderTextFieldsNode(fileId) {
+
         const info = this.windows.get(fileId);
         const container = document.getElementById(`textFieldContainer_${fileId}`);
         if (!info || !container) return;
