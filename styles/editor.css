@@ -2058,22 +2058,46 @@ input[type="number"] {
   appearance: textfield;
 }
 
-/* 마법사 모달 상단 탭 스타일 */
+/* 마법사 모달 상단 세그먼트 탭 전용 럭셔리 스타일 */
+.wizard-tabs-nav {
+  display: flex;
+  gap: 6px;
+  background: var(--color-bg-primary);
+  padding: 6px;
+  border-radius: 12px;
+  border: 1px solid var(--color-border);
+  margin-bottom: 20px;
+}
+
 .wizard-tab-btn {
-  background: transparent;
-  color: var(--color-text-secondary);
-  border: 1px solid transparent;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 16px !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  color: var(--color-text-tertiary) !important;
+  background: transparent !important;
+  border: 1px solid transparent !important;
+  border-radius: 8px !important;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  user-select: none;
 }
 
 .wizard-tab-btn:hover {
-  background: var(--color-surface-1);
-  color: var(--color-text-primary);
+  color: var(--color-text-primary) !important;
+  background: rgba(255, 255, 255, 0.05) !important;
 }
 
 .wizard-tab-btn.active {
+  color: #00ffcc !important;
   background: var(--color-surface-2) !important;
-  color: var(--color-accent-primary) !important;
-  border-color: var(--color-border) !important;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+  border-color: rgba(0, 255, 204, 0.35) !important;
+  font-weight: 700 !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4), 0 0 12px rgba(0, 255, 204, 0.2);
 }
+
 

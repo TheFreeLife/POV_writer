@@ -852,10 +852,8 @@ class FileTreeManager {
         document.querySelectorAll('.wizard-tab-btn').forEach(btn => {
             const isActive = (btn.dataset.wizardTab === tabName);
             btn.classList.toggle('active', isActive);
-            btn.style.background = isActive ? 'var(--color-surface-2)' : 'transparent';
-            btn.style.color = isActive ? 'var(--color-accent-primary)' : 'var(--color-text-secondary)';
-            btn.style.borderColor = isActive ? 'var(--color-border)' : 'transparent';
         });
+
 
         const dataContent = document.getElementById('wizardTabContentData');
         const codeContent = document.getElementById('wizardTabContentCode');
