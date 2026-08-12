@@ -305,6 +305,17 @@
               <label style="font-size: 12px; font-weight: 700; color: var(--color-text-secondary); display: block; margin-bottom: 4px;">노드 설명 (선택)</label>
               <input type="text" class="input" id="wizardDesc" placeholder="노드 카드에 표시될 간단한 설명이나 메모를 작성하세요" style="width: 100%;">
             </div>
+            <!-- 노드 생성 시 이름 입력 여부 토글 -->
+            <div class="wizard-toggle-row" style="margin-top: 14px;">
+              <div class="wizard-toggle-info">
+                <span class="wizard-toggle-label">✏️ 노드 생성 시 이름 입력 받기</span>
+                <span class="wizard-toggle-desc">켜면 카드 클릭 시 노드의 이름을 직접 입력하는 창이 나타납니다</span>
+              </div>
+              <label class="toggle-switch" for="wizardPromptForName" title="노드 생성 시 이름을 입력받을지 결정합니다">
+                <input type="checkbox" id="wizardPromptForName">
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
           </div>
         </div>
 

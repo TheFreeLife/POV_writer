@@ -828,8 +828,16 @@ class FileTreeManager {
             }
         }
 
+        // promptForName이 켜져 있으면 이름 입력 창을 띄움
+        let nodeName = `${preset.icon || '📄'} ${preset.name}`;
+        if (preset.promptForName) {
+            const inputName = await this._promptNodeName(preset);
+            if (inputName === null) return; // 취소 시 생성 중단
+            nodeName = `${preset.icon || '📄'} ${inputName.trim() || preset.name}`;
+        }
+
         const fileData = {
-            name: `${preset.icon || '📄'} ${preset.name}`,
+            name: nodeName,
             type: 'file',
             template: 'custom_node',
             isCustomNode: true,
@@ -846,6 +854,89 @@ class FileTreeManager {
         };
 
         await this.createNewCustomNode(fileData);
+    }
+
+    /**
+     * 노드 이름 입력 인라인 모달 (Promise 기반)
+     * @param {object} preset - 커스텀 노드 프리셋
+     * @returns {Promise<string|null>} 입력된 이름 or null(취소)
+     */
+    _promptNodeName(preset) {
+        return new Promise((resolve) => {
+            // 기존 모달이 있으면 제거
+            const existing = document.getElementById('nodeNamePromptModal');
+            if (existing) existing.remove();
+
+            const overlay = document.createElement('div');
+            overlay.id = 'nodeNamePromptModal';
+            overlay.style.cssText = `
+                position: fixed; inset: 0; z-index: 9999;
+                background: rgba(0,0,0,0.55); backdrop-filter: blur(4px);
+                display: flex; align-items: center; justify-content: center;
+            `;
+
+            overlay.innerHTML = `
+                <div style="
+                    background: var(--color-surface-2, #1e1e2e);
+                    border: 1px solid var(--color-border);
+                    border-radius: 16px;
+                    padding: 28px 28px 22px;
+                    min-width: 340px;
+                    max-width: 480px;
+                    width: 90vw;
+                    box-shadow: 0 24px 60px rgba(0,0,0,0.6);
+                ">
+                    <div style="display:flex; align-items:center; gap:10px; margin-bottom:18px;">
+                        <span style="font-size:28px; line-height:1;">${preset.icon || '📄'}</span>
+                        <div>
+                            <div style="font-size:14px; font-weight:700; color:var(--color-text-primary);">${this.escapeHtml(preset.name)}</div>
+                            <div style="font-size:11px; color:var(--color-text-tertiary); margin-top:2px;">새 노드의 이름을 입력하세요</div>
+                        </div>
+                    </div>
+                    <input
+                        id="nodeNamePromptInput"
+                        type="text"
+                        class="input"
+                        placeholder="노드 이름 (비우면 기본 이름 사용)"
+                        style="width:100%; font-size:13px; font-weight:600; margin-bottom:16px;"
+                    >
+                    <div style="display:flex; gap:8px; justify-content:flex-end;">
+                        <button id="nodeNamePromptCancel" class="btn btn-secondary" style="min-width:72px;">취소</button>
+                        <button id="nodeNamePromptConfirm" class="btn btn-primary" style="min-width:72px;">생성</button>
+                    </div>
+                </div>
+            `;
+
+            document.body.appendChild(overlay);
+
+            const input = document.getElementById('nodeNamePromptInput');
+            const confirmBtn = document.getElementById('nodeNamePromptConfirm');
+            const cancelBtn = document.getElementById('nodeNamePromptCancel');
+
+            const cleanup = () => overlay.remove();
+
+            confirmBtn.addEventListener('click', () => {
+                cleanup();
+                resolve(input.value);
+            });
+
+            cancelBtn.addEventListener('click', () => {
+                cleanup();
+                resolve(null);
+            });
+
+            overlay.addEventListener('click', (e) => {
+                if (e.target === overlay) { cleanup(); resolve(null); }
+            });
+
+            input.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') { cleanup(); resolve(input.value); }
+                if (e.key === 'Escape') { cleanup(); resolve(null); }
+            });
+
+            // 잠시 후 포커스 (모달 애니메이션 후)
+            requestAnimationFrame(() => input.focus());
+        });
     }
 
     switchWizardTab(tabName) {
@@ -967,6 +1058,10 @@ class FileTreeManager {
         }
         const testResult = document.getElementById('wizardTestResult');
         if (testResult) testResult.style.display = 'none';
+
+        // 이름 입력 토글 로드
+        const promptToggle = document.getElementById('wizardPromptForName');
+        if (promptToggle) promptToggle.checked = !!(presetToEdit?.promptForName);
 
         this.updateCustomWizardUI();
         this.updateWizardVarChips();
@@ -1309,6 +1404,7 @@ class FileTreeManager {
 
         const portsConfig = { inputs, outputs };
         const code = document.getElementById('wizardCodeEditor')?.value.trim() || '';
+        const promptForName = !!(document.getElementById('wizardPromptForName')?.checked);
         const isEditing = !!this.editingCustomPresetId;
         const presetId = this.editingCustomPresetId || ('preset_' + Date.now());
 
@@ -1322,6 +1418,7 @@ class FileTreeManager {
             fields,
             code,
             portsConfig,
+            promptForName,
             isFolderCollectorNode: type === 'folder_collector',
         };
 
