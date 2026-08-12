@@ -554,11 +554,11 @@ class WindowManager {
             this.applyTransform();
         }
 
-        // 열려있던 창들 복구
+        // 프로젝트 내의 모든 노드 파일들 캔버스 복구 (숨김 노드 없음)
         const files = await storage.getProjectFiles(window.currentProjectId);
-        const openFiles = files.filter(f => f.windowState && f.windowState.isOpen);
+        const nodeFiles = files.filter(f => f.type === 'file');
 
-        for (const file of openFiles) {
+        for (const file of nodeFiles) {
             await this.openWindow(file.id, file.windowState);
         }
 
@@ -576,9 +576,9 @@ class WindowManager {
         if (this.windows.has(fileId)) {
             this.focusWindow(fileId);
             
-            // 수동으로 열었는데 현재 화면(뷰포트)에 보이지 않는다면 중앙으로 이동
-            if (isManualOpen && !this.isWindowInViewport(fileId)) {
-                this.moveWindowToViewCenter(fileId);
+            // 수동 선택 시 노드 위치는 보존하고 카메라(뷰포트)를 해당 노드 쪽으로 이동
+            if (isManualOpen) {
+                this.panViewportToNode(fileId);
             }
             return;
         }
@@ -599,14 +599,16 @@ class WindowManager {
 
         let x, y, width = defW, height = defH;
 
-        // 세션 복구(최초 로드 등)일 때만 저장된 상태를 사용
-        if (restoreState && typeof restoreState.x === 'number') {
-            x = restoreState.x;
-            y = restoreState.y;
-            width = restoreState.width || defW;
-            height = restoreState.height || defH;
+        const savedState = restoreState || file.windowState;
+
+        // 저장된 x, y 위치 정보가 있다면 100% 저장된 위치 사용
+        if (savedState && typeof savedState.x === 'number' && typeof savedState.y === 'number') {
+            x = savedState.x;
+            y = savedState.y;
+            width = savedState.width || defW;
+            height = savedState.height || defH;
         } else {
-            // 수동으로 여는 경우 현재 보고 있는 화면의 중앙 좌표 계산
+            // 위치 저장이 전혀 없던 신규 노드만 화면 중앙 배치
             const center = this.calculateViewCenter(width, height);
             x = center.x;
             y = center.y;
@@ -643,10 +645,13 @@ class WindowManager {
 
         // 리스트 합산기 및 커스텀 노드(수치 노드 포함) 초기 렌더링
         const isAggregator = file.isAggregatorNode || file.template === 'aggregator' || (file.content && typeof file.content === 'string' && file.content.includes('"isAggregatorNode"'));
-        const isCustomNode = !isAggregator && (file.isCustomNode || file.template === 'custom_node' || file.template === 'text_fields' || file.isTextFieldsNode || (file.content && typeof file.content === 'string' && file.content.includes('"isCustomNode"')));
+        const isDataViewer = file.isDataViewerNode || file.template === 'viewer' || (file.content && typeof file.content === 'string' && file.content.includes('"isDataViewerNode"'));
+        const isCustomNode = !isAggregator && !isDataViewer && (file.isCustomNode || file.template === 'custom_node' || file.template === 'text_fields' || file.isTextFieldsNode || (file.content && typeof file.content === 'string' && file.content.includes('"isCustomNode"')));
 
         if (isAggregator) {
             this.renderAggregatorNode(fileId);
+        } else if (isDataViewer) {
+            this.renderDataViewerNode(fileId);
         } else if (isCustomNode) {
             this.renderCustomNode(fileId);
         }
@@ -874,21 +879,35 @@ class WindowManager {
     }
 
     /**
-     * 창을 현재 화면 중앙으로 즉시 이동
+     * 노드의 배치 위치(x, y)는 절대로 건드리지 않고, 카메라(뷰포트 panX, panY)를 해당 노드가 있는 곳으로 이동시킵니다.
      */
-    moveWindowToViewCenter(fileId) {
+    panViewportToNode(fileId) {
         const info = this.windows.get(fileId);
-        if (!info) return;
-        
-        const width = info.element.offsetWidth;
-        const height = info.element.offsetHeight;
-        const center = this.calculateViewCenter(width, height);
-        
-        info.element.style.left = `${center.x}px`;
-        info.element.style.top = `${center.y}px`;
-        
-        // 이동된 위치 저장
-        this.updateFileWindowState(fileId, { x: center.x, y: center.y });
+        if (!info || !info.element) return;
+
+        const canvasArea = document.getElementById('canvasArea');
+        const areaRect = canvasArea ? canvasArea.getBoundingClientRect() : { width: window.innerWidth, height: window.innerHeight };
+
+        const posX = parseFloat(info.element.style.left) || info.element.offsetLeft;
+        const posY = parseFloat(info.element.style.top) || info.element.offsetTop;
+        const width = info.element.offsetWidth || 520;
+        const height = info.element.offsetHeight || 400;
+
+        // 노드의 캔버스 좌표계 상 중심점
+        const nodeCenterX = posX + width / 2;
+        const nodeCenterY = posY + height / 2;
+
+        // 노드가 화면 중앙에 오도록 panX, panY 계산 (스케일 반영)
+        this.panX = areaRect.width / 2 - (nodeCenterX * this.scale);
+        this.panY = areaRect.height / 2 - (nodeCenterY * this.scale);
+
+        // 카메라 트랜스폼 적용 및 세션 상태 저장
+        this.applyTransform();
+        if (window.currentProjectId && window.storage) {
+            window.storage.updateProject(window.currentProjectId, {
+                canvasState: { scale: this.scale, panX: this.panX, panY: this.panY }
+            });
+        }
     }
 
     /**
@@ -902,6 +921,16 @@ class WindowManager {
         const newWindowState = { ...currentWindowState, ...stateUpdates };
 
         await storage.updateFile(fileId, { windowState: newWindowState });
+
+        // 메모리 상의 file 객체들도 즉시 동기화하여 저장소 덮어쓰기 방지
+        const info = this.getWindowInfo(fileId);
+        if (info) {
+            info.file.windowState = newWindowState;
+        }
+        const treeFile = window.fileTreeManager?.files?.find(f => String(f.id) === String(fileId));
+        if (treeFile) {
+            treeFile.windowState = newWindowState;
+        }
     }
 
     /**
@@ -913,7 +942,8 @@ class WindowManager {
         const isTextFields = file.isTextFieldsNode || (file.content && typeof file.content === 'string' && file.content.includes('"isTextFieldsNode"'));
         const isSystemPrompt = file.isSystemPromptNode || (file.content && typeof file.content === 'string' && file.content.includes('"command"'));
         const isAggregator = file.isAggregatorNode || file.template === 'aggregator' || (file.content && typeof file.content === 'string' && file.content.includes('"isAggregatorNode"'));
-        const isCustomNode = !isAggregator && (file.isCustomNode || file.template === 'custom_node' || file.template === 'text_fields' || file.isTextFieldsNode || (file.content && typeof file.content === 'string' && file.content.includes('"isCustomNode"')));
+        const isDataViewer = file.isDataViewerNode || file.template === 'viewer' || (file.content && typeof file.content === 'string' && file.content.includes('"isDataViewerNode"'));
+        const isCustomNode = !isAggregator && !isDataViewer && (file.isCustomNode || file.template === 'custom_node' || file.template === 'text_fields' || file.isTextFieldsNode || (file.content && typeof file.content === 'string' && file.content.includes('"isCustomNode"')));
 
 
 
@@ -955,6 +985,12 @@ class WindowManager {
                     <!-- 리스트 합산기 노드 UI가 렌더링됩니다 -->
                 </div>
             `;
+        } else if (isDataViewer) {
+            bodyContent = `
+                <div class="stat-calculator-container" id="dataViewerContainer_${file.id}">
+                    <!-- 데이터 뷰어 노드 UI가 렌더링됩니다 -->
+                </div>
+            `;
         } else if (isCustomNode) {
             bodyContent = `
                 <div class="window-body custom-node-body" style="padding:0; height:calc(100% - 35px); overflow-y:auto; box-sizing:border-box;">
@@ -974,7 +1010,7 @@ class WindowManager {
 
 
         const isImageNode = file.template === 'image' || (file.content && typeof file.content === 'string' && file.content.startsWith('data:image'));
-        const isManuscriptNode = !isCustomNode && !isAggregator && !isImageNode;
+        const isManuscriptNode = !isCustomNode && !isAggregator && !isDataViewer && !isImageNode;
 
         const defaultInputs = (isImageNode || isManuscriptNode) ? [] : [{ id: 'in_1', name: '입력 데이터' }];
         const defaultOutputs = isManuscriptNode ? [{ id: 'out_1', name: '원고 결과', color: '#00ffcc' }] : [{ id: 'out_1', name: '출력 데이터', color: '#00ffcc' }];
@@ -1027,7 +1063,7 @@ class WindowManager {
                     ${isImage ? `<button class="window-btn window-btn-rotate" data-action="rotate" title="90도 회전">🔄</button>` : ''}
                     ${!isImage ? `<button class="window-btn window-btn-focus" data-action="line-focus" title="타자기 모드(집중)">🖋️</button>` : ''}
                     <button class="window-btn window-btn-collapse" data-action="collapse" title="접기/펴기">${collapseChar}</button>
-                    <button class="window-btn window-btn-close" data-action="close" title="닫기">✕</button>
+                    <button class="window-btn window-btn-close" data-action="close" title="🗑️ 노드 완전 삭제">✕</button>
                 </div>
             </div>
             ${bodyContent}
@@ -1221,18 +1257,6 @@ class WindowManager {
 
             document.body.style.cursor = 'grabbing';
             document.body.style.userSelect = 'none';
-
-            // 드래그 종료 시 위치 저장
-            window.addEventListener('mouseup', () => {
-                if (this.dragState && this.dragState.fileId === fileId) {
-                    this.dragState.targets.forEach(t => {
-                        this.updateFileWindowState(t.id, {
-                            x: t.element.offsetLeft,
-                            y: t.element.offsetTop
-                        });
-                    });
-                }
-            }, { once: true });
         });
 
         // 버튼 (닫기, 접기, 회전)
@@ -1312,16 +1336,6 @@ class WindowManager {
                 const cursorMap = { n: 'ns-resize', s: 'ns-resize', e: 'ew-resize', w: 'ew-resize', nw: 'nwse-resize', se: 'nwse-resize', ne: 'nesw-resize', sw: 'nesw-resize' };
                 document.body.style.cursor = cursorMap[edge.dataset.dir] || 'nwse-resize';
                 document.body.style.userSelect = 'none';
-
-                // 리사이즈 종료 시 크기/위치 저장
-                window.addEventListener('mouseup', () => {
-                    this.updateFileWindowState(fileId, {
-                        x: win.offsetLeft,
-                        y: win.offsetTop,
-                        width: win.offsetWidth,
-                        height: win.offsetHeight
-                    });
-                }, { once: true });
             });
         });
 
@@ -1655,15 +1669,37 @@ class WindowManager {
 
         document.querySelectorAll('.selection-box').forEach(el => el.remove());
 
-        if (this.regionDragState || this.regionResizeState) {
-            this.regionDragState = null;
-            this.regionResizeState = null;
-            this.saveRegions();
+        if (this.dragState) {
+            this.dragState.targets.forEach(t => {
+                const posX = parseFloat(t.element.style.left);
+                const posY = parseFloat(t.element.style.top);
+                this.updateFileWindowState(t.id, {
+                    x: !isNaN(posX) ? posX : t.element.offsetLeft,
+                    y: !isNaN(posY) ? posY : t.element.offsetTop
+                });
+            });
+            this.dragState = null;
         }
 
-        if (this.dragState || this.resizeState || this.panState || this.selectionState) {
-            this.dragState = null;
+        if (this.resizeState) {
+            const win = this.resizeState.element;
+            const fileId = this.resizeState.fileId;
+            if (win && fileId) {
+                const posX = parseFloat(win.style.left);
+                const posY = parseFloat(win.style.top);
+                const wVal = parseFloat(win.style.width);
+                const hVal = parseFloat(win.style.height);
+                this.updateFileWindowState(fileId, {
+                    x: !isNaN(posX) ? posX : win.offsetLeft,
+                    y: !isNaN(posY) ? posY : win.offsetTop,
+                    width: !isNaN(wVal) ? wVal : win.offsetWidth,
+                    height: !isNaN(hVal) ? hVal : win.offsetHeight
+                });
+            }
             this.resizeState = null;
+        }
+
+        if (this.panState || this.selectionState) {
             this.panState = null;
             this.selectionState = null;
             document.body.style.cursor = '';
@@ -1900,48 +1936,36 @@ class WindowManager {
     }
 
     /**
-     * 창 닫기
+     * 노드 삭제 (닫기 클릭 시 숨기지 않고 노드 완전 삭제)
      */
     async closeWindow(fileId) {
         const info = this.windows.get(fileId);
-        if (!info) return;
+        const file = info?.file || (window.fileTreeManager?.files || []).find(f => String(f.id) === String(fileId)) || { id: fileId, name: '이 노드' };
+        const fileName = file.name || '이 노드';
 
-        // 수정된 내용 저장
-        if (info.modified) {
-            await this.saveWindow(fileId, true);
-        }
-
-        // 닫기 상태 저장
-        await this.updateFileWindowState(fileId, { isOpen: false });
-
-        // 타이머 정리
-        clearTimeout(this.autoSaveTimers.get(fileId));
-        this.autoSaveTimers.delete(fileId);
-
-        // DOM 제거
-        info.element.remove();
-        this.windows.delete(fileId);
-        this.selectedWindowIds.delete(fileId);
-
-        this.updateNodeEdgeIndicators();
-
-        // 다른 창으로 포커스 이동
-        if (this.activeWindowId === fileId) {
-            const remainingSelected = Array.from(this.selectedWindowIds);
-            if (remainingSelected.length > 0) {
-                this.focusWindow(remainingSelected[remainingSelected.length - 1], true);
-            } else {
-                this.activeWindowId = null;
-                const remaining = Array.from(this.windows.keys());
-                if (remaining.length > 0) {
-                    this.focusWindow(remaining[remaining.length - 1]);
-                }
+        if (confirm(`'${fileName}' 노드를 완전히 삭제할까요?\n연결된 핀과 데이터도 함께 제거됩니다.`)) {
+            // DOM 창 제거
+            if (info && info.element) {
+                info.element.remove();
             }
-        }
+            this.windows.delete(fileId);
+            this.selectedWindowIds.delete(fileId);
 
-        // 통계 업데이트
-        window.toolsPanel?.updateStats();
-        this.renderConnections();
+            // 연결선 및 캐시 상태 파괴
+            await this.destroyNodeState(fileId);
+
+            // DB에서 파일 완전 삭제
+            await storage.deleteFile(fileId);
+
+            // 파일 트리 새로고침
+            if (window.fileTreeManager) {
+                if (window.fileTreeManager.currentFileId === fileId) {
+                    window.fileTreeManager.currentFileId = null;
+                }
+                await window.fileTreeManager.loadProjectFiles(window.fileTreeManager.currentProjectId || window.currentProjectId);
+            }
+            window.showToast?.(`'${fileName}' 노드가 삭제되었습니다. 🗑️`);
+        }
     }
 
     /**
@@ -2933,12 +2957,13 @@ class WindowManager {
         const entries = inConns.map(conn => {
             const fromInfo = this.getWindowInfo(conn.fromId);
             const fromFile = fromInfo?.file || (window.fileTreeManager?.files || []).find(f => String(f.id) === String(conn.fromId));
-            const rawName = fromFile?.name || conn.fromId;
-            // 이름에서 이모지 prefix 제거하여 깔끔한 키 만들기
+            if (!fromFile) return null; // 완전히 지워진 노드 제외
+
+            const rawName = fromFile.name || conn.fromId;
             const cleanName = rawName.replace(/^[\u{1F300}-\u{1FFFF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]\s*/u, '').trim() || rawName;
             keyCount[cleanName] = (keyCount[cleanName] || 0) + 1;
             return { conn, rawName, cleanName, fromInfo };
-        });
+        }).filter(Boolean);
 
         // 중복 키 넘버링
         const keyIndex = {};
@@ -3008,6 +3033,155 @@ class WindowManager {
                 if (headerEl) headerEl.textContent = `🔗 연결된 노드 (${activeNow}/${keyedEntries.length} 활성)`;
             });
         });
+    }
+
+    /**
+     * 데이터 뷰어(디버그) 노드의 UI를 렌더링합니다.
+     * - Input으로 들어온 데이터를 실시간 모니터링
+     * - 텍스트/숫자/리스트/객체 JSON 프리티 프린팅 및 복사 기능 제공
+     */
+    async renderDataViewerNode(fileId) {
+        const info = this.getWindowInfo(fileId);
+        if (!info) return;
+
+        const container = info.element?.querySelector(`#dataViewerContainer_${fileId}`);
+        if (!container) return;
+
+        let inputVars = {};
+        if (window.nodeEngine) {
+            inputVars = window.nodeEngine.collectInputVars(fileId);
+        }
+
+        const rawVal = inputVars['입력 데이터'] ?? inputVars['input'] ?? (Object.values(inputVars)[0] ?? null);
+
+        let typeLabel = 'Empty (데이터 없음)';
+        let displayContent = '(연결된 입력 데이터가 없거나 빈 상태입니다)';
+        let isJson = false;
+
+        if (rawVal !== null && rawVal !== undefined) {
+            if (typeof rawVal === 'string') {
+                typeLabel = `String (${rawVal.length}자)`;
+                displayContent = rawVal || '(빈 텍스트)';
+            } else if (typeof rawVal === 'number') {
+                typeLabel = `Number (숫자: ${rawVal})`;
+                displayContent = String(rawVal);
+            } else if (typeof rawVal === 'boolean') {
+                typeLabel = `Boolean (${rawVal})`;
+                displayContent = String(rawVal);
+            } else if (Array.isArray(rawVal)) {
+                typeLabel = `Array [${rawVal.length}개 항목]`;
+                displayContent = JSON.stringify(rawVal, null, 2);
+                isJson = true;
+            } else if (typeof rawVal === 'object') {
+                typeLabel = `Object [딕셔너리]`;
+                displayContent = JSON.stringify(rawVal, null, 2);
+                isJson = true;
+            }
+        }
+
+        container.innerHTML = `
+            <div style="padding: 12px; display: flex; flex-direction: column; gap: 10px; height: 100%; box-sizing: border-box;">
+                <div style="display: flex; justify-content: space-between; align-items: center; background: var(--color-surface-1); padding: 8px 12px; border-radius: 6px; border: 1px solid var(--color-border);">
+                    <div style="display: flex; align-items: center; gap: 6px;">
+                        <span style="font-size: 13px;">👁️</span>
+                        <span style="font-size: 11px; font-weight: 700; color: var(--color-accent-primary);">모니터링 타입:</span>
+                        <span style="font-size: 11px; font-weight: 800; color: #00ffcc; background: rgba(0,255,204,0.1); padding: 2px 6px; border-radius: 4px;">${this.escapeHtml(typeLabel)}</span>
+                    </div>
+                    <button type="button" class="btn btn-secondary btn-xs copy-viewer-btn" style="font-size: 11px; padding: 2px 8px;">📋 데이터 복사</button>
+                </div>
+
+                <div style="flex: 1; min-height: 120px; display: flex; flex-direction: column;">
+                    <pre class="viewer-pre" style="flex: 1; font-size: 12px; background: var(--color-bg-primary); padding: 12px; border-radius: 8px; border: 1px solid var(--color-border); white-space: pre-wrap; word-break: break-all; overflow-y: auto; margin: 0; font-family: ${isJson ? 'var(--font-family-mono)' : 'inherit'}; color: var(--color-text-primary); line-height: 1.6;">${this.escapeHtml(displayContent)}</pre>
+                </div>
+            </div>
+        `;
+
+        const copyBtn = container.querySelector('.copy-viewer-btn');
+        copyBtn?.addEventListener('click', () => {
+            navigator.clipboard.writeText(displayContent).then(() => {
+                window.showToast?.('모니터링 데이터가 클립보드에 복사되었습니다! 📋');
+            });
+        });
+    }
+
+    // ─────────────────────────────────────────────
+    // 전역 노드 라이프사이클 및 이벤트 브로드캐스터
+    // ─────────────────────────────────────────────
+
+    /**
+     * 특정 노드의 UI를 타입에 구애받지 않고 자동으로 판단하여 갱신합니다.
+     */
+    refreshNodeUI(fileId) {
+        const info = this.getWindowInfo(fileId);
+        if (!info) return;
+
+        const f = info.file;
+        const isAggregator = f.isAggregatorNode || f.template === 'aggregator' || (f.content && typeof f.content === 'string' && f.content.includes('"isAggregatorNode"'));
+        const isDataViewer = f.isDataViewerNode || f.template === 'viewer' || (f.content && typeof f.content === 'string' && f.content.includes('"isDataViewerNode"'));
+        const isTextFields = f.isTextFieldsNode || (f.content && typeof f.content === 'string' && f.content.includes('"isTextFieldsNode"'));
+        const isCustomNode = !isAggregator && !isDataViewer && (f.isCustomNode || f.template === 'custom_node' || f.template === 'text_fields' || f.isTextFieldsNode || (f.content && typeof f.content === 'string' && f.content.includes('"isCustomNode"')));
+
+        if (isAggregator) {
+            this.renderAggregatorNode(fileId);
+        } else if (isDataViewer) {
+            this.renderDataViewerNode(fileId);
+        } else if (isTextFields) {
+            this.renderTextFieldsNode(fileId);
+        } else if (isCustomNode) {
+            this.renderCustomNode(fileId);
+        }
+    }
+
+    /**
+     * 캔버스에 열려있는 모든 노드의 UI를 일괄 재렌더링합니다.
+     */
+    refreshAllNodesUI() {
+        this.windows.forEach((_, fileId) => {
+            this.refreshNodeUI(fileId);
+        });
+    }
+
+    /**
+     * 노드 상태 변경 (이름 변경, 내용 수정, 핀 연결/해제 등) 발생 시
+     * 해당 노드와 하위 연관 노드들에게 상태 변경을 연쇄 통보(Cascade Propagation)합니다.
+     */
+    async notifyNodeChanged(sourceFileId, eventType = 'contentChange') {
+        const fileIdStr = String(sourceFileId);
+
+        // 1) 지워지거나 변경된 노드의 NodeEngine 메모리 캐시 무효화
+        if (window.nodeEngine) {
+            window.nodeEngine.clearNodeCache(fileIdStr);
+
+            // 2) 하위(Downstream) 연결된 모든 노드의 캐시도 함께 무효화
+            const downstreamIds = window.nodeEngine.getDownstreamNodeIds(fileIdStr);
+            downstreamIds.forEach(dId => window.nodeEngine.clearNodeCache(dId));
+        }
+
+        // 3) 연결선 다시 그리기
+        this.renderConnections();
+
+        // 4) 캔버스 UI 일괄 및 하위 노드 UI 실시간 새로고침
+        this.refreshAllNodesUI();
+    }
+
+    /**
+     * 특정 노드가 완전 삭제되거나 파괴될 때 일괄 세션 및 연결 정리 (Cascade Cleanup)
+     */
+    async destroyNodeState(fileId) {
+        if (!fileId) return;
+        const fileIdStr = String(fileId);
+
+        // 1) 핀 연결선 일괄 정리
+        if (Array.isArray(this.nodeConnections)) {
+            const initialLen = this.nodeConnections.length;
+            this.nodeConnections = this.nodeConnections.filter(c => String(c.fromId) !== fileIdStr && String(c.toId) !== fileIdStr);
+            if (this.nodeConnections.length !== initialLen) {
+                await this.saveConnections();
+            }
+        }
+
+        // 2) 캐시 정리 및 하위 전파
+        await this.notifyNodeChanged(fileIdStr, 'delete');
     }
 
     /**
@@ -3753,17 +3927,8 @@ class WindowManager {
         this.saveConnections();
         window.showToast?.(replacedOld ? 'Input 핀 연결이 새로 교체되었습니다! 🔗' : '노드 포트 핀이 연결되었습니다! 🔗', 'success');
 
-        // 연결된 노드들 실시간 데이터 미리보기 갱신
-        this.windows.forEach((info, fId) => {
-            if (info.file.isTextFieldsNode || (info.file.content && typeof info.file.content === 'string' && info.file.content.includes('"isTextFieldsNode"'))) {
-                this.renderTextFieldsNode(fId);
-            }
-            if (String(fId) === String(inputId) &&
-                (info.file.isAggregatorNode || info.file.template === 'aggregator' ||
-                 (info.file.content && typeof info.file.content === 'string' && info.file.content.includes('"isAggregatorNode"')))) {
-                this.renderAggregatorNode(fId);
-            }
-        });
+        // 중앙 이벤트 통보 시스템을 통해 하위 연관 노드 및 UI 연쇄 자동 새로고침!
+        this.notifyNodeChanged(outputId, 'connectionChange');
 
         // 포트 핀 CSS 애니메이션/트랜지션이 완전히 정돈된 후 연결선 위치 재동기화
         setTimeout(() => this.renderConnections(), 50);
@@ -3776,22 +3941,42 @@ class WindowManager {
     deleteConnection(connId) {
         const idx = this.nodeConnections.findIndex(c => c.id === connId);
         if (idx !== -1) {
+            const deletedConn = this.nodeConnections[idx];
             this.nodeConnections.splice(idx, 1);
             if (this.selectedConnectionId === connId) {
                 this.selectedConnectionId = null;
             }
-            this.renderConnections();
             this.saveConnections();
             window.showToast?.('연결선이 삭제되었습니다.');
 
-            // 연결 해제 시 노드 실시간 미리보기 갱신
+            // 중앙 이벤트 통보 시스템을 통해 연쇄 자동 새로고침!
+            this.notifyNodeChanged(deletedConn.fromId, 'connectionChange');
+        }
+    }
+
+    /**
+     * 특정 노드가 삭제될 때 연결되어 있던 모든 핀 연결선 제거
+     */
+    async removeConnectionsForFile(fileId) {
+        if (!Array.isArray(this.nodeConnections)) return;
+        const targetIdStr = String(fileId);
+        const originalLength = this.nodeConnections.length;
+
+        this.nodeConnections = this.nodeConnections.filter(c => String(c.fromId) !== targetIdStr && String(c.toId) !== targetIdStr);
+
+        if (this.nodeConnections.length !== originalLength) {
+            this.renderConnections();
+            await this.saveConnections();
+            
+            // 캔버스 내 남아있는 합산 노드/뷰어 노드 UI 갱신
             this.windows.forEach((info, fId) => {
-                if (info.file.isTextFieldsNode || (info.file.content && typeof info.file.content === 'string' && info.file.content.includes('"isTextFieldsNode"'))) {
-                    this.renderTextFieldsNode(fId);
-                }
                 if (info.file.isAggregatorNode || info.file.template === 'aggregator' ||
                     (info.file.content && typeof info.file.content === 'string' && info.file.content.includes('"isAggregatorNode"'))) {
                     this.renderAggregatorNode(fId);
+                }
+                if (info.file.isDataViewerNode || info.file.template === 'viewer' ||
+                    (info.file.content && typeof info.file.content === 'string' && info.file.content.includes('"isDataViewerNode"'))) {
+                    this.renderDataViewerNode(fId);
                 }
             });
         }
@@ -3896,11 +4081,14 @@ class WindowManager {
             svg.appendChild(pathEl);
         });
 
-        // 리스트 합산기 노드가 캔버스에 있는 경우 연결 갱신 반영
+        // 리스트 합산기 및 데이터 뷰어 노드가 캔버스에 있는 경우 연결 갱신 반영
         this.windows.forEach((info, fId) => {
             const f = info.file;
             if (f.isAggregatorNode || f.template === 'aggregator' || (f.content && typeof f.content === 'string' && f.content.includes('"isAggregatorNode"'))) {
                 this.renderAggregatorNode(fId);
+            }
+            if (f.isDataViewerNode || f.template === 'viewer' || (f.content && typeof f.content === 'string' && f.content.includes('"isDataViewerNode"'))) {
+                this.renderDataViewerNode(fId);
             }
         });
     }

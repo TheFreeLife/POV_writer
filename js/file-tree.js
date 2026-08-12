@@ -43,6 +43,7 @@ class FileTreeManager {
 
                     if (presetType === 'image') this.showNewImageModal();
                     else if (presetType === 'aggregator') this.createAggregatorNode();
+                    else if (presetType === 'viewer') this.createDataViewerNode();
                     else this.showNewItemModal('file');
 
                 });
@@ -304,6 +305,36 @@ class FileTreeManager {
         if (created && window.windowManager) {
             window.windowManager.openWindow(created.id);
             window.showToast?.(`'${created.name}' 노드가 생성되어 캔버스에 추가되었습니다. 🔗`);
+        }
+    }
+
+    async createDataViewerNode() {
+        const projectId = this.currentProjectId || window.app?.currentProjectId || (await storage.getProjects())?.[0]?.id;
+        if (!projectId) { alert('현재 선택된 프로젝트가 없습니다.'); return; }
+
+        const siblings = (this.files || []).filter(f => !f.parentId);
+        const maxOrder = siblings.length > 0 ? Math.max(...siblings.map(f => f.order || 0)) : -1;
+
+        const created = await storage.createFile({
+            projectId,
+            name: '👁️ 데이터 뷰어',
+            type: 'file',
+            description: 'Input으로 들어온 데이터를 실시간 모니터링하고 그대로 Output으로 통과시키는 디버그 노드',
+            content: JSON.stringify({ isDataViewerNode: true }),
+            isDataViewerNode: true,
+            template: 'viewer',
+            portsConfig: {
+                inputs: [{ id: 'view_in', name: '입력 데이터', color: '#2ecc71' }],
+                outputs: [{ id: 'view_out', name: '출력 데이터', color: '#00ffcc' }]
+            },
+            parentId: null,
+            order: maxOrder + 1
+        });
+
+        if (projectId) await this.loadProjectFiles(projectId);
+        if (created && window.windowManager) {
+            window.windowManager.openWindow(created.id);
+            window.showToast?.(`'${created.name}' 디버그 노드가 생성되었습니다. 👁️`);
         }
     }
 
@@ -2049,8 +2080,11 @@ class FileTreeManager {
             });
             await this.loadProjectFiles(this.currentProjectId);
             
-            if (window.windowManager && window.windowManager.updateAllHighlighters) {
-                await window.windowManager.updateAllHighlighters();
+            if (window.windowManager) {
+                if (window.windowManager.updateAllHighlighters) {
+                    await window.windowManager.updateAllHighlighters();
+                }
+                await window.windowManager.notifyNodeChanged(this.editingItem.id, 'nameChange');
             }
             
             this.hideFolderSettingsModal();
@@ -2098,6 +2132,9 @@ class FileTreeManager {
                 }
             }
 
+            if (window.windowManager) {
+                await window.windowManager.destroyNodeState(file.id);
+            }
             await storage.deleteFile(file.id);
             if (this.currentFileId === file.id) {
                 this.currentFileId = null;

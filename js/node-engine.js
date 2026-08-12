@@ -21,6 +21,54 @@ class NodeEngine {
         this.outputCache = new Map();
     }
 
+    /** 특정 노드의 output 캐시를 삭제합니다. */
+    clearNodeCache(fileId) {
+        if (fileId) {
+            this.outputCache.delete(String(fileId));
+        }
+    }
+
+    /** 전체 output 캐시를 초기화합니다. */
+    clearAllCache() {
+        this.outputCache.clear();
+    }
+
+    /**
+     * 특정 노드의 하위(Downstream)로 연결된 모든 노드 ID 목록을 DFS로 탐색하여 반환합니다.
+     */
+    getDownstreamNodeIds(startFileId) {
+        const downstream = new Set();
+        const stack = [String(startFileId)];
+        const conns = this._getConnections();
+
+        while (stack.length > 0) {
+            const currId = stack.pop();
+            const childConns = conns.filter(c => String(c.fromId) === currId);
+            childConns.forEach(c => {
+                const childId = String(c.toId);
+                if (!downstream.has(childId)) {
+                    downstream.add(childId);
+                    stack.push(childId);
+                }
+            });
+        }
+        return Array.from(downstream);
+    }
+
+    // ─────────────────────────────────────────────
+    // 내부 헬퍼
+    // ─────────────────────────────────────────────
+
+    /** WindowManager에서 노드 정보를 가져옵니다. */
+    _getInfo(fileId) {
+        return window.windowManager?.getWindowInfo(fileId) ?? null;
+    }
+
+    /** 현재 프로젝트의 연결 목록을 가져옵니다. */
+    _getConnections() {
+        return window.windowManager?.nodeConnections ?? [];
+    }
+
     // ─────────────────────────────────────────────
     // JSON 메타 데이터 패킷 (Data Envelope) 헬퍼
     // ─────────────────────────────────────────────
@@ -201,6 +249,19 @@ class NodeEngine {
                 const listVal = input['합산 리스트'] ?? [];
                 const packet = this.createDataPacket(listVal, fileId, file.name, 'out_1', '합산 리스트');
                 const output = { '합산 리스트': packet };
+                this.outputCache.set(String(fileId), output);
+                return { output, warnings };
+            }
+
+            const isDataViewer = file.isDataViewerNode || file.template === 'viewer' ||
+                (typeof file.content === 'string' && file.content.includes('"isDataViewerNode"'));
+            if (isDataViewer) {
+                const inVal = input['입력 데이터'] ?? input['input'] ?? Object.values(input)[0] ?? null;
+                const outPinName = pinNames[0] || '출력 데이터';
+                const portId = outputPins[0]?.id || 'out_1';
+
+                const packet = this.createDataPacket(inVal, fileId, file.name, portId, outPinName);
+                const output = { [outPinName]: packet };
                 this.outputCache.set(String(fileId), output);
                 return { output, warnings };
             }
