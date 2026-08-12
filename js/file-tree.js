@@ -459,7 +459,7 @@ class FileTreeManager {
                 const siblings = this.files.filter(f => !f.parentId); // 일단 루트에 생성
                 const maxOrder = siblings.length > 0 ? Math.max(...siblings.map(f => f.order)) : -1;
 
-                await storage.createFile({
+                const created = await storage.createFile({
                     projectId: this.currentProjectId,
                     name,
                     type: 'file',
@@ -472,6 +472,9 @@ class FileTreeManager {
 
                 await this.loadProjectFiles(this.currentProjectId);
                 this.hideNewImageModal();
+                if (created && window.windowManager) {
+                    await window.windowManager.openWindow(created.id);
+                }
                 window.showToast?.('이미지 파일이 생성되었습니다.');
             } catch (error) {
                 console.error('이미지 파일 생성 실패:', error);
@@ -1875,7 +1878,7 @@ class FileTreeManager {
             const siblings = this.files.filter(f => f.parentId === this.newItemParentId);
             const maxOrder = siblings.length > 0 ? Math.max(...siblings.map(f => f.order)) : -1;
 
-            await storage.createFile({
+            const created = await storage.createFile({
                 projectId: this.currentProjectId,
                 name,
                 type: this.newItemType,
@@ -1892,6 +1895,10 @@ class FileTreeManager {
 
             await this.loadProjectFiles(this.currentProjectId);
             this.hideNewItemModal();
+
+            if (created && created.type === 'file' && window.windowManager) {
+                await window.windowManager.openWindow(created.id);
+            }
         } catch (error) {
             console.error('아이템 생성 실패:', error);
             alert('생성 중 오류가 발생했습니다.');
@@ -2175,7 +2182,7 @@ class FileTreeManager {
         const name = prompt(`새 ${type === 'folder' ? '폴더' : '파일'} 이름:`);
         if (!name) return;
         const siblings = this.files.filter(f => f.parentId === parentId);
-        await storage.createFile({
+        const created = await storage.createFile({
             projectId: this.currentProjectId,
             name,
             type,
@@ -2184,6 +2191,10 @@ class FileTreeManager {
         });
         this.expandedFolders.add(parentId);
         await this.loadProjectFiles(this.currentProjectId);
+
+        if (created && created.type === 'file' && window.windowManager) {
+            await window.windowManager.openWindow(created.id);
+        }
     }
 
 
