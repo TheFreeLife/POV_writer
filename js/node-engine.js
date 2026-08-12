@@ -110,50 +110,38 @@ class NodeEngine {
     }
 
     /**
-     * 특정 상위 노드의 outputCache가 없으면 에디터 텍스트나 노드 데이터를 실시간 동적으로 수집/평가하여 내보냅니다.
+     * 특정 상위 노드의 실행 결과(outputCache)를 가져옵니다.
+     * 실행 버튼/순서에 의해 실행되기 전까지는 output 데이터를 조기 전파하지 않습니다.
      */
     getOrEvaluateNodeOutput(fileId) {
         const fileIdStr = String(fileId);
+        
+        // 캐시에 연산 결과가 남아있는 경우에만 반환
         if (this.outputCache.has(fileIdStr)) {
             return this.outputCache.get(fileIdStr);
         }
 
-        const info = this._getInfo(fileIdStr);
-        const allFiles = window.fileTreeManager?.files || Array.from(window.windowManager?.windows.values() || []).map(w => w.file);
-        const file = info?.file || allFiles.find(f => String(f.id) === fileIdStr);
-        if (!file) return {};
+        // '⚡ 실시간 연산' 옵션이 켜져 있거나 뷰어 노드 실시간 갱신 시에만 온디맨드 획득 지원
+        const isAutoRun = document.getElementById('autoRunToggleSwitch')?.checked ?? false;
+        if (isAutoRun) {
+            const info = this._getInfo(fileIdStr);
+            const allFiles = window.fileTreeManager?.files || Array.from(window.windowManager?.windows.values() || []).map(w => w.file);
+            const file = info?.file || allFiles.find(f => String(f.id) === fileIdStr);
+            if (!file) return {};
 
-        const isAggregator = file.isAggregatorNode || file.template === 'aggregator' ||
-            (typeof file.content === 'string' && file.content.includes('"isAggregatorNode"'));
-        const isDataViewer = file.isDataViewerNode || file.template === 'viewer' ||
-            (typeof file.content === 'string' && file.content.includes('"isDataViewerNode"'));
-        const isCustomNode = !isAggregator && !isDataViewer && (file.isCustomNode || file.template === 'custom_node' || file.template === 'text_fields' || file.isTextFieldsNode || (file.content && typeof file.content === 'string' && file.content.includes('"isCustomNode"')));
-        const isImageNode = file.template === 'image' || (file.content && typeof file.content === 'string' && file.content.startsWith('data:image'));
+            const outputPins = file.portsConfig?.outputs ?? [{ id: 'out_1', name: '출력 데이터' }];
+            const pinName = outputPins[0]?.name || '출력 데이터';
+            const portId = outputPins[0]?.id || 'out_1';
 
-        const outputPins = file.portsConfig?.outputs ?? [{ id: 'out_1', name: '출력 데이터' }];
-        const pinName = outputPins[0]?.name || '출력 데이터';
-        const portId = outputPins[0]?.id || 'out_1';
-
-        // 1) 합산기 노드 온디맨드 평가
-        if (isAggregator) {
-            const inputVars = this.collectInputVars(fileIdStr);
-            const listVal = inputVars['합산 리스트'] ?? [];
-            const pkt = this.createDataPacket(listVal, fileIdStr, file.name, 'out_1', '합산 리스트');
-            const res = { '합산 리스트': pkt, [pinName]: pkt };
-            this.outputCache.set(fileIdStr, res);
-            return res;
-        }
-
-        // 2) 일반 원고 노드 온디맨드 (에디터 텍스트 또는 content 직송)
-        if (!isCustomNode && !isAggregator && !isDataViewer && !isImageNode) {
             const textarea = info?.element?.querySelector('.window-textarea');
             const textContent = textarea ? textarea.value : (file.content || '');
             const pkt = this.createDataPacket(textContent, fileIdStr, file.name, portId, pinName);
-            const res = { [pinName]: pkt, '원고 결과': pkt };
+            const res = { [pinName]: pkt, '원고 결과': pkt, '합산 리스트': [ { [file.name]: textContent } ] };
             this.outputCache.set(fileIdStr, res);
             return res;
         }
 
+        // 자기 차례에 실행되기 전까지는 빈 맵을 반환하여 output 전파를 철저히 차단
         return {};
     }
 
@@ -300,6 +288,8 @@ class NodeEngine {
                 setTimeout(() => info.element.classList.remove('node-success-pulse'), 800);
             }
             connLines.forEach(el => el.classList.remove('animating-flow'));
+            // 🌟 노드 연산 완료 시 노드 UI(데이터 뷰어 등) 즉시 갱신
+            window.windowManager?.refreshNodeUI(fileId);
         };
 
         // ── 코드 없음: 데이터 보관 노드 및 원고 노드 ──
@@ -426,6 +416,9 @@ class NodeEngine {
             return { order: [], warnings: [] };
         }
 
+        // 🌟 최신 데이터 연산을 위해 실행 대상 노드들의 캐시 초기화
+        ids.forEach(id => this.clearNodeCache(id));
+
         // 위상 정렬 (Kahn's algorithm)
         const inDegree = new Map(ids.map(id => [id, 0]));
         const adj = new Map(ids.map(id => [id, []]));
@@ -470,6 +463,9 @@ class NodeEngine {
                 allWarnings.push(...warnings.map(w => `[${nodeName}] ${w}`));
             }
         }
+
+        // 🌟 모든 노드 순차 실행 완료 후 캔버스 UI 일괄 최종 갱신
+        window.windowManager?.refreshAllNodesUI();
 
         if (allWarnings.length > 0) {
             console.warn('그래프 실행 경고:\n' + allWarnings.join('\n'));
