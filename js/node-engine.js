@@ -22,17 +22,43 @@ class NodeEngine {
     }
 
     // ─────────────────────────────────────────────
-    // 내부 헬퍼
+    // JSON 메타 데이터 패킷 (Data Envelope) 헬퍼
     // ─────────────────────────────────────────────
 
-    /** WindowManager에서 노드 정보를 가져옵니다. */
-    _getInfo(fileId) {
-        return window.windowManager?.getWindowInfo(fileId) ?? null;
+    /**
+     * 노드 간 데이터 전달 시 사용되는 JSON 규격 데이터 패킷을 생성합니다.
+     */
+    createDataPacket(value, nodeId, nodeName, portId, portName) {
+        let safeValue;
+        try {
+            safeValue = JSON.parse(JSON.stringify(value ?? null));
+        } catch (e) {
+            safeValue = value ?? null;
+        }
+
+        const rawName = String(nodeName || '');
+        const cleanName = rawName.replace(/^[\u{1F300}-\u{1FFFF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]\s*/u, '').trim() || rawName;
+
+        return {
+            value: safeValue,
+            _meta: {
+                nodeId: String(nodeId || ''),
+                nodeName: cleanName,
+                rawNodeName: rawName,
+                portId: String(portId || ''),
+                portName: String(portName || '')
+            }
+        };
     }
 
-    /** 현재 프로젝트의 연결 목록을 가져옵니다. */
-    _getConnections() {
-        return window.windowManager?.nodeConnections ?? [];
+    /**
+     * 일반 하위 노드에게 입력 데이터를 전달할 때 _meta를 숨기고 순수 value만 추출하여 독립성을 보장합니다.
+     */
+    unwrapPacketValue(packet) {
+        if (packet && typeof packet === 'object' && '_meta' in packet && 'value' in packet) {
+            return packet.value;
+        }
+        return packet;
     }
 
     // ─────────────────────────────────────────────
@@ -41,20 +67,19 @@ class NodeEngine {
 
     /**
      * 특정 노드의 input 변수 객체를 수집합니다.
-     *
-     * 수집 순서:
-     *   1) 노드 DOM의 직접 입력 필드 (.stat-input-field[data-var-name])
-     *   2) 연결된 상위 노드의 outputCache → input 핀 이름으로 매칭
+     * 일반 노드는 상위 노드의 정보(_meta)를 알 수 없도록 순수 value만 독립적으로 수집합니다.
+     * aggregator 노드는 _meta 정보를 통해 상위 노드 이름을 식별하여 리스트로 합성합니다.
      *
      * @param {string} fileId
      * @returns {Object}
      */
     collectInputVars(fileId) {
         const info = this._getInfo(fileId);
-        if (!info) return {};
+        const allFiles = window.fileTreeManager?.files || Array.from(window.windowManager?.windows.values() || []).map(w => w.file);
+        const file = info?.file || allFiles.find(f => String(f.id) === String(fileId));
+        if (!file) return {};
 
         const input = {};
-        const file = info.file;
 
         // ── aggregator 노드 전용 수집 ──
         const isAggregator = file.isAggregatorNode || file.template === 'aggregator' ||
@@ -71,16 +96,17 @@ class NodeEngine {
             const keyCount = {};
             const entries = inConns.map(conn => {
                 const fromInfo = this._getInfo(conn.fromId);
-                const rawName = fromInfo?.file?.name || conn.fromId;
+                const fromFile = fromInfo?.file || allFiles.find(f => String(f.id) === String(conn.fromId));
+                const rawName = fromFile?.name || String(conn.fromId);
                 const cleanName = rawName.replace(/^[\u{1F300}-\u{1FFFF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]\s*/u, '').trim() || rawName;
                 keyCount[cleanName] = (keyCount[cleanName] || 0) + 1;
-                return { conn, fromInfo, cleanName };
+                return { conn, fromFile, cleanName, rawName };
             });
 
             const keyIndex = {};
             const list = [];
 
-            entries.forEach(({ conn, fromInfo, cleanName }) => {
+            entries.forEach(({ conn, fromFile, cleanName }) => {
                 let key;
                 if (keyCount[cleanName] > 1) {
                     keyIndex[cleanName] = (keyIndex[cleanName] || 0) + 1;
@@ -94,13 +120,14 @@ class NodeEngine {
                 const upstreamOutput = this.outputCache.get(String(conn.fromId));
                 if (!upstreamOutput) return;
 
-                // 해당 연결의 output 핀 값을 포함
-                const fromPorts = fromInfo?.file?.portsConfig?.outputs ?? [];
+                const fromPorts = fromFile?.portsConfig?.outputs ?? [];
                 const fromPort = fromPorts.find(p => p.id === conn.fromPortId) ?? fromPorts[0];
-                const outPinName = fromPort?.name;
-                const value = outPinName !== undefined ? upstreamOutput[outPinName] : upstreamOutput;
+                const outPinName = fromPort?.name || 'out_1';
+                
+                const packet = upstreamOutput[outPinName];
+                const pureValue = this.unwrapPacketValue(packet);
 
-                list.push({ [key]: value });
+                list.push({ [key]: pureValue });
             });
 
             // aggregator 표준 input: 합산 리스트
@@ -109,25 +136,23 @@ class NodeEngine {
         }
 
         // 1) DOM 직접 입력값
-        info.element?.querySelectorAll('.stat-input-field[data-var-name]').forEach(el => {
+        info?.element?.querySelectorAll('.stat-input-field[data-var-name]').forEach(el => {
             const name = el.dataset.varName;
             const raw = el.value;
             input[name] = (raw !== '' && !isNaN(raw)) ? Number(raw) : raw;
         });
 
-        // 2) 상위 노드 연결값
+        // 2) 상위 노드 연결값 (메타데이터 래퍼를 벗겨내어 하위 노드의 완벽한 독립성 보장!)
         const inConns = this._getConnections().filter(c => String(c.toId) === String(fileId));
 
         inConns.forEach(conn => {
             const fromInfo = this._getInfo(conn.fromId);
-            if (!fromInfo) return;
+            const fromFile = fromInfo?.file || allFiles.find(f => String(f.id) === String(conn.fromId));
 
-            // 상위 노드의 output 핀 이름
-            const fromPorts = fromInfo.file.portsConfig?.outputs ?? [];
+            const fromPorts = fromFile?.portsConfig?.outputs ?? [];
             const fromPort = fromPorts.find(p => p.id === conn.fromPortId) ?? fromPorts[0];
             const outPinName = fromPort?.name;
 
-            // 이 노드의 input 핀 이름
             const toPorts = file.portsConfig?.inputs ?? [];
             const toPort = toPorts.find(p => p.id === conn.toPortId) ?? toPorts[0];
             const inPinName = toPort?.name;
@@ -136,7 +161,9 @@ class NodeEngine {
 
             const upstreamOutput = this.outputCache.get(String(conn.fromId));
             if (upstreamOutput && outPinName !== undefined && upstreamOutput[outPinName] !== undefined) {
-                input[inPinName] = upstreamOutput[outPinName];
+                const packet = upstreamOutput[outPinName];
+                // 일반 노드에게는 _meta를 철저히 숨기고 순수한 value만 주입!
+                input[inPinName] = this.unwrapPacketValue(packet);
             }
         });
 
@@ -150,19 +177,16 @@ class NodeEngine {
     /**
      * 단일 노드를 실행합니다.
      *
-     * 동작:
-     *   - code 없음 → input 변수를 output 핀에 이름으로 통과 (데이터 보관 노드)
-     *   - code 있음 → JS 실행 → return 키 ↔ output 핀 이름 매칭
-     *   - 매칭 실패 시 해당 핀은 null, warnings 배열에 경고 추가
-     *
      * @param {string} fileId
      * @returns {Promise<{ output: Object, warnings: string[] }>}
      */
     async runNode(fileId) {
         const info = this._getInfo(fileId);
-        if (!info) return { output: {}, warnings: [`노드 '${fileId}'를 찾을 수 없습니다.`] };
+        const allFiles = window.fileTreeManager?.files || Array.from(window.windowManager?.windows.values() || []).map(w => w.file);
+        const file = info?.file || allFiles.find(f => String(f.id) === String(fileId));
 
-        const file = info.file;
+        if (!file) return { output: {}, warnings: [`노드 '${fileId}'를 찾을 수 없습니다.`] };
+
         const code = (file.code ?? '').trim();
         const outputPins = file.portsConfig?.outputs ?? [];
         const pinNames = outputPins.map(p => p.name).filter(Boolean);
@@ -171,11 +195,12 @@ class NodeEngine {
         // ── 코드 없음: 데이터 보관 노드 및 원고 노드 ──
         if (!code) {
             const input = this.collectInputVars(fileId);
-            // aggregator 노드는 '합산 리스트' 핀으로 직접 output
             const isAggregator = file.isAggregatorNode || file.template === 'aggregator' ||
                 (typeof file.content === 'string' && file.content.includes('"isAggregatorNode"'));
             if (isAggregator) {
-                const output = { '합산 리스트': input['합산 리스트'] ?? [] };
+                const listVal = input['합산 리스트'] ?? [];
+                const packet = this.createDataPacket(listVal, fileId, file.name, 'out_1', '합산 리스트');
+                const output = { '합산 리스트': packet };
                 this.outputCache.set(String(fileId), output);
                 return { output, warnings };
             }
@@ -185,15 +210,23 @@ class NodeEngine {
 
             // 일반 원고 (에디터) 노드인 경우 적힌 텍스트 내용을 그대로 내보냄
             if (!isCustomNode && !isAggregator && !isImageNode) {
-                const textarea = info.element?.querySelector('.window-textarea');
+                const textarea = info?.element?.querySelector('.window-textarea');
                 const textContent = textarea ? textarea.value : (file.content || '');
                 const pinName = pinNames[0] || '원고 결과';
-                const output = { [pinName]: textContent };
+                const portId = outputPins[0]?.id || 'out_1';
+                
+                const packet = this.createDataPacket(textContent, fileId, file.name, portId, pinName);
+                const output = { [pinName]: packet };
                 this.outputCache.set(String(fileId), output);
                 return { output, warnings };
             }
 
-            const output = Object.fromEntries(pinNames.map(name => [name, input[name] ?? null]));
+            const output = {};
+            outputPins.forEach(p => {
+                const val = input[p.name] ?? null;
+                output[p.name] = this.createDataPacket(val, fileId, file.name, p.id, p.name);
+            });
+
             this.outputCache.set(String(fileId), output);
             return { output, warnings };
         }
@@ -210,30 +243,10 @@ class NodeEngine {
             return { output: {}, warnings };
         }
 
-        if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
-            warnings.push(`return 값이 객체여야 합니다. (받은 값: ${JSON.stringify(raw)})`);
-            this.outputCache.set(String(fileId), {});
-            return { output: {}, warnings };
-        }
-
-        // ── 이름 매칭 ──
         const output = {};
-
-        // output 핀 기준: return에 키가 없으면 경고
-        pinNames.forEach(pinName => {
-            if (Object.prototype.hasOwnProperty.call(raw, pinName)) {
-                output[pinName] = raw[pinName];
-            } else {
-                warnings.push(`⚠️ output 핀 '${pinName}'에 매칭되는 return 키가 없습니다.`);
-                output[pinName] = null;
-            }
-        });
-
-        // return 키 기준: 핀에 없는 키는 경고
-        Object.keys(raw).forEach(key => {
-            if (!pinNames.includes(key)) {
-                warnings.push(`⚠️ return 키 '${key}'에 매칭되는 output 핀이 없습니다.`);
-            }
+        outputPins.forEach(p => {
+            const val = raw && typeof raw === 'object' ? raw[p.name] ?? null : null;
+            output[p.name] = this.createDataPacket(val, fileId, file.name, p.id, p.name);
         });
 
         this.outputCache.set(String(fileId), output);
