@@ -452,6 +452,38 @@ class FileTreeManager {
         });
     }
 
+    /**
+     * 파일의 이모지 아이콘과 텍스트 이름을 분리 정돈
+     */
+    parseFileIconAndName(file) {
+        if (!file) return { icon: '', cleanName: '' };
+        
+        let rawName = (file.name || '').trim();
+        let fileIcon = file.icon;
+        
+        // 유니코드 이모지 패턴 (이름 시작 부분)
+        const emojiRegex = /^([\u{1F300}-\u{1FFFF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F600}-\u{1F64F}\u{1F680}-\u{1F6FF}])\s*/u;
+        const match = rawName.match(emojiRegex);
+        
+        let icon = fileIcon;
+        let cleanName = rawName;
+        
+        if (match) {
+            icon = fileIcon || match[1];
+            cleanName = rawName.replace(emojiRegex, '').trim() || rawName;
+        } else {
+            if (!icon) {
+                if (file.type === 'folder') icon = '📁';
+                else if (file.template === 'stat') icon = '📊';
+                else if (file.template === 'image' || (file.content && typeof file.content === 'string' && file.content.startsWith('data:image'))) icon = '🖼️';
+                else if (file.template === 'aggregator' || file.isAggregatorNode) icon = '🔗';
+                else icon = '📄';
+            }
+        }
+        
+        return { icon: icon || '📄', cleanName: cleanName || rawName };
+    }
+
     buildTreeItem(file, level) {
         const wrapper = document.createElement('div');
         wrapper.className = 'tree-node-wrapper';
@@ -469,22 +501,20 @@ class FileTreeManager {
 
         const chevron = hasChildren ? `<span class="tree-chevron ${isExpanded ? 'active' : ''}">▶</span>` : '';
         
-        let icon = '📄';
+        const parsed = this.parseFileIconAndName(file);
+        let icon = parsed.icon;
         if (isFolder) {
             icon = (hasChildren && isExpanded ? '📂' : '📁');
-        } else if (file.template === 'stat') {
-            icon = '📊';
-        } else if (file.template === 'image' || (file.content && file.content.startsWith('data:image'))) {
-            icon = '🖼️';
         }
 
         const iconColor = file.iconColor || '';
         const iconStyle = iconColor ? `style="--icon-color: ${iconColor};"` : '';
+        const iconHtml = icon ? `<span class="tree-icon" ${iconStyle}>${icon}</span>` : '';
 
         item.innerHTML = `
             ${chevron}
-            <span class="tree-icon" ${iconStyle}>${icon}</span>
-            <span class="tree-name">${this.escapeHtml(file.name)}</span>
+            ${iconHtml}
+            <span class="tree-name">${this.escapeHtml(parsed.cleanName)}</span>
         `;
 
         item.addEventListener('click', (e) => {
@@ -864,13 +894,35 @@ class FileTreeManager {
             }
         }
 
-        // promptForName이 켜져 있으면 이름 입력 창을 띄움
-        let nodeName = `${preset.icon || '📄'} ${preset.name}`;
-        if (preset.promptForName) {
-            const inputName = await this._promptNodeName(preset);
-            if (inputName === null) return; // 취소 시 생성 중단
-            nodeName = `${preset.icon || '📄'} ${inputName.trim() || preset.name}`;
+        // 1) 이름 및 상세 설명 처리
+        let rawName = preset.name;
+        let nodeDesc = '';
+
+        const needPromptName = !!preset.promptForName;
+        const needPromptDesc = !!preset.promptForDesc;
+
+        if (needPromptName || needPromptDesc) {
+            const prompted = await this._promptNodeDetails(preset);
+            if (prompted.isCancelled) return; // 취소 시 생성 중단
+
+            if (needPromptName && prompted.name !== null) {
+                rawName = prompted.name.trim() || preset.name;
+            }
+
+            if (needPromptDesc) {
+                // promptForDesc가 켜진 경우: 입력값이 있으면 입력값, 없으면 이름 사용
+                nodeDesc = (prompted.desc !== null && prompted.desc.trim()) ? prompted.desc.trim() : rawName;
+            } else {
+                // promptForDesc가 꺼진 경우: 무조건 이름을 그대로 상세 설명으로 사용!
+                nodeDesc = rawName;
+            }
+        } else {
+            // promptForDesc가 꺼진 경우: 무조건 이름을 그대로 상세 설명으로 사용!
+            nodeDesc = rawName;
         }
+
+        const iconPrefix = preset.icon ? `${preset.icon} ` : '';
+        const nodeName = `${iconPrefix}${rawName}`;
 
         const fileData = {
             name: nodeName,
@@ -882,7 +934,7 @@ class FileTreeManager {
             isStatNode: !!preset.isStatNode,
             isSystemPromptNode: !!preset.isSystemPromptNode,
             isAiMetaNode: !!preset.isAiMetaNode,
-            description: preset.desc || '커스텀 정의 노드',
+            description: nodeDesc,
             code: preset.code || '',
             fields: preset.fields || [],
             content: JSON.stringify(contentObj, null, 2),
@@ -893,86 +945,119 @@ class FileTreeManager {
     }
 
     /**
-     * 노드 이름 입력 인라인 모달 (Promise 기반)
+     * 노드 이름/상세 설명 입력 인라인 모달 (Promise 기반)
      * @param {object} preset - 커스텀 노드 프리셋
-     * @returns {Promise<string|null>} 입력된 이름 or null(취소)
+     * @returns {Promise<{ name: string|null, desc: string|null, isCancelled: boolean }>}
      */
-    _promptNodeName(preset) {
+    _promptNodeDetails(preset) {
         return new Promise((resolve) => {
-            // 기존 모달이 있으면 제거
-            const existing = document.getElementById('nodeNamePromptModal');
+            const existing = document.getElementById('nodeDetailsPromptModal');
             if (existing) existing.remove();
 
+            const needName = !!preset.promptForName;
+            const needDesc = !!preset.promptForDesc;
+
             const overlay = document.createElement('div');
-            overlay.id = 'nodeNamePromptModal';
+            overlay.id = 'nodeDetailsPromptModal';
             overlay.style.cssText = `
                 position: fixed; inset: 0; z-index: 9999;
                 background: rgba(0,0,0,0.55); backdrop-filter: blur(4px);
                 display: flex; align-items: center; justify-content: center;
             `;
 
+            let fieldsHtml = '';
+            if (needName) {
+                fieldsHtml += `
+                    <div style="margin-bottom: 12px;">
+                        <label style="font-size:11px; font-weight:700; color:var(--color-text-secondary); display:block; margin-bottom:4px;">노드 이름</label>
+                        <input id="nodePromptNameInput" type="text" class="input" placeholder="노드 이름 (비우면 '${this.escapeHtml(preset.name)}' 사용)" value="${this.escapeHtml(preset.name)}" style="width:100%; font-size:13px; font-weight:600;">
+                    </div>
+                `;
+            }
+
+            if (needDesc) {
+                fieldsHtml += `
+                    <div style="margin-bottom: 14px;">
+                        <label style="font-size:11px; font-weight:700; color:var(--color-text-secondary); display:block; margin-bottom:4px;">노드 상세 설명</label>
+                        <input id="nodePromptDescInput" type="text" class="input" placeholder="상세 설명 (비우면 노드 이름 사용)" value="" style="width:100%; font-size:12px;">
+                    </div>
+                `;
+            }
+
             overlay.innerHTML = `
                 <div style="
                     background: var(--color-surface-2, #1e1e2e);
                     border: 1px solid var(--color-border);
                     border-radius: 16px;
-                    padding: 28px 28px 22px;
+                    padding: 24px 26px 20px;
                     min-width: 340px;
                     max-width: 480px;
                     width: 90vw;
                     box-shadow: 0 24px 60px rgba(0,0,0,0.6);
                 ">
-                    <div style="display:flex; align-items:center; gap:10px; margin-bottom:18px;">
-                        <span style="font-size:28px; line-height:1;">${preset.icon || '📄'}</span>
+                    <div style="display:flex; align-items:center; gap:10px; margin-bottom:16px;">
+                        <span style="font-size:26px; line-height:1;">${preset.icon || '📄'}</span>
                         <div>
                             <div style="font-size:14px; font-weight:700; color:var(--color-text-primary);">${this.escapeHtml(preset.name)}</div>
-                            <div style="font-size:11px; color:var(--color-text-tertiary); margin-top:2px;">새 노드의 이름을 입력하세요</div>
+                            <div style="font-size:11px; color:var(--color-text-tertiary); margin-top:2px;">새 노드의 정보 설정</div>
                         </div>
                     </div>
-                    <input
-                        id="nodeNamePromptInput"
-                        type="text"
-                        class="input"
-                        placeholder="노드 이름 (비우면 기본 이름 사용)"
-                        style="width:100%; font-size:13px; font-weight:600; margin-bottom:16px;"
-                    >
+                    ${fieldsHtml}
                     <div style="display:flex; gap:8px; justify-content:flex-end;">
-                        <button id="nodeNamePromptCancel" class="btn btn-secondary" style="min-width:72px;">취소</button>
-                        <button id="nodeNamePromptConfirm" class="btn btn-primary" style="min-width:72px;">생성</button>
+                        <button id="nodePromptCancel" class="btn btn-secondary" style="min-width:72px;">취소</button>
+                        <button id="nodePromptConfirm" class="btn btn-primary" style="min-width:72px;">생성</button>
                     </div>
                 </div>
             `;
 
             document.body.appendChild(overlay);
 
-            const input = document.getElementById('nodeNamePromptInput');
-            const confirmBtn = document.getElementById('nodeNamePromptConfirm');
-            const cancelBtn = document.getElementById('nodeNamePromptCancel');
+            const nameInput = document.getElementById('nodePromptNameInput');
+            const descInput = document.getElementById('nodePromptDescInput');
+            const confirmBtn = document.getElementById('nodePromptConfirm');
+            const cancelBtn = document.getElementById('nodePromptCancel');
 
             const cleanup = () => overlay.remove();
 
-            confirmBtn.addEventListener('click', () => {
+            const handleConfirm = () => {
+                const nameVal = nameInput ? nameInput.value : null;
+                const descVal = descInput ? descInput.value : null;
                 cleanup();
-                resolve(input.value);
-            });
+                resolve({ name: nameVal, desc: descVal, isCancelled: false });
+            };
 
-            cancelBtn.addEventListener('click', () => {
+            const handleCancel = () => {
                 cleanup();
-                resolve(null);
-            });
+                resolve({ name: null, desc: null, isCancelled: true });
+            };
+
+            confirmBtn.addEventListener('click', handleConfirm);
+            cancelBtn.addEventListener('click', handleCancel);
 
             overlay.addEventListener('click', (e) => {
-                if (e.target === overlay) { cleanup(); resolve(null); }
+                if (e.target === overlay) handleCancel();
             });
 
-            input.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter') { cleanup(); resolve(input.value); }
-                if (e.key === 'Escape') { cleanup(); resolve(null); }
+            [nameInput, descInput].forEach(inp => {
+                if (!inp) return;
+                inp.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') handleConfirm();
+                    if (e.key === 'Escape') handleCancel();
+                });
             });
 
-            // 잠시 후 포커스 (모달 애니메이션 후)
-            requestAnimationFrame(() => input.focus());
+            requestAnimationFrame(() => {
+                const targetInp = nameInput || descInput;
+                if (targetInp) targetInp.focus();
+            });
         });
+    }
+
+    /**
+     * 구식 노드 이름 입력 모달 하위 호환
+     */
+    _promptNodeName(preset) {
+        return this._promptNodeDetails(preset).then(res => res.isCancelled ? null : res.name);
     }
 
     switchWizardTab(tabName) {
@@ -1095,9 +1180,11 @@ class FileTreeManager {
         const testResult = document.getElementById('wizardTestResult');
         if (testResult) testResult.style.display = 'none';
 
-        // 이름 입력 토글 로드
+        // 이름 & 설명 입력 토글 로드
         const promptToggle = document.getElementById('wizardPromptForName');
         if (promptToggle) promptToggle.checked = !!(presetToEdit?.promptForName);
+        const promptDescToggle = document.getElementById('wizardPromptForDesc');
+        if (promptDescToggle) promptDescToggle.checked = !!(presetToEdit?.promptForDesc);
 
         this.updateCustomWizardUI();
         this.updateWizardVarChips();
@@ -1441,6 +1528,7 @@ class FileTreeManager {
         const portsConfig = { inputs, outputs };
         const code = document.getElementById('wizardCodeEditor')?.value.trim() || '';
         const promptForName = !!(document.getElementById('wizardPromptForName')?.checked);
+        const promptForDesc = !!(document.getElementById('wizardPromptForDesc')?.checked);
         const isEditing = !!this.editingCustomPresetId;
         const presetId = this.editingCustomPresetId || ('preset_' + Date.now());
 
@@ -1455,6 +1543,7 @@ class FileTreeManager {
             code,
             portsConfig,
             promptForName,
+            promptForDesc,
             isFolderCollectorNode: type === 'folder_collector',
         };
 
@@ -1648,7 +1737,11 @@ class FileTreeManager {
                 name: `${icon} ${name}`,
                 type: 'file',
                 content,
-                defaultTemplate: template === 'blank' ? null : template
+                defaultTemplate: template === 'blank' ? null : template,
+                portsConfig: {
+                    inputs: [],
+                    outputs: [{ id: 'out_1', name: '원고 결과', color: '#00ffcc' }]
+                }
             };
             const newFile = await this.createFile(fileData);
             if (newFile && window.windowManager) {

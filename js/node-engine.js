@@ -168,7 +168,7 @@ class NodeEngine {
         const pinNames = outputPins.map(p => p.name).filter(Boolean);
         const warnings = [];
 
-        // ── 코드 없음: 데이터 보관 노드 ──
+        // ── 코드 없음: 데이터 보관 노드 및 원고 노드 ──
         if (!code) {
             const input = this.collectInputVars(fileId);
             // aggregator 노드는 '합산 리스트' 핀으로 직접 output
@@ -179,6 +179,22 @@ class NodeEngine {
                 this.outputCache.set(String(fileId), output);
                 return { output, warnings };
             }
+
+            const isFolderCollector = file.template === 'folder_collector' || file.isFolderCollectorNode ||
+                (typeof file.content === 'string' && file.content.includes('"isFolderCollectorNode"'));
+            const isCustomNode = !isFolderCollector && !isAggregator && (file.isCustomNode || file.template === 'custom_node' || file.template === 'stat' || file.isStatNode || file.template === 'text_fields' || file.isTextFieldsNode || (file.content && typeof file.content === 'string' && (file.content.includes('"isCustomNode"') || file.content.includes('"stats"'))));
+            const isImageNode = file.template === 'image' || (file.content && typeof file.content === 'string' && file.content.startsWith('data:image'));
+
+            // 일반 원고 (에디터) 노드인 경우 적힌 텍스트 내용을 그대로 내보냄
+            if (!isCustomNode && !isFolderCollector && !isAggregator && !isImageNode) {
+                const textarea = info.element?.querySelector('.window-textarea');
+                const textContent = textarea ? textarea.value : (file.content || '');
+                const pinName = pinNames[0] || '원고 결과';
+                const output = { [pinName]: textContent };
+                this.outputCache.set(String(fileId), output);
+                return { output, warnings };
+            }
+
             const output = Object.fromEntries(pinNames.map(name => [name, input[name] ?? null]));
             this.outputCache.set(String(fileId), output);
             return { output, warnings };

@@ -311,6 +311,37 @@ class WindowManager {
     }
 
     /**
+     * 파일의 이모지 아이콘과 텍스트 이름을 분리 정돈
+     */
+    parseFileIconAndName(file) {
+        if (!file) return { icon: '', cleanName: '' };
+        
+        let rawName = (file.name || '').trim();
+        let fileIcon = file.icon;
+        
+        const emojiRegex = /^([\u{1F300}-\u{1FFFF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F600}-\u{1F64F}\u{1F680}-\u{1F6FF}])\s*/u;
+        const match = rawName.match(emojiRegex);
+        
+        let icon = fileIcon;
+        let cleanName = rawName;
+        
+        if (match) {
+            icon = fileIcon || match[1];
+            cleanName = rawName.replace(emojiRegex, '').trim() || rawName;
+        } else {
+            if (!icon) {
+                if (file.type === 'folder') icon = '📁';
+                else if (file.template === 'stat') icon = '📊';
+                else if (file.template === 'image' || (file.content && typeof file.content === 'string' && file.content.startsWith('data:image'))) icon = '🖼️';
+                else if (file.template === 'aggregator' || file.isAggregatorNode) icon = '🔗';
+                else icon = '📄';
+            }
+        }
+        
+        return { icon: icon || '📄', cleanName: cleanName || rawName };
+    }
+
+    /**
      * 줌 및 팬 상태 초기화 (100%)
      */
     resetZoom() {
@@ -443,15 +474,14 @@ class WindowManager {
             const angleDeg = Math.atan2(dy, dx) * (180 / Math.PI);
 
             // 노드 이름 & 아이콘
-            const file = info.file || {};
-            const icon = file.icon || (file.template ? this.getTemplateIcon(file.template) : '📄');
-            const name = file.name || '노드';
+            const parsed = this.parseFileIconAndName(info.file);
+            const iconHtml = parsed.icon ? `<span>${parsed.icon}</span>` : '';
 
             html += `
-                <div class="node-guide-badge" data-file-id="${fileId}" style="left: ${edgeX}px; top: ${edgeY}px;" title="'${this.escapeHtml(name)}' 노드로 이동">
+                <div class="node-guide-badge" data-file-id="${fileId}" style="left: ${edgeX}px; top: ${edgeY}px;" title="'${this.escapeHtml(parsed.cleanName)}' 노드로 이동">
                     <span class="node-guide-arrow" style="transform: rotate(${angleDeg}deg);">➔</span>
-                    <span>${icon}</span>
-                    <span class="node-guide-title">${this.escapeHtml(name)}</span>
+                    ${iconHtml}
+                    <span class="node-guide-title">${this.escapeHtml(parsed.cleanName)}</span>
                 </div>
             `;
         });
@@ -920,8 +950,9 @@ class WindowManager {
         win.style.height = isCollapsed ? '50px' : `${height}px`;
         win.style.zIndex = ++this.zIndexCounter;
 
-        // 아이콘 결정
-        const icon = file.icon || (file.template ? this.getTemplateIcon(file.template) : '📄');
+        // 아이콘 및 이름 정돈
+        const parsed = this.parseFileIconAndName(file);
+        const iconHtml = parsed.icon ? `<span class="window-titlebar-icon">${parsed.icon}</span>` : '';
         const collapseChar = isCollapsed ? '+' : '−';
 
         let bodyContent = '';
@@ -972,15 +1003,18 @@ class WindowManager {
 
 
         const isImageNode = file.template === 'image' || (file.content && typeof file.content === 'string' && file.content.startsWith('data:image'));
-        const defaultInputs = (isFolderCollector || isImageNode) ? [] : [{ id: 'in_1', name: '입력 데이터' }];
+        const isManuscriptNode = !isCustomNode && !isFolderCollector && !isAggregator && !isImageNode;
+
+        const defaultInputs = (isFolderCollector || isImageNode || isManuscriptNode) ? [] : [{ id: 'in_1', name: '입력 데이터' }];
+        const defaultOutputs = isManuscriptNode ? [{ id: 'out_1', name: '원고 결과', color: '#00ffcc' }] : [{ id: 'out_1', name: '출력 데이터', color: '#00ffcc' }];
 
         const portsConfig = file.portsConfig || {
             inputs: defaultInputs,
-            outputs: [{ id: 'out_1', name: '출력 데이터' }]
+            outputs: defaultOutputs
         };
 
-        const inputsArr = isImageNode ? [] : (Array.isArray(portsConfig.inputs) ? portsConfig.inputs : defaultInputs);
-        const outputsArr = Array.isArray(portsConfig.outputs) ? portsConfig.outputs : [{ id: 'out_1', name: '출력 데이터' }];
+        const inputsArr = (isImageNode || isManuscriptNode) ? [] : (Array.isArray(portsConfig.inputs) ? portsConfig.inputs : defaultInputs);
+        const outputsArr = Array.isArray(portsConfig.outputs) ? portsConfig.outputs : defaultOutputs;
 
         const inputsHtml = inputsArr.map(p => {
             const portColor = p.color || '#2ecc71';
@@ -1012,8 +1046,8 @@ class WindowManager {
             <div class="node-ports-wrapper-right">${outputsHtml}</div>
             <div class="window-titlebar" data-file-id="${file.id}">
                 <div class="window-titlebar-left">
-                    <span class="window-titlebar-icon">${icon}</span>
-                    <span class="window-titlebar-name">${this.escapeHtml(file.name)}</span>
+                    ${iconHtml}
+                    <span class="window-titlebar-name">${this.escapeHtml(parsed.cleanName)}</span>
                     ${isImage ? `<span class="window-image-size" id="imageSize_${file.id}"></span>` : ''}
                     <span class="window-modified" data-indicator="${file.id}"></span>
                 </div>
