@@ -109,6 +109,54 @@ class NodeEngine {
         return packet;
     }
 
+    /**
+     * 특정 상위 노드의 outputCache가 없으면 에디터 텍스트나 노드 데이터를 실시간 동적으로 수집/평가하여 내보냅니다.
+     */
+    getOrEvaluateNodeOutput(fileId) {
+        const fileIdStr = String(fileId);
+        if (this.outputCache.has(fileIdStr)) {
+            return this.outputCache.get(fileIdStr);
+        }
+
+        const info = this._getInfo(fileIdStr);
+        const allFiles = window.fileTreeManager?.files || Array.from(window.windowManager?.windows.values() || []).map(w => w.file);
+        const file = info?.file || allFiles.find(f => String(f.id) === fileIdStr);
+        if (!file) return {};
+
+        const isAggregator = file.isAggregatorNode || file.template === 'aggregator' ||
+            (typeof file.content === 'string' && file.content.includes('"isAggregatorNode"'));
+        const isDataViewer = file.isDataViewerNode || file.template === 'viewer' ||
+            (typeof file.content === 'string' && file.content.includes('"isDataViewerNode"'));
+        const isCustomNode = !isAggregator && !isDataViewer && (file.isCustomNode || file.template === 'custom_node' || file.template === 'text_fields' || file.isTextFieldsNode || (file.content && typeof file.content === 'string' && file.content.includes('"isCustomNode"')));
+        const isImageNode = file.template === 'image' || (file.content && typeof file.content === 'string' && file.content.startsWith('data:image'));
+
+        const outputPins = file.portsConfig?.outputs ?? [{ id: 'out_1', name: '출력 데이터' }];
+        const pinName = outputPins[0]?.name || '출력 데이터';
+        const portId = outputPins[0]?.id || 'out_1';
+
+        // 1) 합산기 노드 온디맨드 평가
+        if (isAggregator) {
+            const inputVars = this.collectInputVars(fileIdStr);
+            const listVal = inputVars['합산 리스트'] ?? [];
+            const pkt = this.createDataPacket(listVal, fileIdStr, file.name, 'out_1', '합산 리스트');
+            const res = { '합산 리스트': pkt, [pinName]: pkt };
+            this.outputCache.set(fileIdStr, res);
+            return res;
+        }
+
+        // 2) 일반 원고 노드 온디맨드 (에디터 텍스트 또는 content 직송)
+        if (!isCustomNode && !isAggregator && !isDataViewer && !isImageNode) {
+            const textarea = info?.element?.querySelector('.window-textarea');
+            const textContent = textarea ? textarea.value : (file.content || '');
+            const pkt = this.createDataPacket(textContent, fileIdStr, file.name, portId, pinName);
+            const res = { [pinName]: pkt, '원고 결과': pkt };
+            this.outputCache.set(fileIdStr, res);
+            return res;
+        }
+
+        return {};
+    }
+
     // ─────────────────────────────────────────────
     // input 수집
     // ─────────────────────────────────────────────
@@ -165,14 +213,12 @@ class NodeEngine {
 
                 if (disabledKeys.includes(key)) return;
 
-                const upstreamOutput = this.outputCache.get(String(conn.fromId));
-                if (!upstreamOutput) return;
-
+                const upstreamOutput = this.getOrEvaluateNodeOutput(conn.fromId);
                 const fromPorts = fromFile?.portsConfig?.outputs ?? [];
                 const fromPort = fromPorts.find(p => p.id === conn.fromPortId) ?? fromPorts[0];
                 const outPinName = fromPort?.name || 'out_1';
                 
-                const packet = upstreamOutput[outPinName];
+                const packet = upstreamOutput[outPinName] ?? Object.values(upstreamOutput)[0];
                 const pureValue = this.unwrapPacketValue(packet);
 
                 list.push({ [key]: pureValue });
@@ -203,14 +249,12 @@ class NodeEngine {
 
             const toPorts = file.portsConfig?.inputs ?? [];
             const toPort = toPorts.find(p => p.id === conn.toPortId) ?? toPorts[0];
-            const inPinName = toPort?.name;
+            const inPinName = toPort?.name || Object.keys(input)[0] || '입력 데이터';
 
-            if (!inPinName) return;
-
-            const upstreamOutput = this.outputCache.get(String(conn.fromId));
-            if (upstreamOutput && outPinName !== undefined && upstreamOutput[outPinName] !== undefined) {
-                const packet = upstreamOutput[outPinName];
-                // 일반 노드에게는 _meta를 철저히 숨기고 순수한 value만 주입!
+            const upstreamOutput = this.getOrEvaluateNodeOutput(conn.fromId);
+            const packet = (outPinName && upstreamOutput[outPinName] !== undefined) ? upstreamOutput[outPinName] : Object.values(upstreamOutput)[0];
+            
+            if (packet !== undefined) {
                 input[inPinName] = this.unwrapPacketValue(packet);
             }
         });
@@ -235,10 +279,28 @@ class NodeEngine {
 
         if (!file) return { output: {}, warnings: [`노드 '${fileId}'를 찾을 수 없습니다.`] };
 
+        // 🌟 연산 시각 피드백: 노드 엘리먼트에 파랑/청록 Glowing 추가
+        if (info?.element) {
+            info.element.classList.add('node-executing');
+        }
+
+        // SVG 연결선 파동 빛 흐름 애니메이션 추가
+        const connLines = document.querySelectorAll(`.connection-line[data-from-id="${fileId}"], .connection-line[data-to-id="${fileId}"]`);
+        connLines.forEach(el => el.classList.add('animating-flow'));
+
         const code = (file.code ?? '').trim();
         const outputPins = file.portsConfig?.outputs ?? [];
         const pinNames = outputPins.map(p => p.name).filter(Boolean);
         const warnings = [];
+
+        const finishVisuals = () => {
+            if (info?.element) {
+                info.element.classList.remove('node-executing');
+                info.element.classList.add('node-success-pulse');
+                setTimeout(() => info.element.classList.remove('node-success-pulse'), 800);
+            }
+            connLines.forEach(el => el.classList.remove('animating-flow'));
+        };
 
         // ── 코드 없음: 데이터 보관 노드 및 원고 노드 ──
         if (!code) {
@@ -250,6 +312,7 @@ class NodeEngine {
                 const packet = this.createDataPacket(listVal, fileId, file.name, 'out_1', '합산 리스트');
                 const output = { '합산 리스트': packet };
                 this.outputCache.set(String(fileId), output);
+                finishVisuals();
                 return { output, warnings };
             }
 
@@ -263,6 +326,7 @@ class NodeEngine {
                 const packet = this.createDataPacket(inVal, fileId, file.name, portId, outPinName);
                 const output = { [outPinName]: packet };
                 this.outputCache.set(String(fileId), output);
+                finishVisuals();
                 return { output, warnings };
             }
 
@@ -279,6 +343,7 @@ class NodeEngine {
                 const packet = this.createDataPacket(textContent, fileId, file.name, portId, pinName);
                 const output = { [pinName]: packet };
                 this.outputCache.set(String(fileId), output);
+                finishVisuals();
                 return { output, warnings };
             }
 
@@ -289,6 +354,7 @@ class NodeEngine {
             });
 
             this.outputCache.set(String(fileId), output);
+            finishVisuals();
             return { output, warnings };
         }
 
@@ -301,6 +367,7 @@ class NodeEngine {
         } catch (err) {
             warnings.push(`코드 실행 오류: ${err.message}`);
             this.outputCache.set(String(fileId), {});
+            finishVisuals();
             return { output: {}, warnings };
         }
 
@@ -311,6 +378,7 @@ class NodeEngine {
         });
 
         this.outputCache.set(String(fileId), output);
+        finishVisuals();
         return { output, warnings };
     }
 
@@ -324,9 +392,34 @@ class NodeEngine {
      * @param {string[]|null} fileIds - 실행할 노드 ID 목록. null이면 열린 창 전체.
      * @returns {Promise<{ order: string[], warnings: string[] }>}
      */
-    async runGraph(fileIds = null) {
+    async runGraph(targetEndNodeId = null) {
         const wm = window.windowManager;
-        const ids = (fileIds ?? (wm ? [...wm.windows.keys()] : [])).map(String);
+        let ids;
+
+        if (typeof targetEndNodeId === 'string' || typeof targetEndNodeId === 'number') {
+            // 🎯 목표(End) 노드가 지정된 경우: 역방향 의존성 탐색 (Upstream Traversal)
+            const targetId = String(targetEndNodeId);
+            const neededNodes = new Set([targetId]);
+            const stack = [targetId];
+            const conns = this._getConnections();
+
+            while (stack.length > 0) {
+                const curr = stack.pop();
+                const parentConns = conns.filter(c => String(c.toId) === curr);
+                parentConns.forEach(c => {
+                    const pId = String(c.fromId);
+                    if (!neededNodes.has(pId)) {
+                        neededNodes.add(pId);
+                        stack.push(pId);
+                    }
+                });
+            }
+            ids = Array.from(neededNodes);
+        } else if (Array.isArray(targetEndNodeId)) {
+            ids = targetEndNodeId.map(String);
+        } else {
+            ids = (wm ? [...wm.windows.keys()] : []).map(String);
+        }
 
         if (ids.length === 0) {
             window.showToast?.('실행할 노드가 없습니다.', 'warning');

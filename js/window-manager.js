@@ -18,6 +18,7 @@ class WindowManager {
         this.quickViewCard = null;
         this.quickViewTimer = null;
         this.currentQuickViewId = null;
+        this.targetEndNodeId = null; // 🎯 지정된 목표 노드 ID
 
         // 하이퍼링크 맵 (파일명 -> fileId)
         this.hyperlinkMap = new Map();
@@ -65,6 +66,48 @@ class WindowManager {
         window.addEventListener('blur', () => {
             document.querySelectorAll('.selection-box').forEach(el => el.remove());
             this.selectionState = null;
+        });
+
+        // 캔버스 상단 그래프 실행 제어 미니 팝업 메뉴 이벤트
+        const execMenuBtn = document.getElementById('toggleGraphExecMenuBtn');
+        const execPopmenu = document.getElementById('graphExecPopmenu');
+
+        if (execMenuBtn && execPopmenu) {
+            execMenuBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                execPopmenu.classList.toggle('hidden');
+            });
+            document.addEventListener('click', (e) => {
+                if (!e.target.closest('#graphExecPopmenu') && !e.target.closest('#toggleGraphExecMenuBtn')) {
+                    execPopmenu.classList.add('hidden');
+                }
+            });
+        }
+
+        document.getElementById('runAllGraphBtn')?.addEventListener('click', async () => {
+            execPopmenu?.classList.add('hidden');
+            window.showToast?.('전체 노드 그래프를 순차 실행합니다... 🚀');
+            await window.nodeEngine?.runGraph();
+        });
+
+        document.getElementById('runTargetNodeBtn')?.addEventListener('click', async () => {
+            execPopmenu?.classList.add('hidden');
+            const targetId = this.targetEndNodeId || this.activeWindowId;
+            if (targetId) {
+                const targetFile = this.getWindowInfo(targetId)?.file;
+                window.showToast?.(`'${targetFile?.name || '목표 노드'}'를 목표(End)로 실행합니다... 🎯`);
+                await window.nodeEngine?.runGraph(targetId);
+            } else {
+                window.showToast?.('지정된 목표 노드가 없습니다. 노드를 우클릭하여 목표(End)로 지정해 주세요.', 'warning');
+            }
+        });
+
+        // 단축키 (Ctrl + Enter로 전체 그래프 실행)
+        document.addEventListener('keydown', (e) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+                e.preventDefault();
+                document.getElementById('runAllGraphBtn')?.click();
+            }
         });
 
         // 상단 헤더 저장 버튼
@@ -638,6 +681,8 @@ class WindowManager {
         // 파일의 isOpen 상태 업데이트
         if (!restoreState) {
             await this.updateFileWindowState(fileId, { isOpen: true, x, y, width, height });
+            // 막 새로 생성된 신규 노드는 카메라(뷰포트)를 해당 노드가 서 있는 위치로 이동하여 즉시 화면에 노출!
+            this.panViewportToNode(fileId);
         }
 
         // 포커스
@@ -860,6 +905,55 @@ class WindowManager {
     }
 
     /**
+     * 특정 노드의 🎯 TARGET(End Point) 지정을 해제합니다.
+     */
+    unsetTargetEndNode() {
+        if (this.targetEndNodeId && this.windows.has(this.targetEndNodeId)) {
+            const el = this.windows.get(this.targetEndNodeId).element;
+            el.classList.remove('target-end-node');
+            el.querySelector('.target-end-badge')?.remove();
+        }
+        this.targetEndNodeId = null;
+        window.showToast?.('목표(End Point) 노드 지정이 해제되었습니다. 🚫');
+    }
+
+    /**
+     * 특정 노드를 🎯 TARGET(End Point) 노드로 지정하거나 토글 해제합니다.
+     */
+    setTargetEndNode(fileId) {
+        const fileIdStr = String(fileId);
+        if (this.targetEndNodeId === fileIdStr) {
+            this.unsetTargetEndNode();
+            return;
+        }
+
+        const prevTarget = this.targetEndNodeId;
+        this.targetEndNodeId = fileIdStr;
+
+        // 이전 지정 노드 배지 제거
+        if (prevTarget && this.windows.has(prevTarget)) {
+            const prevEl = this.windows.get(prevTarget).element;
+            prevEl.classList.remove('target-end-node');
+            prevEl.querySelector('.target-end-badge')?.remove();
+        }
+
+        // 신규 지정 노드 배지 부여
+        const currInfo = this.windows.get(this.targetEndNodeId);
+        if (currInfo && currInfo.element) {
+            currInfo.element.classList.add('target-end-node');
+            const titlebarLeft = currInfo.element.querySelector('.window-titlebar-left');
+            if (titlebarLeft && !titlebarLeft.querySelector('.target-end-badge')) {
+                const badge = document.createElement('span');
+                badge.className = 'target-end-badge';
+                badge.style.cssText = 'font-size:10px; font-weight:800; color:#0f141d; background:#00ffcc; padding:2px 6px; border-radius:4px; margin-left:6px; box-shadow:0 0 8px rgba(0,255,204,0.6);';
+                badge.innerText = '🎯 TARGET';
+                titlebarLeft.appendChild(badge);
+            }
+        }
+        window.showToast?.(`'${currInfo?.file?.name || '노드'}'가 목표(End Point) 노드로 지정되었습니다. 🎯`);
+    }
+
+    /**
      * 창이 현재 화면(뷰포트) 안에 있는지 확인
      */
     isWindowInViewport(fileId) {
@@ -939,14 +1033,11 @@ class WindowManager {
     createWindowDOM(file, x, y, width, height) {
         const isCollapsed = file.windowState?.isCollapsed || false;
         const isImage = file.template === 'image' || (file.content && typeof file.content === 'string' && file.content.startsWith('data:image'));
-        const isTextFields = file.isTextFieldsNode || (file.content && typeof file.content === 'string' && file.content.includes('"isTextFieldsNode"'));
-        const isSystemPrompt = file.isSystemPromptNode || (file.content && typeof file.content === 'string' && file.content.includes('"command"'));
         const isAggregator = file.isAggregatorNode || file.template === 'aggregator' || (file.content && typeof file.content === 'string' && file.content.includes('"isAggregatorNode"'));
         const isDataViewer = file.isDataViewerNode || file.template === 'viewer' || (file.content && typeof file.content === 'string' && file.content.includes('"isDataViewerNode"'));
-        const isCustomNode = !isAggregator && !isDataViewer && (file.isCustomNode || file.template === 'custom_node' || file.template === 'text_fields' || file.isTextFieldsNode || (file.content && typeof file.content === 'string' && file.content.includes('"isCustomNode"')));
-
-
-
+        const isApproval = file.isApprovalNode || file.template === 'approval' || (file.content && typeof file.content === 'string' && file.content.includes('"isApprovalNode"'));
+        const isChoice = file.isChoiceNode || file.template === 'choice' || (file.content && typeof file.content === 'string' && file.content.includes('"isChoiceNode"'));
+        const isCustomNode = !isAggregator && !isDataViewer && !isApproval && !isChoice && (file.isCustomNode || file.template === 'custom_node' || file.template === 'text_fields' || file.isTextFieldsNode || (file.content && typeof file.content === 'string' && file.content.includes('"isCustomNode"')));
         
         const win = document.createElement('div');
         win.className = `editor-window${isCollapsed ? ' collapsed' : ''}${isImage ? ' image-window' : ''}`;
@@ -2081,7 +2172,16 @@ class WindowManager {
         }
 
         if (!isMulti) {
+            const isTarget = this.targetEndNodeId === String(fileId);
             menuHtml += `
+                <div class="context-menu-item" data-action="target-set" style="color:${isTarget ? '#e74c3c' : '#00ffcc'}; font-weight:bold;">
+                    <span class="context-menu-icon">${isTarget ? '🚫' : '🎯'}</span>
+                    <span>${isTarget ? '목표(End) 지정 해제' : '이 노드를 목표(End)로 지정'}</span>
+                </div>
+                <div class="context-menu-item" data-action="target-run" style="color:#2ecc71; font-weight:bold;">
+                    <span class="context-menu-icon">▶️</span>
+                    <span>이 노드를 목표(End)로 즉시 실행</span>
+                </div>
                 <div class="context-menu-item" data-action="duplicate">
                     <span class="context-menu-icon">📋</span>
                     <span>노드 복사</span>
@@ -2107,6 +2207,22 @@ class WindowManager {
         menu.classList.remove('hidden');
 
         // 메뉴 아이템 클릭 이벤트
+        const targetSetBtn = menu.querySelector('[data-action="target-set"]');
+        targetSetBtn?.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.hideContextMenu();
+            this.setTargetEndNode(fileId);
+        });
+
+        const targetRunBtn = menu.querySelector('[data-action="target-run"]');
+        targetRunBtn?.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            this.hideContextMenu();
+            this.setTargetEndNode(fileId);
+            if (window.nodeEngine) {
+                await window.nodeEngine.runGraph(fileId);
+            }
+        });
         const deleteBtn = menu.querySelector('[data-action="delete"]');
         deleteBtn?.addEventListener('click', (e) => {
             e.stopPropagation();
@@ -3109,6 +3225,138 @@ class WindowManager {
     // ─────────────────────────────────────────────
 
     /**
+     * 사용자 승인 노드 (Approval Gate Node) UI 렌더링
+     */
+    renderApprovalNode(fileId) {
+        const info = this.getWindowInfo(fileId);
+        if (!info) return;
+
+        const container = info.element.querySelector(`#approvalContainer_${fileId}`);
+        if (!container) return;
+
+        const inputVars = window.nodeEngine?.collectInputVars(fileId) ?? {};
+        const rawVal = inputVars['검수 데이터'] ?? Object.values(inputVars)[0] ?? null;
+
+        let contentData = {};
+        try { contentData = JSON.parse(info.file.content || '{}'); } catch(e){}
+
+        const isApproved = !!contentData.isApproved;
+        let displayStr = '';
+        if (rawVal !== null && rawVal !== undefined) {
+            displayStr = typeof rawVal === 'object' ? JSON.stringify(rawVal, null, 2) : String(rawVal);
+        } else {
+            displayStr = '(입력 연결을 기다리는 중입니다)';
+        }
+
+        container.innerHTML = `
+            <div style="padding: 12px; display: flex; flex-direction: column; gap: 10px; height: 100%; box-sizing: border-box;">
+                <div style="display: flex; justify-content: space-between; align-items: center; background: var(--color-surface-1); padding: 8px 12px; border-radius: 6px; border: 1px solid var(--color-border);">
+                    <span style="font-size: 11px; font-weight: 700; color: ${isApproved ? '#2ecc71' : '#f39c12'};">
+                        ${isApproved ? '✅ 검수 승인 완료' : '⏸️ 사용자 승인 대기 중'}
+                    </span>
+                    <button type="button" class="btn btn-xs reset-approval-btn" style="font-size: 10px; padding: 2px 6px;">🔄 상태 초기화</button>
+                </div>
+                <div style="flex: 1; min-height: 100px; background: rgba(0,0,0,0.2); border: 1px solid var(--color-border); border-radius: 6px; padding: 10px; font-family: monospace; font-size: 11px; overflow-y: auto; white-space: pre-wrap; word-break: break-all;">${this.escapeHtml(displayStr)}</div>
+                <div style="display: flex; gap: 8px;">
+                    <button type="button" class="btn btn-warning btn-xs retry-upstream-btn" style="flex: 1; padding: 8px; font-weight: bold; font-size: 11px;">🔄 마음에 안 듦 (재시도)</button>
+                    <button type="button" class="btn btn-success btn-xs approve-gate-btn" style="flex: 1; padding: 8px; font-weight: bold; font-size: 11px; background: ${isApproved ? '#27ae60' : '#2ecc71'};">
+                        ${isApproved ? '✅ 승인 상태' : '✅ 승인 및 진행'}
+                    </button>
+                </div>
+            </div>
+        `;
+
+        // 상위 연산 재시도 버튼 (직전 상위 노드 재실행)
+        container.querySelector('.retry-upstream-btn')?.addEventListener('click', async () => {
+            const inConns = (window.nodeEngine?._getConnections() || []).filter(c => String(c.toId) === String(fileId));
+            if (inConns.length === 0) {
+                window.showToast?.('연결된 상위 노드가 없습니다.', 'warning');
+                return;
+            }
+            window.showToast?.('상위 노드 연산을 재시도합니다... 🔄');
+            for (const conn of inConns) {
+                window.nodeEngine?.clearNodeCache(conn.fromId);
+                await window.nodeEngine?.runNode(conn.fromId);
+                this.refreshNodeUI(conn.fromId);
+            }
+            contentData.isApproved = false;
+            info.file.content = JSON.stringify(contentData);
+            await storage.updateFile(fileId, { content: info.file.content });
+            this.notifyNodeChanged(fileId, 'outputChange');
+            window.showToast?.('상위 노드가 새로 연산되었습니다! ✨', 'success');
+        });
+
+        // 승인 버튼
+        container.querySelector('.approve-gate-btn')?.addEventListener('click', async () => {
+            contentData.isApproved = true;
+            info.file.content = JSON.stringify(contentData);
+            await storage.updateFile(fileId, { content: info.file.content });
+            this.refreshNodeUI(fileId);
+            this.notifyNodeChanged(fileId, 'outputChange');
+            window.showToast?.('결과물이 승인되었습니다! 하위 노드로 진행 가능합니다. ✅', 'success');
+        });
+
+        // 상태 초기화
+        container.querySelector('.reset-approval-btn')?.addEventListener('click', async () => {
+            contentData.isApproved = false;
+            info.file.content = JSON.stringify(contentData);
+            await storage.updateFile(fileId, { content: info.file.content });
+            this.refreshNodeUI(fileId);
+            this.notifyNodeChanged(fileId, 'outputChange');
+        });
+    }
+
+    /**
+     * 사용자 선택 분기 노드 (Interactive Choice Node) UI 렌더링
+     */
+    renderChoiceNode(fileId) {
+        const info = this.getWindowInfo(fileId);
+        if (!info) return;
+
+        const container = info.element.querySelector(`#choiceContainer_${fileId}`);
+        if (!container) return;
+
+        let contentData = {};
+        try { contentData = JSON.parse(info.file.content || '{}'); } catch(e){}
+
+        const selectedChoiceId = contentData.selectedChoiceId || 'choice_1';
+        const outputs = info.file.portsConfig?.outputs ?? [];
+
+        const buttonsHtml = outputs.map(p => {
+            const isSelected = p.id === selectedChoiceId;
+            return `
+                <button type="button" class="btn choice-opt-btn" data-choice-id="${p.id}" style="padding: 10px; font-size: 11px; font-weight: bold; text-align: left; display: flex; justify-content: space-between; align-items: center; border-radius: 6px; border: 1.5px solid ${isSelected ? (p.color || '#3498db') : 'var(--color-border)'}; background: ${isSelected ? 'rgba(52, 152, 219, 0.15)' : 'var(--color-surface-1)'}; color: ${isSelected ? '#ffffff' : 'var(--color-text-secondary)'}; cursor: pointer;">
+                    <span>🔀 ${this.escapeHtml(p.name)}</span>
+                    <span style="font-size: 10px; opacity: 0.8;">${isSelected ? '선택됨 🎯' : '선택하기'}</span>
+                </button>
+            `;
+        }).join('');
+
+        container.innerHTML = `
+            <div style="padding: 12px; display: flex; flex-direction: column; gap: 10px; height: 100%; box-sizing: border-box;">
+                <div style="font-size: 11px; color: var(--color-text-secondary); font-weight: bold;">
+                    🔀 원하는 경로 선택지를 클릭하세요:
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 6px; flex: 1; overflow-y: auto;">
+                    ${buttonsHtml}
+                </div>
+            </div>
+        `;
+
+        container.querySelectorAll('.choice-opt-btn').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                const choiceId = btn.dataset.choiceId;
+                contentData.selectedChoiceId = choiceId;
+                info.file.content = JSON.stringify(contentData);
+                await storage.updateFile(fileId, { content: info.file.content });
+                this.refreshNodeUI(fileId);
+                this.notifyNodeChanged(fileId, 'outputChange');
+                window.showToast?.('분기 경로가 선택되었습니다. 🔀');
+            });
+        });
+    }
+
+    /**
      * 특정 노드의 UI를 타입에 구애받지 않고 자동으로 판단하여 갱신합니다.
      */
     refreshNodeUI(fileId) {
@@ -3118,13 +3366,19 @@ class WindowManager {
         const f = info.file;
         const isAggregator = f.isAggregatorNode || f.template === 'aggregator' || (f.content && typeof f.content === 'string' && f.content.includes('"isAggregatorNode"'));
         const isDataViewer = f.isDataViewerNode || f.template === 'viewer' || (f.content && typeof f.content === 'string' && f.content.includes('"isDataViewerNode"'));
+        const isApproval = f.isApprovalNode || f.template === 'approval' || (f.content && typeof f.content === 'string' && f.content.includes('"isApprovalNode"'));
+        const isChoice = f.isChoiceNode || f.template === 'choice' || (f.content && typeof f.content === 'string' && f.content.includes('"isChoiceNode"'));
         const isTextFields = f.isTextFieldsNode || (f.content && typeof f.content === 'string' && f.content.includes('"isTextFieldsNode"'));
-        const isCustomNode = !isAggregator && !isDataViewer && (f.isCustomNode || f.template === 'custom_node' || f.template === 'text_fields' || f.isTextFieldsNode || (f.content && typeof f.content === 'string' && f.content.includes('"isCustomNode"')));
+        const isCustomNode = !isAggregator && !isDataViewer && !isApproval && !isChoice && (f.isCustomNode || f.template === 'custom_node' || f.template === 'text_fields' || f.isTextFieldsNode || (f.content && typeof f.content === 'string' && f.content.includes('"isCustomNode"')));
 
         if (isAggregator) {
             this.renderAggregatorNode(fileId);
         } else if (isDataViewer) {
             this.renderDataViewerNode(fileId);
+        } else if (isApproval) {
+            this.renderApprovalNode(fileId);
+        } else if (isChoice) {
+            this.renderChoiceNode(fileId);
         } else if (isTextFields) {
             this.renderTextFieldsNode(fileId);
         } else if (isCustomNode) {
@@ -3148,19 +3402,25 @@ class WindowManager {
     async notifyNodeChanged(sourceFileId, eventType = 'contentChange') {
         const fileIdStr = String(sourceFileId);
 
-        // 1) 지워지거나 변경된 노드의 NodeEngine 메모리 캐시 무효화
+        // 1) 변경된 노드의 캐시 무효화
         if (window.nodeEngine) {
             window.nodeEngine.clearNodeCache(fileIdStr);
 
-            // 2) 하위(Downstream) 연결된 모든 노드의 캐시도 함께 무효화
+            // 2) 하위(Downstream) 연결 노드의 캐시도 무효화
             const downstreamIds = window.nodeEngine.getDownstreamNodeIds(fileIdStr);
             downstreamIds.forEach(dId => window.nodeEngine.clearNodeCache(dId));
+
+            // 3) '⚡ 실시간 연산' 스위치가 켜져 있다면 하위 노드로 자동 전파 실행!
+            const isAutoRun = document.getElementById('autoRunToggleSwitch')?.checked ?? false;
+            if (isAutoRun && downstreamIds.length > 0) {
+                downstreamIds.forEach(dId => window.nodeEngine.runNode(dId));
+            }
         }
 
-        // 3) 연결선 다시 그리기
+        // 4) 연결선 다시 그리기
         this.renderConnections();
 
-        // 4) 캔버스 UI 일괄 및 하위 노드 UI 실시간 새로고침
+        // 5) 캔버스 UI 일괄 갱신
         this.refreshAllNodesUI();
     }
 

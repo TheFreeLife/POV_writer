@@ -44,6 +44,8 @@ class FileTreeManager {
                     if (presetType === 'image') this.showNewImageModal();
                     else if (presetType === 'aggregator') this.createAggregatorNode();
                     else if (presetType === 'viewer') this.createDataViewerNode();
+                    else if (presetType === 'approval') this.createApprovalNode();
+                    else if (presetType === 'choice') this.createChoiceNode();
                     else this.showNewItemModal('file');
 
                 });
@@ -303,7 +305,7 @@ class FileTreeManager {
 
         if (projectId) await this.loadProjectFiles(projectId);
         if (created && window.windowManager) {
-            window.windowManager.openWindow(created.id);
+            await window.windowManager.openWindow(created.id);
             window.showToast?.(`'${created.name}' 노드가 생성되어 캔버스에 추가되었습니다. 🔗`);
         }
     }
@@ -333,8 +335,71 @@ class FileTreeManager {
 
         if (projectId) await this.loadProjectFiles(projectId);
         if (created && window.windowManager) {
-            window.windowManager.openWindow(created.id);
+            await window.windowManager.openWindow(created.id);
             window.showToast?.(`'${created.name}' 디버그 노드가 생성되었습니다. 👁️`);
+        }
+    }
+
+    async createApprovalNode() {
+        const projectId = this.currentProjectId || window.app?.currentProjectId || (await storage.getProjects())?.[0]?.id;
+        if (!projectId) { alert('현재 선택된 프로젝트가 없습니다.'); return; }
+
+        const siblings = (this.files || []).filter(f => !f.parentId);
+        const maxOrder = siblings.length > 0 ? Math.max(...siblings.map(f => f.order || 0)) : -1;
+
+        const created = await storage.createFile({
+            projectId,
+            name: '⏸️ 사용자 승인 노드',
+            type: 'file',
+            description: '중간 결과물을 검수하고 마음에 들 때까지 상위 연산을 재시도하거나 승인하여 진행하는 검수 노드',
+            content: JSON.stringify({ isApprovalNode: true, isApproved: false }),
+            isApprovalNode: true,
+            template: 'approval',
+            portsConfig: {
+                inputs: [{ id: 'appr_in', name: '검수 데이터', color: '#e74c3c' }],
+                outputs: [{ id: 'appr_out', name: '승인 데이터', color: '#2ecc71' }]
+            },
+            parentId: null,
+            order: maxOrder + 1
+        });
+
+        if (projectId) await this.loadProjectFiles(projectId);
+        if (created && window.windowManager) {
+            await window.windowManager.openWindow(created.id);
+            window.showToast?.(`'${created.name}' 검수 노드가 생성되었습니다. ⏸️`);
+        }
+    }
+
+    async createChoiceNode() {
+        const projectId = this.currentProjectId || window.app?.currentProjectId || (await storage.getProjects())?.[0]?.id;
+        if (!projectId) { alert('현재 선택된 프로젝트가 없습니다.'); return; }
+
+        const siblings = (this.files || []).filter(f => !f.parentId);
+        const maxOrder = siblings.length > 0 ? Math.max(...siblings.map(f => f.order || 0)) : -1;
+
+        const created = await storage.createFile({
+            projectId,
+            name: '🔀 사용자 선택 분기 노드',
+            type: 'file',
+            description: '중간 결과물을 바탕으로 사용자가 분기 선택지를 클릭하여 경로를 결정하는 노드',
+            content: JSON.stringify({ isChoiceNode: true, selectedChoiceId: 'choice_1' }),
+            isChoiceNode: true,
+            template: 'choice',
+            portsConfig: {
+                inputs: [{ id: 'choice_in', name: '입력 데이터', color: '#3498db' }],
+                outputs: [
+                    { id: 'choice_1', name: '선택지 A (전투)', color: '#e67e22' },
+                    { id: 'choice_2', name: '선택지 B (도망)', color: '#9b59b6' }
+                ]
+            },
+            parentId: null,
+            order: maxOrder + 1
+        });
+
+        if (projectId) await this.loadProjectFiles(projectId);
+        if (created && window.windowManager) {
+            await window.windowManager.openWindow(created.id);
+            window.showToast?.(`'${created.name}' 분기 노드가 생성되었습니다. 🔀`);
         }
     }
 
@@ -1864,6 +1929,7 @@ class FileTreeManager {
                 <div class="context-menu-item" id="ctx-folder-stats"><span class="context-menu-icon">📊</span> 통계</div>
                 <div class="context-menu-item" id="ctx-folder-settings"><span class="context-menu-icon">⚙️</span> 폴더 설정</div>
             ` : `
+                <div class="context-menu-item" id="ctx-target-run" style="color:#00ffcc; font-weight:bold;"><span class="context-menu-icon">🎯</span> 이 노드를 목표(End)로 실행</div>
                 <div class="context-menu-item" id="ctx-rename"><span class="context-menu-icon">✏️</span> 이름 변경</div>
             `}
             <div class="context-menu-divider"></div>
@@ -1874,6 +1940,13 @@ class FileTreeManager {
         menu.classList.remove('hidden');
 
         // 이벤트 리스너 바인딩
+        document.getElementById('ctx-target-run')?.addEventListener('click', async () => {
+            menu.classList.add('hidden');
+            window.showToast?.(`'${file.name}' 노드를 목표(End)로 역방향 추적 실행합니다... 🎯`);
+            if (window.nodeEngine) {
+                await window.nodeEngine.runGraph(file.id);
+            }
+        });
         document.getElementById('ctx-new-file-text')?.addEventListener('click', () => this.showNewItemModal('file', file.id));
         document.getElementById('ctx-new-file-image')?.addEventListener('click', () => this.showNewImageModal());
         document.getElementById('ctx-open-wizard')?.addEventListener('click', () => this.showNodeSelectModal());

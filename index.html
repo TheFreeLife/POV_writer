@@ -46,6 +46,30 @@
         <span id="autoSaveIndicator" class="auto-save-indicator"></span>
         <button class="btn btn-secondary" id="addCanvasRegionBtn" title="캔버스에 그룹 영역 추가">🔲 영역 추가</button>
         <button class="btn btn-secondary" id="toggleNodeGuideBtn" title="화면 밖 노드 위치를 가장자리에 표시 (토글)">🧭 노드 레이더</button>
+
+        <div style="position: relative;">
+          <button id="toggleGraphExecMenuBtn" class="btn btn-primary" title="노드 그래프 실행 제어 메뉴" style="background: linear-gradient(135deg, #00ffcc, #00b894); color: #0f141d; font-weight: 800; border: none; box-shadow: 0 2px 8px rgba(0,255,204,0.3); gap: 4px;">
+            <span>⚡</span>
+            <span>실행 제어</span>
+            <span style="font-size: 10px; opacity: 0.8;">▾</span>
+          </button>
+
+          <!-- 콤팩트 미니 실행 팝업창 -->
+          <div id="graphExecPopmenu" class="hidden" style="position: absolute; top: calc(100% + 8px); right: 0; z-index: 1000; width: 220px; background: rgba(20, 24, 33, 0.95); backdrop-filter: blur(12px); border: 1px solid var(--color-border); border-radius: 12px; padding: 10px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); display: flex; flex-direction: column; gap: 8px;">
+            <button id="runAllGraphBtn" class="btn btn-secondary btn-sm" style="width: 100%; justify-content: flex-start; gap: 8px; font-weight: 700; background: rgba(0,255,204,0.1); color: #00ffcc; border-color: rgba(0,255,204,0.3);">
+              <span>▶️</span> 전체 그래프 실행 <span style="font-size: 10px; opacity: 0.6; margin-left: auto;">Ctrl+↵</span>
+            </button>
+            <button id="runTargetNodeBtn" class="btn btn-secondary btn-sm" style="width: 100%; justify-content: flex-start; gap: 8px; font-weight: 600;">
+              <span>🎯</span> 목표(End) 노드 연산
+            </button>
+            <div style="height: 1px; background: var(--color-border); margin: 2px 0;"></div>
+            <label style="display: flex; align-items: center; justify-content: space-between; cursor: pointer; font-size: 11px; font-weight: 600; color: var(--color-text-secondary); padding: 4px 6px; user-select: none;">
+              <span style="display: flex; align-items: center; gap: 6px;">⚡ 실시간 자동 연산</span>
+              <input type="checkbox" id="autoRunToggleSwitch" style="cursor: pointer; accent-color: #00ffcc;">
+            </label>
+          </div>
+        </div>
+
         <button class="btn btn-secondary" id="zenModeBtn" title="몰입 모드 (사이드바 숨기기)">🧘 몰입 모드</button>
         <button class="btn btn-secondary" id="saveBtn">💾 저장</button>
       </div>
@@ -96,11 +120,47 @@
           </svg>
           <!-- 에디터 윈도우들이 동적으로 추가됩니다 -->
         </div>
+
         <!-- 줌 배율 표시기 -->
         <div id="zoomIndicator" class="zoom-indicator">100%</div>
         <!-- 화면 밖 노드 가이드 오버레이 -->
         <div id="nodeGuideOverlay" class="node-guide-overlay"></div>
       </section>
+
+      <style>
+        /* 실행 중인 노드 하이라이트 애니메이션 */
+        .editor-window.node-executing {
+          border-color: #00ffcc !important;
+          box-shadow: 0 0 25px rgba(0, 255, 204, 0.6), inset 0 0 15px rgba(0, 255, 204, 0.2) !important;
+          animation: pulse-executing 1.2s infinite ease-in-out !important;
+        }
+        @keyframes pulse-executing {
+          0% { box-shadow: 0 0 15px rgba(0, 255, 204, 0.4); }
+          50% { box-shadow: 0 0 30px rgba(0, 255, 204, 0.85); }
+          100% { box-shadow: 0 0 15px rgba(0, 255, 204, 0.4); }
+        }
+
+        /* 실행 성공 노드 순간 펄스 */
+        .editor-window.node-success-pulse {
+          animation: pulse-success 0.8s ease-out !important;
+        }
+        @keyframes pulse-success {
+          0% { border-color: #2ecc71; box-shadow: 0 0 30px rgba(46, 204, 113, 0.8); }
+          100% { border-color: var(--color-border); box-shadow: none; }
+        }
+
+        /* SVG 연결선 빛 흐름 애니메이션 */
+        .connection-line.animating-flow {
+          stroke: #00ffcc !important;
+          stroke-dasharray: 8 4 !important;
+          animation: dash-flow 0.8s linear infinite !important;
+          filter: drop-shadow(0 0 6px rgba(0, 255, 204, 0.8)) !important;
+        }
+        @keyframes dash-flow {
+          from { stroke-dashoffset: 24; }
+          to { stroke-dashoffset: 0; }
+        }
+      </style>
 
       <!-- 우측 리사이저 -->
       <div class="resizer" id="toolsPanelResizer"></div>
@@ -230,6 +290,21 @@
             </div>
           </div>
 
+          <div class="node-type-card" data-preset-type="approval">
+            <div class="node-type-icon">⏸️</div>
+            <div class="node-type-info">
+              <div class="node-type-title">사용자 승인 노드 (HITL Gate)</div>
+              <div class="node-type-desc">중간 결과물을 확인하고 마음에 들 때까지 상위 연산을 재시도하거나 최종 승인하여 하위 노드로 전파하는 검수 노드입니다.</div>
+            </div>
+          </div>
+
+          <div class="node-type-card" data-preset-type="choice">
+            <div class="node-type-icon">🔀</div>
+            <div class="node-type-info">
+              <div class="node-type-title">사용자 선택 분기 노드 (Branch)</div>
+              <div class="node-type-desc">중간 결과물을 바탕으로 사용자가 직접 분기 옵션(Option A, B...)을 클릭하여 원하는 경로로 스토리를 전개시키는 선택 노드입니다.</div>
+            </div>
+          </div>
         </div>
 
         <!-- 사용자 정의 커스텀 노드 형태 섹션 (구조 마법사) -->
