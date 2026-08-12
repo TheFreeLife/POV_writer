@@ -199,7 +199,6 @@ class TemplateManager {
 
         let typeBadge = '입력 보존';
         if (tpl.isTextFieldsNode || tpl.template === 'text_fields') typeBadge = '속성 보존';
-        else if (tpl.isStatNode || tpl.template === 'stat') typeBadge = '수치 보존';
         else if (tpl.isSystemPromptNode || tpl.template === 'system_prompt') typeBadge = 'AI 프롬프트';
 
         const badgeColor = isDefault ? 'var(--color-accent-primary)' : '#f1e05a';
@@ -248,8 +247,6 @@ class TemplateManager {
             type: 'file',
             template: tpl.template || 'file',
             isTextFieldsNode: !!tpl.isTextFieldsNode,
-            isFolderCollectorNode: !!tpl.isFolderCollectorNode,
-            isStatNode: !!tpl.isStatNode,
             isSystemPromptNode: !!tpl.isSystemPromptNode,
             isAiMetaNode: !!tpl.isAiMetaNode,
             description: tpl.desc || '템플릿에서 생성된 노드',

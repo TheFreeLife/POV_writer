@@ -41,9 +41,7 @@ class FileTreeManager {
                     const presetType = card.dataset.presetType;
                     this.hideNodeSelectModal();
 
-                    if (presetType === 'stat') this.showNewStatModal();
-                    else if (presetType === 'image') this.showNewImageModal();
-                    else if (presetType === 'folder_collector') this.createCustomFolderCollectorNode('폴더 자동 수집기', '📂', '선택한 폴더의 모든 노드 자동 수집');
+                    if (presetType === 'image') this.showNewImageModal();
                     else if (presetType === 'aggregator') this.createAggregatorNode();
                     else this.showNewItemModal('file');
 
@@ -77,11 +75,6 @@ class FileTreeManager {
             });
         });
 
-        // 수치 항목 추가 버튼
-        document.getElementById('wizardAddStatBtn')?.addEventListener('click', () => {
-            const newName = '';
-            this.addWizardStatRow(newName, 0);
-        });
 
 
         // 텍스트 항목 추가 버튼
@@ -277,35 +270,6 @@ class FileTreeManager {
         document.addEventListener('click', () => this.hideContextMenu());
     }
 
-    /**
-     * 수치 계산기 커스텀 노드 생성
-     */
-    async showNewStatModal(parentId = null) {
-        const fileData = {
-            name: '📊 수치 계산기',
-            type: 'file',
-            parentId: parentId,
-            isCustomNode: true,
-            template: 'custom_node',
-            icon: '📊',
-            description: '스탯 입력값과 연산 코드가 포함된 노드',
-            fields: [
-                { name: '근력', val: 10, type: 'stat' },
-                { name: '민첩', val: 10, type: 'stat' },
-                { name: '지능', val: 10, type: 'stat' }
-            ],
-            code: `const 총합 = (Number(input.근력) || 0) + (Number(input.민첩) || 0) + (Number(input.지능) || 0);\nconst 전투력 = (Number(input.근력) || 0) * 2 + (Number(input.민첩) || 0) * 1.5 + (Number(input.지능) || 0);\nreturn { 총합, 전투력 };`,
-            portsConfig: {
-                inputs: [],
-                outputs: [
-                    { id: 'out_1', name: '총합', color: '#00ffcc' },
-                    { id: 'out_2', name: '전투력', color: '#00ffcc' }
-                ]
-            }
-        };
-
-        await this.createNewCustomNode(fileData);
-    }
 
 
     /**
@@ -717,9 +681,7 @@ class FileTreeManager {
             openableFiles.forEach(file => {
                 const item = document.createElement('div');
                 item.className = 'existing-node-item';
-                let typeLabel = '소설/원고 노드';
-                if (file.isStatNode) typeLabel = '수치 계산기 노드';
-                else if (file.type === 'image') typeLabel = '이미지 노드';
+                let typeLabel = file.type === 'image' ? '이미지 노드' : '소설/원고 노드';
 
                 const isOpen = window.windowManager?.getWindowInfo(file.id);
 
@@ -812,7 +774,6 @@ class FileTreeManager {
 
             let typeBadge = '입력 템플릿';
             if (preset.isTextFieldsNode || preset.wizardType === 'text_fields') typeBadge = '속성 템플릿';
-            else if (preset.isStatNode || preset.wizardType === 'stat') typeBadge = '수치 템플릿';
             else if (preset.isSystemPromptNode || preset.wizardType === 'system_prompt') typeBadge = 'AI 템플릿';
 
             let portsPreviewHtml = '';
@@ -930,8 +891,6 @@ class FileTreeManager {
             template: 'custom_node',
             isCustomNode: true,
             isTextFieldsNode: !!preset.isTextFieldsNode,
-            isFolderCollectorNode: !!preset.isFolderCollectorNode,
-            isStatNode: !!preset.isStatNode,
             isSystemPromptNode: !!preset.isSystemPromptNode,
             isAiMetaNode: !!preset.isAiMetaNode,
             description: nodeDesc,
@@ -1345,27 +1304,6 @@ class FileTreeManager {
         });
     }
 
-    addWizardStatRow(name = '', val = 0) {
-        const list = document.getElementById('wizardStatList');
-        if (!list) return;
-
-        const row = document.createElement('div');
-        row.className = 'stat-field-row';
-        row.innerHTML = `
-            <input type="text" class="input field-name" placeholder="항목 이름 (예: 근력, HP)" value="${this.escapeHtml(name)}" style="flex: 1;">
-            <input type="number" class="input field-val" placeholder="기본 수치" value="${val}" style="width: 90px;">
-            <button type="button" class="btn btn-icon btn-secondary remove-field-btn" title="항목 삭제" style="color: var(--color-accent-danger); border: none; background: transparent;">✕</button>
-        `;
-
-        row.querySelector('.remove-field-btn')?.addEventListener('click', () => {
-            row.remove();
-        });
-
-        const nameInput = row.querySelector('.field-name');
-        if (nameInput) this.attachVarNameDuplicateCheck(nameInput);
-
-        list.appendChild(row);
-    }
 
     addWizardTextFieldRow(name = '', val = '', rows = 1) {
         const list = document.getElementById('wizardTextFieldsList');
@@ -1544,7 +1482,6 @@ class FileTreeManager {
             portsConfig,
             promptForName,
             promptForDesc,
-            isFolderCollectorNode: type === 'folder_collector',
         };
 
         await window.storage?.saveCustomNodePreset(presetData);
@@ -1554,31 +1491,6 @@ class FileTreeManager {
         await this.showNodeSelectModal();
 
         window.showToast?.(isEditing ? `'${name}' 프리셋 수정이 저장되었습니다! ✏️` : `'${name}' 커스텀 노드가 노드 목록에 추가되었습니다! ✨`);
-    }
-
-    async createCustomFolderCollectorNode(name, icon, desc, targetFolderId = 'root', itemTemplate = '', portsConfig = null) {
-        const contentObj = {
-            isFolderCollectorNode: true,
-            targetFolderId: targetFolderId || 'root',
-            itemTemplate: itemTemplate || ''
-        };
-
-        const defaultPorts = portsConfig || {
-            inputs: [],
-            outputs: [{ id: 'out_1', name: '수집 데이터', color: '#00ffcc' }]
-        };
-
-        const fileData = {
-            name: `${icon || '📂'} ${name}`,
-            type: 'file',
-            template: 'folder_collector',
-            isFolderCollectorNode: true,
-            description: desc,
-            content: JSON.stringify(contentObj, null, 2),
-            portsConfig: defaultPorts
-        };
-
-        await this.createNewCustomNode(fileData);
     }
 
     async createCustomTextFieldsNode(name, icon, desc, fields, portsConfig = null, outputTemplate = '') {
@@ -1625,8 +1537,6 @@ class FileTreeManager {
                 content: fileData.content || '',
                 isCustomNode: fileData.isCustomNode !== undefined ? !!fileData.isCustomNode : true,
                 isTextFieldsNode: !!fileData.isTextFieldsNode,
-                isFolderCollectorNode: !!fileData.isFolderCollectorNode,
-                isStatNode: !!fileData.isStatNode,
                 isSystemPromptNode: !!fileData.isSystemPromptNode,
                 isAiMetaNode: !!fileData.isAiMetaNode,
                 portsConfig: fileData.portsConfig || null,
@@ -1769,7 +1679,6 @@ class FileTreeManager {
         const fileData = {
             name: `${icon} ${name}`,
             type: 'file',
-            isStatNode: true,
             description: desc,
             content: JSON.stringify({
                 statConfig,
@@ -1831,47 +1740,11 @@ class FileTreeManager {
     hideNewItemModal() {
         document.getElementById('newFileModal')?.classList.add('hidden');
         this.editingItem = null;
-        this.isStatCreation = false;
     }
 
     async saveItem() {
         const name = document.getElementById('fileName').value.trim();
         if (!name) return alert('이름을 입력해주세요.');
-
-        // 수치 계산기 생성 모드인 경우
-        if (this.isStatCreation) {
-            try {
-                const siblings = this.files.filter(f => f.parentId === this.newItemParentId);
-                const maxOrder = siblings.length > 0 ? Math.max(...siblings.map(f => f.order)) : -1;
-
-                await storage.createFile({
-                    projectId: this.currentProjectId,
-                    name,
-                    type: 'file',
-                    parentId: this.newItemParentId,
-                    content: JSON.stringify({
-                        stats: [
-                            { name: '레벨', value: 1 },
-                            { name: '경험치', value: 0 },
-                            { name: '근력', value: 10 },
-                            { name: '민첩', value: 10 }
-                        ],
-                        history: [],
-                        outputTemplate: "《 {$이름$} 상태창 》\n[레벨: {$레벨$}]\n[경험치: {$경험치$}]\n[근력: {$근력$}]\n[민첩: {$민첩$}]"
-                    }),
-                    template: 'stat',
-                    order: maxOrder + 1
-                });
-
-                await this.loadProjectFiles(this.currentProjectId);
-                this.hideNewItemModal();
-                this.isStatCreation = false;
-                return;
-            } catch (error) {
-                console.error('수치 계산기 생성 실패:', error);
-                return alert('생성 중 오류가 발생했습니다.');
-            }
-        }
 
         const template = document.getElementById('fileTemplate').value;
 
@@ -1951,7 +1824,6 @@ class FileTreeManager {
                     </div>
                     <div class="context-submenu">
                         <div class="context-menu-item" id="ctx-new-file-text"><span class="context-menu-icon">📄</span> 소설 / 원고 노드</div>
-                        <div class="context-menu-item" id="ctx-new-file-stat"><span class="context-menu-icon">📊</span> 수치 계산기 노드</div>
                         <div class="context-menu-item" id="ctx-new-file-image"><span class="context-menu-icon">🖼️</span> 이미지 노드</div>
                         <div class="context-menu-item" id="ctx-open-wizard"><span class="context-menu-icon">✨</span> 커스텀 노드 정의...</div>
                     </div>
@@ -1973,7 +1845,6 @@ class FileTreeManager {
         // 이벤트 리스너 바인딩
         document.getElementById('ctx-new-file-text')?.addEventListener('click', () => this.showNewItemModal('file', file.id));
         document.getElementById('ctx-new-file-image')?.addEventListener('click', () => this.showNewImageModal());
-        document.getElementById('ctx-new-file-stat')?.addEventListener('click', () => this.showNewStatModal(file.id));
         document.getElementById('ctx-open-wizard')?.addEventListener('click', () => this.showNodeSelectModal());
         
         document.getElementById('ctx-new-folder')?.addEventListener('click', () => this.showNewItemModal('folder', file.id));
@@ -2254,7 +2125,6 @@ class FileTreeManager {
                 </div>
                 <div class="context-submenu">
                     <div class="context-menu-item" id="ctx-root-new-file-text"><span class="context-menu-icon">📄</span> 소설 / 원고 노드</div>
-                    <div class="context-menu-item" id="ctx-root-new-file-stat"><span class="context-menu-icon">📊</span> 수치 계산기 노드</div>
                     <div class="context-menu-item" id="ctx-root-new-file-image"><span class="context-menu-icon">🖼️</span> 이미지 노드</div>
                     <div class="context-menu-item" id="ctx-root-open-wizard"><span class="context-menu-icon">✨</span> 커스텀 노드 정의...</div>
                 </div>
@@ -2267,7 +2137,6 @@ class FileTreeManager {
 
         document.getElementById('ctx-root-new-file-text')?.addEventListener('click', () => this.showNewItemModal('file', null));
         document.getElementById('ctx-root-new-file-image')?.addEventListener('click', () => this.showNewImageModal());
-        document.getElementById('ctx-root-new-file-stat')?.addEventListener('click', () => this.showNewStatModal(null));
         document.getElementById('ctx-root-open-wizard')?.addEventListener('click', () => this.showNodeSelectModal());
         document.getElementById('ctx-root-new-folder')?.addEventListener('click', () => this.showNewItemModal('folder', null));
     }

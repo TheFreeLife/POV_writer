@@ -641,14 +641,11 @@ class WindowManager {
         // 포커스
         this.focusWindow(fileId);
 
-        // 폴더 자동 수집 노드 및 커스텀 노드(수치 노드 포함) 초기 렌더링
+        // 리스트 합산기 및 커스텀 노드(수치 노드 포함) 초기 렌더링
         const isAggregator = file.isAggregatorNode || file.template === 'aggregator' || (file.content && typeof file.content === 'string' && file.content.includes('"isAggregatorNode"'));
-        const isFolderCollector = file.template === 'folder_collector' || file.isFolderCollectorNode || (file.content && typeof file.content === 'string' && file.content.includes('"isFolderCollectorNode"'));
-        const isCustomNode = !isFolderCollector && !isAggregator && (file.isCustomNode || file.template === 'custom_node' || file.template === 'stat' || file.isStatNode || file.template === 'text_fields' || file.isTextFieldsNode || (file.content && typeof file.content === 'string' && (file.content.includes('"isCustomNode"') || file.content.includes('"stats"'))));
+        const isCustomNode = !isAggregator && (file.isCustomNode || file.template === 'custom_node' || file.template === 'text_fields' || file.isTextFieldsNode || (file.content && typeof file.content === 'string' && file.content.includes('"isCustomNode"')));
 
-        if (isFolderCollector) {
-            this.renderFolderCollectorNode(fileId);
-        } else if (isAggregator) {
+        if (isAggregator) {
             this.renderAggregatorNode(fileId);
         } else if (isCustomNode) {
             this.renderCustomNode(fileId);
@@ -698,22 +695,6 @@ class WindowManager {
                     file.content = JSON.stringify(data, null, 2);
                 }
             } catch (e) {}
-        } else if (file.template === 'stat' || file.isStatNode) {
-            try {
-                const container = winEl.querySelector(`#statContainer_${fileId}`);
-                if (container) {
-                    const data = typeof file.content === 'string' ? JSON.parse(file.content) : file.content;
-                    const stats = data.stats || [];
-                    const rows = container.querySelectorAll('.stat-item-row');
-                    rows.forEach((row, idx) => {
-                        if (stats[idx]) {
-                            const valInput = row.querySelector('.stat-value');
-                            if (valInput) stats[idx].value = parseInt(valInput.value, 10) || 0;
-                        }
-                    });
-                    file.content = JSON.stringify(data, null, 2);
-                }
-            } catch (e) {}
         } else if (file.isSystemPromptNode || (file.content && typeof file.content === 'string' && file.content.includes('"command"'))) {
             try {
                 const cmdInput = winEl.querySelector(`#sysPromptCommand_${fileId}`);
@@ -755,8 +736,6 @@ class WindowManager {
             wizardType: file.template || 'file',
             template: file.template || 'file',
             isTextFieldsNode: !!file.isTextFieldsNode,
-            isFolderCollectorNode: !!file.isFolderCollectorNode,
-            isStatNode: !!file.isStatNode,
             isSystemPromptNode: !!file.isSystemPromptNode,
             isAiMetaNode: !!file.isAiMetaNode,
             content: file.content || '',
@@ -931,18 +910,16 @@ class WindowManager {
     createWindowDOM(file, x, y, width, height) {
         const isCollapsed = file.windowState?.isCollapsed || false;
         const isImage = file.template === 'image' || (file.content && typeof file.content === 'string' && file.content.startsWith('data:image'));
-        const isStat = file.template === 'stat' || file.isStatNode;
         const isTextFields = file.isTextFieldsNode || (file.content && typeof file.content === 'string' && file.content.includes('"isTextFieldsNode"'));
         const isSystemPrompt = file.isSystemPromptNode || (file.content && typeof file.content === 'string' && file.content.includes('"command"'));
         const isAggregator = file.isAggregatorNode || file.template === 'aggregator' || (file.content && typeof file.content === 'string' && file.content.includes('"isAggregatorNode"'));
-        const isFolderCollector = file.template === 'folder_collector' || file.isFolderCollectorNode || (file.content && typeof file.content === 'string' && file.content.includes('"isFolderCollectorNode"'));
-        const isCustomNode = !isFolderCollector && !isAggregator && (file.isCustomNode || file.template === 'custom_node' || file.template === 'stat' || file.isStatNode || file.template === 'text_fields' || file.isTextFieldsNode || (file.content && typeof file.content === 'string' && (file.content.includes('"isCustomNode"') || file.content.includes('"stats"'))));
+        const isCustomNode = !isAggregator && (file.isCustomNode || file.template === 'custom_node' || file.template === 'text_fields' || file.isTextFieldsNode || (file.content && typeof file.content === 'string' && file.content.includes('"isCustomNode"')));
 
 
 
         
         const win = document.createElement('div');
-        win.className = `editor-window${isCollapsed ? ' collapsed' : ''}${isImage ? ' image-window' : ''}${isStat ? ' stat-window' : ''}`;
+        win.className = `editor-window${isCollapsed ? ' collapsed' : ''}${isImage ? ' image-window' : ''}`;
         win.dataset.fileId = file.id;
         win.style.left = `${x}px`;
         win.style.top = `${y}px`;
@@ -972,12 +949,6 @@ class WindowManager {
                     </div>
                 </div>
             `;
-        } else if (isFolderCollector) {
-            bodyContent = `
-                <div class="stat-calculator-container" id="folderCollectorContainer_${file.id}">
-                    <!-- 폴더 자동 수집 노드 UI가 렌더링됩니다 -->
-                </div>
-            `;
         } else if (isAggregator) {
             bodyContent = `
                 <div class="stat-calculator-container" id="aggregatorContainer_${file.id}">
@@ -986,7 +957,7 @@ class WindowManager {
             `;
         } else if (isCustomNode) {
             bodyContent = `
-                <div class="window-body custom-node-body" style="padding:0; height:calc(100% - 35px); overflow:hidden;">
+                <div class="window-body custom-node-body" style="padding:0; height:calc(100% - 35px); overflow-y:auto; box-sizing:border-box;">
                     <!-- 커스텀 정의 노드 UI가 렌더링됩니다 -->
                 </div>
             `;
@@ -1003,9 +974,9 @@ class WindowManager {
 
 
         const isImageNode = file.template === 'image' || (file.content && typeof file.content === 'string' && file.content.startsWith('data:image'));
-        const isManuscriptNode = !isCustomNode && !isFolderCollector && !isAggregator && !isImageNode;
+        const isManuscriptNode = !isCustomNode && !isAggregator && !isImageNode;
 
-        const defaultInputs = (isFolderCollector || isImageNode || isManuscriptNode) ? [] : [{ id: 'in_1', name: '입력 데이터' }];
+        const defaultInputs = (isImageNode || isManuscriptNode) ? [] : [{ id: 'in_1', name: '입력 데이터' }];
         const defaultOutputs = isManuscriptNode ? [{ id: 'out_1', name: '원고 결과', color: '#00ffcc' }] : [{ id: 'out_1', name: '출력 데이터', color: '#00ffcc' }];
 
         const portsConfig = file.portsConfig || {
@@ -1054,13 +1025,13 @@ class WindowManager {
                 <div class="window-titlebar-actions">
                     <button class="window-btn window-btn-save-template" data-action="save-template" title="⭐ 현재 채워진 입력 상태 그대로 노드 템플릿 저장">⭐</button>
                     ${isImage ? `<button class="window-btn window-btn-rotate" data-action="rotate" title="90도 회전">🔄</button>` : ''}
-                    ${(!isImage && !isStat) ? `<button class="window-btn window-btn-focus" data-action="line-focus" title="타자기 모드(집중)">🖋️</button>` : ''}
+                    ${!isImage ? `<button class="window-btn window-btn-focus" data-action="line-focus" title="타자기 모드(집중)">🖋️</button>` : ''}
                     <button class="window-btn window-btn-collapse" data-action="collapse" title="접기/펴기">${collapseChar}</button>
                     <button class="window-btn window-btn-close" data-action="close" title="닫기">✕</button>
                 </div>
             </div>
             ${bodyContent}
-            ${(!isImage && !isStat) ? `
+            ${!isImage ? `
             <div class="window-statusbar">
                 <div class="window-status-left" data-stats="${file.id}">
                     <span class="stat-item total">0자</span>
@@ -1865,7 +1836,7 @@ class WindowManager {
             if (settings?.autoSave === false) return;
         }
 
-        const content = info.textarea.value;
+        const content = info.textarea ? info.textarea.value : (info.file?.content || '');
 
         try {
             const result = await storage.updateFile(fileId, { content });
@@ -2199,22 +2170,6 @@ class WindowManager {
                     currentContent = JSON.stringify(data, null, 2);
                 }
             } catch (e) {}
-        } else if (originalFile.template === 'stat' || originalFile.isStatNode) {
-            try {
-                const container = winEl.querySelector(`#statContainer_${fileId}`);
-                if (container) {
-                    const data = typeof currentContent === 'string' ? JSON.parse(currentContent) : currentContent;
-                    const stats = data.stats || [];
-                    const rows = container.querySelectorAll('.stat-item-row');
-                    rows.forEach((row, idx) => {
-                        if (stats[idx]) {
-                            const valInput = row.querySelector('.stat-value');
-                            if (valInput) stats[idx].value = parseInt(valInput.value, 10) || 0;
-                        }
-                    });
-                    currentContent = JSON.stringify(data, null, 2);
-                }
-            } catch (e) {}
         } else if (originalFile.isSystemPromptNode || (currentContent && typeof currentContent === 'string' && currentContent.includes('"command"'))) {
             try {
                 const cmdInput = winEl.querySelector(`#sysPromptCommand_${fileId}`);
@@ -2266,11 +2221,9 @@ class WindowManager {
             parentId: originalFile.parentId || null,
             content: currentContent,
             template: originalFile.template || null,
-            isStatNode: !!originalFile.isStatNode,
             isSystemPromptNode: !!originalFile.isSystemPromptNode,
             isAiMetaNode: !!originalFile.isAiMetaNode,
             isTextFieldsNode: !!originalFile.isTextFieldsNode,
-            isFolderCollectorNode: !!originalFile.isFolderCollectorNode,
             portsConfig: originalFile.portsConfig ? JSON.parse(JSON.stringify(originalFile.portsConfig)) : null,
             description: originalFile.description || '',
             windowState: newWindowState
@@ -2979,7 +2932,8 @@ class WindowManager {
         const keyCount = {};
         const entries = inConns.map(conn => {
             const fromInfo = this.getWindowInfo(conn.fromId);
-            const rawName = fromInfo?.file?.name || conn.fromId;
+            const fromFile = fromInfo?.file || (window.fileTreeManager?.files || []).find(f => String(f.id) === String(conn.fromId));
+            const rawName = fromFile?.name || conn.fromId;
             // 이름에서 이모지 prefix 제거하여 깔끔한 키 만들기
             const cleanName = rawName.replace(/^[\u{1F300}-\u{1FFFF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]\s*/u, '').trim() || rawName;
             keyCount[cleanName] = (keyCount[cleanName] || 0) + 1;
@@ -3077,45 +3031,24 @@ class WindowManager {
             data = {};
         }
 
-        let fields = data.fields || info.file.fields || [];
-
-        // 구식 스탯 데이터(data.stats) 하위 호환 마이그레이션
-        if (fields.length === 0 && Array.isArray(data.stats) && data.stats.length > 0) {
-            fields = data.stats.map(s => ({ name: s.name, val: s.value, type: 'stat' }));
-        }
-        // 구식 텍스트 속성 데이터(data.textFields) 하위 호환 마이그레이션
-        if (fields.length === 0 && Array.isArray(data.textFields) && data.textFields.length > 0) {
+        let fields = [];
+        if (Array.isArray(data.fields) && data.fields.length > 0) {
+            fields = data.fields;
+        } else if (Array.isArray(info.file.fields) && info.file.fields.length > 0) {
+            fields = info.file.fields;
+        } else if (Array.isArray(data.textFields) && data.textFields.length > 0) {
             fields = data.textFields.map(f => ({ name: f.name, val: f.val || '', type: 'text', rows: f.rows || 1 }));
         }
 
-        const code = data.code || info.file.code || '';
-        const ports = info.file.portsConfig || data.portsConfig || { inputs: [], outputs: [] };
-
-
-        // 수치형 항목 & 텍스트형 항목 분리
-        const statFields = fields.filter(f => f.type === 'stat' || typeof f.val === 'number');
-        const textFields = fields.filter(f => f.type === 'text' || typeof f.val === 'string');
+        const textFields = fields.map(f => ({
+            name: f.name,
+            val: f.val ?? '',
+            rows: f.rows || 1,
+            type: 'text'
+        }));
 
         // 입력 폼 HTML 생성
         let fieldsHtml = '';
-
-        if (statFields.length > 0) {
-            fieldsHtml += `
-                <div style="margin-bottom: 10px;">
-                    <div style="font-size: 11px; font-weight: 700; color: var(--color-accent-primary); margin-bottom: 6px;">📊 수치 입력 항목</div>
-                    ${statFields.map((f, i) => `
-                        <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 8px; background: var(--color-surface-1); padding: 8px 10px; border-radius: 6px; border: 1px solid var(--color-border);">
-                            <span style="font-size: 12px; font-weight: 600; min-width: 75px; color: var(--color-text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${this.escapeHtml(f.name)}">• ${this.escapeHtml(f.name)}:</span>
-                            <div style="display: flex; align-items: center; gap: 4px; flex: 1;">
-                                <button type="button" class="btn btn-secondary" onclick="const inp=this.nextElementSibling; inp.stepDown(); inp.dispatchEvent(new Event('input'));" style="width: 32px; height: 30px; padding: 0; font-weight: 800; font-size: 16px; line-height: 1; border-radius: 6px; background: var(--color-surface-2); color: var(--color-text-primary); cursor: pointer; flex-shrink: 0; display: flex; align-items: center; justify-content: center;">−</button>
-                                <input type="number" class="input stat-input-field" data-var-name="${this.escapeHtml(f.name)}" data-field-index="${i}" data-field-kind="stat" style="flex: 1; font-size: 13px; font-weight: 700; text-align: center; height: 30px; padding: 0 4px; color: var(--color-accent-primary); background: var(--color-bg-primary); border: 1px solid var(--color-border); border-radius: 6px;" value="${f.val ?? 0}">
-                                <button type="button" class="btn btn-secondary" onclick="const inp=this.previousElementSibling; inp.stepUp(); inp.dispatchEvent(new Event('input'));" style="width: 32px; height: 30px; padding: 0; font-weight: 800; font-size: 16px; line-height: 1; border-radius: 6px; background: var(--color-surface-2); color: var(--color-text-primary); cursor: pointer; flex-shrink: 0; display: flex; align-items: center; justify-content: center;">＋</button>
-                            </div>
-                        </div>
-                    `).join('')}
-                </div>
-            `;
-        }
 
         if (textFields.length > 0) {
             fieldsHtml += `
@@ -3131,17 +3064,15 @@ class WindowManager {
             `;
         }
 
-        if (fields.length === 0) {
+        if (textFields.length === 0) {
             fieldsHtml = `<div style="font-size: 11px; color: var(--color-text-tertiary); font-style: italic; margin-bottom: 10px; text-align: center; padding: 10px; background: var(--color-surface-1); border-radius: 6px; border: 1px dashed var(--color-border);">직접 입력 항목이 없습니다.</div>`;
         }
 
         // 전체 UI 조합 (순수 입력 항목 전용 UI)
         body.innerHTML = `
-            <div class="custom-node-container" style="padding: 12px; height: 100%; display: flex; flex-direction: column; gap: 10px; overflow-y: auto;">
-                
+            <div class="custom-node-container" style="padding: 12px; display: flex; flex-direction: column; gap: 10px; box-sizing: border-box;">
                 <!-- 입력 변수 항목 영역 -->
                 ${fieldsHtml}
-
             </div>
         `;
 
@@ -3854,7 +3785,6 @@ class WindowManager {
             window.showToast?.('연결선이 삭제되었습니다.');
 
             // 연결 해제 시 노드 실시간 미리보기 갱신
-            const removedConn = this.nodeConnections.find ? null : null; // already removed
             this.windows.forEach((info, fId) => {
                 if (info.file.isTextFieldsNode || (info.file.content && typeof info.file.content === 'string' && info.file.content.includes('"isTextFieldsNode"'))) {
                     this.renderTextFieldsNode(fId);
@@ -3920,20 +3850,15 @@ class WindowManager {
 
         if (!Array.isArray(this.nodeConnections)) this.nodeConnections = [];
 
-        // 창이 닫혀있거나 지워진 연결선 자동 필터링
-        this.nodeConnections = this.nodeConnections.filter(c => {
-            const hasFrom = !!this.getWindowInfo(c.fromId);
-            const hasTo = !!this.getWindowInfo(c.toId);
-            return hasFrom && hasTo;
-        });
-
         this.nodeConnections.forEach(conn => {
+            const fromWin = this.getWindowInfo(conn.fromId);
+            const toWin = this.getWindowInfo(conn.toId);
+            if (!fromWin || !toWin) return;
             const start = this.getPortCoordinates(conn.fromId, conn.fromPort, conn.fromPortId);
             const end = this.getPortCoordinates(conn.toId, conn.toPort, conn.toPortId);
 
             if (!start || !end) return;
 
-            const fromWin = this.getWindowInfo(conn.fromId);
             let fromPortEl = null;
             if (conn.fromPortId) {
                 fromPortEl = fromWin?.element?.querySelector(`.node-port[data-port-id="${conn.fromPortId}"]`);
@@ -3969,6 +3894,14 @@ class WindowManager {
             });
 
             svg.appendChild(pathEl);
+        });
+
+        // 리스트 합산기 노드가 캔버스에 있는 경우 연결 갱신 반영
+        this.windows.forEach((info, fId) => {
+            const f = info.file;
+            if (f.isAggregatorNode || f.template === 'aggregator' || (f.content && typeof f.content === 'string' && f.content.includes('"isAggregatorNode"'))) {
+                this.renderAggregatorNode(fId);
+            }
         });
     }
 
@@ -4087,202 +4020,6 @@ class WindowManager {
             inputEl.addEventListener('input', updateMetaData);
         });
     }
-
-    /**
-     * 폴더 자동 수집 노드 평가 및 렌더링
-     */
-    getEvaluatedFolderCollectorText(file) {
-        if (!file || !file.content) return '';
-        try {
-            const data = typeof file.content === 'string' ? JSON.parse(file.content) : file.content;
-            const targetFolderId = data.targetFolderId || 'root';
-            const itemTemplate = data.itemTemplate || '';
-
-            // 1) 양식이 비어 있으면 빈 텍스트(여백) 출력
-            if (!itemTemplate.trim()) {
-                return '';
-            }
-
-            const projectFiles = Array.from(this.windows.values()).map(w => w.file);
-            let allFiles = window.fileTreeManager?.files || projectFiles;
-
-            let targetFiles = [];
-            if (targetFolderId === 'root') {
-                targetFiles = allFiles.filter(f => f.type === 'file' && f.id !== file.id && f.template !== 'folder_collector');
-            } else {
-                targetFiles = allFiles.filter(f => f.parentId === targetFolderId && f.type === 'file' && f.id !== file.id);
-            }
-
-            if (targetFiles.length === 0) {
-                return `(선택한 폴더에 수집할 파일 노드가 없습니다)`;
-            }
-
-            // 폴더 내 각 파일의 전체 내용 평가 및 Map 구성
-            const fileContentMap = new Map();
-
-            targetFiles.forEach(f => {
-                let contentText = '';
-                const outputs = f.portsConfig?.outputs || [];
-                const firstPortId = (Array.isArray(outputs) && outputs.length > 0) ? outputs[0].id : null;
-
-                if (f.isFolderCollectorNode || f.template === 'folder_collector' || (f.content && typeof f.content === 'string' && f.content.includes('"isFolderCollectorNode"'))) {
-                    contentText = this.getEvaluatedFolderCollectorText(f);
-                } else if (f.isTextFieldsNode || (f.content && typeof f.content === 'string' && f.content.includes('"isTextFieldsNode"'))) {
-                    contentText = this.getEvaluatedTextFieldsText(f, firstPortId);
-                } else if (f.template === 'stat' || f.isStatNode) {
-                    try {
-                        const uData = typeof f.content === 'string' ? JSON.parse(f.content) : f.content;
-                        contentText = uData.outputTemplate || '';
-                        if (!contentText) {
-                            contentText = `《 ${f.name} 상태창 》\n` + (uData.stats || []).map(s => `[${s.name}: ${s.value}]`).join(' ');
-                        } else {
-                            contentText = contentText.replace(/\{\$이름\$\}/g, f.name);
-                            (uData.stats || []).forEach(s => {
-                                const escapedName = s.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-                                contentText = contentText.replace(new RegExp(`\\{\\$${escapedName}\\$\\}`, 'g'), s.value);
-                            });
-                        }
-                    } catch(e) {}
-                } else {
-                    contentText = typeof f.content === 'string' ? f.content : '';
-                }
-
-                const rawName = f.name || '';
-                const cleanName = rawName.replace(/^[^\w\s가-힣]+\s*/, '').trim();
-
-                fileContentMap.set(rawName, contentText);
-                if (cleanName) fileContentMap.set(cleanName, contentText);
-            });
-
-            // 2) 양식에 {$CONTENT$}가 포함된 경우 (파일별 순차 반복 수집)
-            if (itemTemplate.includes('{$CONTENT$}')) {
-                return targetFiles.map(f => {
-                    const textVal = fileContentMap.get(f.name) || '';
-                    return itemTemplate.replace(/\{\$이름\$\}/g, f.name).replace(/\{\$CONTENT\$\}/g, textVal);
-                }).join('\n\n');
-            }
-
-            // 3) 사용자가 양식에 {$파일명$} 형태로 원하는 파일들을 직접 자유롭게 배치한 경우
-            let result = itemTemplate.replace(/\{\$이름\$\}/g, file.name);
-
-            fileContentMap.forEach((textVal, nameKey) => {
-                const escapedName = nameKey.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-                const regex = new RegExp(`\\{\\$${escapedName}\\$\\}`, 'g');
-                result = result.replace(regex, textVal);
-            });
-
-            return result;
-        } catch (e) {
-            return typeof file.content === 'string' ? file.content : '';
-        }
-    }
-
-    renderFolderCollectorNode(fileId) {
-        const info = this.windows.get(fileId);
-        const container = document.getElementById(`folderCollectorContainer_${fileId}`);
-        if (!info || !container) return;
-
-        let data;
-        try {
-            data = typeof info.file.content === 'string' ? JSON.parse(info.file.content || '{}') : (info.file.content || {});
-            if (!data.targetFolderId) data.targetFolderId = 'root';
-            if (data.itemTemplate === undefined) data.itemTemplate = '';
-        } catch (e) {
-            data = { targetFolderId: 'root', itemTemplate: '' };
-        }
-
-        const projectFolders = (window.fileTreeManager?.files || []).filter(f => f.type === 'folder');
-        const evaluatedText = this.getEvaluatedFolderCollectorText(info.file);
-
-        let allFiles = window.fileTreeManager?.files || Array.from(this.windows.values()).map(w => w.file);
-        let targetFiles = [];
-        if (data.targetFolderId === 'root') {
-            targetFiles = allFiles.filter(f => f.type === 'file' && f.id !== fileId && f.template !== 'folder_collector');
-        } else {
-            targetFiles = allFiles.filter(f => f.parentId === data.targetFolderId && f.type === 'file' && f.id !== fileId);
-        }
-
-        const fileChipsHtml = targetFiles.map(f => {
-            const cleanName = f.name.replace(/^[^\w\s가-힣]+\s*/, '').trim() || f.name;
-            return `<button type="button" class="btn btn-secondary btn-sm" style="font-size: 11px; padding: 2px 8px; font-weight: 600;" 
-                onclick="window.windowManager.insertFolderCollectorFileVar('${fileId}', '${this.escapeHtml(cleanName)}')" title="클릭 시 양식에 {$${this.escapeHtml(cleanName)}$} 삽입">+ {$${this.escapeHtml(cleanName)}$}</button>`;
-        }).join(' ');
-
-        container.innerHTML = `
-            <div style="padding: 12px; display: flex; flex-direction: column; gap: 10px; height: 100%; box-sizing: border-box;">
-                <div style="background: var(--color-surface-1); padding: 10px; border-radius: 8px; border: 1px solid var(--color-border);">
-                    <label style="font-size: 12px; font-weight: 700; color: var(--color-accent-primary); display: block; margin-bottom: 6px;">📁 수집 대상 폴더 선택</label>
-                    <select class="input" style="width: 100%; font-size: 12px; height: 34px; padding: 4px 8px; line-height: 1.4; box-sizing: border-box; cursor: pointer; text-overflow: ellipsis; white-space: nowrap;" onchange="window.windowManager.onFolderCollectorFolderChange('${fileId}', this.value)">
-                        <option value="root" ${data.targetFolderId === 'root' ? 'selected' : ''}>📁 [프로젝트 전체 파일 노드]</option>
-                        ${projectFolders.map(f => `<option value="${f.id}" ${data.targetFolderId === f.id ? 'selected' : ''}>📁 ${this.escapeHtml(f.name)}</option>`).join('')}
-                    </select>
-                </div>
-
-                <div style="background: var(--color-surface-1); padding: 10px; border-radius: 8px; border: 1px solid var(--color-border); flex: 1; display: flex; flex-direction: column;">
-                    <div style="font-size: 11px; font-weight: 700; color: var(--color-text-secondary); margin-bottom: 6px;">
-                        📌 감지된 파일 노드 (버튼 클릭 시 양식에 변수 삽입):
-                    </div>
-                    <div style="display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 8px;">
-                        ${fileChipsHtml || '<span style="font-size: 11px; color: var(--color-text-tertiary);">감지된 파일 없음</span>'}
-                    </div>
-
-                    <label style="font-size: 12px; font-weight: 700; color: var(--color-text-secondary); display: block; margin-bottom: 6px;">📝 파일 자유 배치 양식 (템플릿)</label>
-                    <textarea class="input folder-collector-tmpl_${fileId}" style="width: 100%; height: 95px; font-family: inherit; font-size: 12px; line-height: 1.5; resize: vertical;" 
-                        oninput="window.windowManager.onFolderCollectorTemplateChange('${fileId}', this.value)" placeholder="예: [메인 캐릭터]&#10;{$아인$}&#10;&#10;[서브 캐릭터]&#10;{$엘레나$}">${this.escapeHtml(data.itemTemplate)}</textarea>
-                    <div style="font-size: 10px; color: var(--color-text-tertiary); margin-top: 4px; line-height: 1.4;">
-                      💡 위 파일 변수(<code>{$파일명$}</code>)를 원하는 위치에 배치하면 해당 파일의 전체 내용이 들어갑니다. (양식을 비워두면 빈 텍스트 출력)
-                    </div>
-                </div>
-
-                <!-- 실시간 최종 수집 출력 미리보기 -->
-                <div style="margin-top: 4px; border-top: 1px dashed var(--color-border); padding-top: 10px;">
-                    <div style="font-size: 12px; font-weight: 700; color: #00ffcc; margin-bottom: 6px;">👁️ 배치 결과 최종 미리보기</div>
-                    <pre style="background: var(--color-bg-primary); border: 1px solid var(--color-border); padding: 10px; border-radius: 8px; font-family: inherit; font-size: 12px; line-height: 1.6; white-space: pre-wrap; word-break: break-all; margin: 0; color: var(--color-text-primary); max-height: 150px; overflow-y: auto;">${this.escapeHtml(evaluatedText)}</pre>
-                </div>
-            </div>
-        `;
-    }
-
-    insertFolderCollectorFileVar(fileId, fileName) {
-        const textarea = document.querySelector(`.folder-collector-tmpl_${fileId}`);
-        if (!textarea) return;
-        const varStr = `{$${fileName}$}\n`;
-        const start = textarea.selectionStart || textarea.value.length;
-        const end = textarea.selectionEnd || textarea.value.length;
-        const val = textarea.value;
-        textarea.value = val.substring(0, start) + varStr + val.substring(end);
-        textarea.selectionStart = textarea.selectionEnd = start + varStr.length;
-        textarea.focus();
-        this.onFolderCollectorTemplateChange(fileId, textarea.value);
-    }
-
-    async onFolderCollectorFolderChange(fileId, folderId) {
-        const info = this.windows.get(fileId);
-        if (!info) return;
-        let data = typeof info.file.content === 'string' ? JSON.parse(info.file.content || '{}') : (info.file.content || {});
-        data.targetFolderId = folderId;
-        info.file.content = JSON.stringify(data, null, 2);
-        await window.storage?.updateFile(fileId, { content: info.file.content });
-        this.renderFolderCollectorNode(fileId);
-    }
-
-    async onFolderCollectorTemplateChange(fileId, template) {
-        const info = this.windows.get(fileId);
-        if (!info) return;
-        let data = typeof info.file.content === 'string' ? JSON.parse(info.file.content || '{}') : (info.file.content || {});
-        data.itemTemplate = template;
-        info.file.content = JSON.stringify(data, null, 2);
-        await window.storage?.updateFile(fileId, { content: info.file.content });
-
-        const container = document.getElementById(`folderCollectorContainer_${fileId}`);
-        if (container) {
-            const previewPre = container.querySelector('pre');
-            if (previewPre) {
-                previewPre.textContent = this.getEvaluatedFolderCollectorText(info.file);
-            }
-        }
-    }
-
     escapeHtml(text) {
         const div = document.createElement('div');
         div.textContent = text;
