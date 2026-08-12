@@ -99,25 +99,18 @@ class TemplateManager {
         this.hideIconPicker();
     }
 
-    getDefaultNodeTemplates() {
-        return [
-            {
-                id: 'preset_default_character',
-                name: '주인공 캐릭터 카드',
-                icon: '👤',
-                desc: '이름, 소속, 성격, 특이사항 입력란과 프로필 생성 코드가 포함된 노드',
-                isCustomNode: true,
-                isDefault: true,
-                fields: [
-                    { name: '이름', val: '강현우', type: 'text', rows: 1 },
-                    { name: '소속', val: '중앙 아카데미 3학년', type: 'text', rows: 1 },
-                    { name: '성격', val: '평소엔 침착하지만 동료를 위해 물불 가리지 않음', type: 'text', rows: 2 },
-                    { name: '특이사항', val: '10년 전 전생의 기억을 온전히 가지고 회귀함', type: 'text', rows: 2 }
-                ],
-                code: `const 프로필 = \`📌 《 \${input.이름} 》\\n• 소속: \${input.소속}\\n• 성격: \${input.성격}\\n• 특이사항: \${input.특이사항}\`;\nreturn { 프로필 };`,
-                portsConfig: { inputs: [], outputs: [{ id: 'out_1', name: '프로필', color: '#00ffcc' }] }
+    async getDefaultNodeTemplates() {
+        if (this._cachedDefaultNodes) return this._cachedDefaultNodes;
+        try {
+            const res = await fetch('data/default-nodes.json');
+            if (res.ok) {
+                this._cachedDefaultNodes = await res.json();
+                return this._cachedDefaultNodes;
             }
-        ];
+        } catch (e) {
+            console.warn('data/default-nodes.json 로드 실패:', e);
+        }
+        return [];
     }
 
 
@@ -139,7 +132,7 @@ class TemplateManager {
 
         container.innerHTML = '';
         const userTemplates = await window.storage?.getAllTemplates() || [];
-        const defaultTemplates = this.getDefaultNodeTemplates();
+        const defaultTemplates = await this.getDefaultNodeTemplates();
 
         // 1. 메인 래퍼 생성
         const wrapper = document.createElement('div');
@@ -272,7 +265,7 @@ class TemplateManager {
 
     async loadTemplates() {
         const userTemplates = await window.storage?.getAllTemplates() || [];
-        const defaultTemplates = this.getDefaultNodeTemplates();
+        const defaultTemplates = await this.getDefaultNodeTemplates();
         this.templates = [
             ...userTemplates.map(t => ({ ...t, isDefault: false })),
             ...defaultTemplates.map(t => ({ ...t, isDefault: true }))

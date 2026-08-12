@@ -2258,3 +2258,31 @@ input[type="number"] {
   color: var(--color-text-tertiary, #8b949e);
   font-weight: 400;
 }
+
+/* ==========================================================================
+   원고 위젯 사각형 전용 이전 원고 노드 스타일 이식
+   ========================================================================== */
+.widget-editor-textarea {
+    width: 100%;
+    min-height: 160px;
+    padding: 12px 14px;
+    font-family: var(--font-serif, 'KoPub Batang', 'Noto Serif KR', serif);
+    font-size: var(--font-size-md, 14px);
+    line-height: var(--line-height-relaxed, 1.8);
+    color: var(--color-editor-text, #e6edf3);
+    background: rgba(15, 23, 42, 0.45);
+    border: 1px solid var(--color-border, #30363d);
+    border-radius: 6px;
+    box-sizing: border-box;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    outline: none;
+    resize: vertical;
+    caret-color: var(--color-editor-text, #00ffcc);
+    tab-size: 4;
+}
+
+.widget-editor-textarea:focus {
+    border-color: var(--color-accent-primary, #00ffcc);
+    box-shadow: 0 0 0 2px rgba(0, 255, 204, 0.15);
+}

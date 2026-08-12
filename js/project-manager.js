@@ -341,9 +341,11 @@ class ProjectManager {
         document.getElementById('projectScreen')?.classList.add('hidden');
         document.getElementById('editorScreen')?.classList.remove('hidden');
 
-        // 세션 복구 (줌/팬 및 열린 창들)
-        if (window.windowManager) {
-            await window.windowManager.restoreSession();
+        // 🌟 단일 통합 초기화 오케스트레이터 호출 (한눈에 관리)
+        if (window.initProjectSession) {
+            await window.initProjectSession(projectId);
+        } else if (window.windowManager) {
+            await window.windowManager.restoreSession(projectId);
         }
 
         window.toolsPanel?.loadProjectData(projectId);

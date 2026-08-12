@@ -78,6 +78,14 @@ class FileTreeManager {
             });
         });
 
+        // 🧩 UI 위젯 부품 추가 버튼 핸들러
+        document.querySelectorAll('.add-widget-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const wType = btn.dataset.widgetType;
+                if (wType) this.addWizardWidgetRow(wType);
+            });
+        });
+
 
 
         // 텍스트 항목 추가 버튼
@@ -826,28 +834,19 @@ class FileTreeManager {
         document.getElementById('nodeSelectModal')?.classList.add('hidden');
     }
 
-    getDefaultNodeTemplates() {
-        return [
-            {
-                id: 'preset_default_character',
-                name: '주인공 캐릭터 카드',
-                icon: '👤',
-                desc: '이름, 소속, 성격, 특이사항 입력란과 프로필 생성 코드가 포함된 노드',
-                isCustomNode: true,
-                isDefault: true,
-                fields: [
-                    { name: '이름', val: '강현우', type: 'text', rows: 1 },
-                    { name: '소속', val: '중앙 아카데미 3학년', type: 'text', rows: 1 },
-                    { name: '성격', val: '평소엔 침착하지만 동료를 위해 물불 가리지 않음', type: 'text', rows: 2 },
-                    { name: '특이사항', val: '10년 전 전생의 기억을 온전히 가지고 회귀함', type: 'text', rows: 2 }
-                ],
-                code: `const 프로필 = \`📌 《 \${input.이름} 》\\n• 소속: \${input.소속}\\n• 성격: \${input.성격}\\n• 특이사항: \${input.특이사항}\`;\nreturn { 프로필 };`,
-                portsConfig: { inputs: [], outputs: [{ id: 'out_1', name: '프로필', color: '#00ffcc' }] }
+    async getDefaultNodeTemplates() {
+        if (this._cachedDefaultNodes) return this._cachedDefaultNodes;
+        try {
+            const res = await fetch('data/default-nodes.json');
+            if (res.ok) {
+                this._cachedDefaultNodes = await res.json();
+                return this._cachedDefaultNodes;
             }
-        ];
+        } catch (e) {
+            console.warn('data/default-nodes.json 로드 실패:', e);
+        }
+        return [];
     }
-
-
 
     async renderCustomNodePresets() {
         const container = document.getElementById('customPresetsContainer');
@@ -855,88 +854,127 @@ class FileTreeManager {
         if (!container) return;
 
         container.innerHTML = '';
+        const defaultPresets = await this.getDefaultNodeTemplates();
         const userPresets = await window.storage?.getCustomNodePresets() || [];
-
-        const presets = [...userPresets];
-
-        if (presets.length === 0) {
-            if (section) section.style.display = 'none';
-            return;
-        }
 
         if (section) section.style.display = 'block';
 
-        presets.forEach(preset => {
-            const card = document.createElement('div');
-            card.className = 'node-type-card';
-            card.style.position = 'relative';
+        const wrapper = document.createElement('div');
+        wrapper.style.cssText = 'display: flex; flex-direction: column; gap: 20px; width: 100%;';
 
-            let typeBadge = '입력 템플릿';
-            if (preset.isTextFieldsNode || preset.wizardType === 'text_fields') typeBadge = '속성 템플릿';
-            else if (preset.isSystemPromptNode || preset.wizardType === 'system_prompt') typeBadge = 'AI 템플릿';
-
-            let portsPreviewHtml = '';
-            if (preset.portsConfig) {
-                const inArr = preset.portsConfig.inputs || [];
-                const outArr = preset.portsConfig.outputs || [];
-                const inDots = inArr.map(p => `<span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:${p.color || '#2ecc71'}; margin-right:3px;" title="${this.escapeHtml(p.name)}"></span>`).join('');
-                const outDots = outArr.map(p => `<span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:${p.color || '#00ffcc'}; margin-right:3px;" title="${this.escapeHtml(p.name)}"></span>`).join('');
-                if (inArr.length > 0 || outArr.length > 0) {
-                    portsPreviewHtml = `<div style="margin-top:5px; font-size:10px; color:var(--color-text-tertiary); display:flex; gap:10px; align-items:center;">
-                        ${inArr.length > 0 ? `<span>📥 ${inDots}</span>` : ''}
-                        ${outArr.length > 0 ? `<span>📤 ${outDots}</span>` : ''}
-                    </div>`;
-                }
-            }
-
-            card.innerHTML = `
-                <div class="node-type-icon">${preset.icon || '📄'}</div>
-                <div class="node-type-info" style="flex: 1; padding-right: 48px;">
-                    <div class="node-type-title" style="display: flex; align-items: center; justify-content: space-between;">
-                        <span>${this.escapeHtml(preset.name)}</span>
-                        <span style="font-size: 10px; color: var(--color-accent-primary); background: var(--color-bg-secondary); padding: 2px 6px; border-radius: 8px;">${typeBadge}</span>
-                    </div>
-                    <div class="node-type-desc">${this.escapeHtml(preset.desc || '입력 보존 노드 템플릿')}</div>
-                    ${portsPreviewHtml}
+        // 📌 1. 시스템 기본 제공 노드 섹션
+        if (defaultPresets.length > 0) {
+            const sysSec = document.createElement('div');
+            sysSec.innerHTML = `
+                <div style="font-size: 12px; font-weight: 700; color: var(--color-accent-primary); margin-bottom: 10px; display: flex; align-items: center; gap: 6px;">
+                    <span>📌 시스템 기본 노드</span>
+                    <span style="font-size: 10px; font-weight: 400; color: var(--color-text-tertiary);">(정적 템플릿 / data/default-nodes.json)</span>
                 </div>
-                ${!preset.isDefault ? `
-                <div class="preset-card-actions" style="position: absolute; top: 6px; right: 6px; display: flex; gap: 2px;">
-                    <button class="edit-preset-btn" title="템플릿 수정" style="background: transparent; border: none; color: var(--color-text-tertiary); cursor: pointer; font-size: 14px; padding: 2px 5px; border-radius: 4px;">✏️</button>
-                    <button class="delete-preset-btn" title="템플릿 삭제" style="background: transparent; border: none; color: var(--color-text-tertiary); cursor: pointer; font-size: 14px; padding: 2px 5px; border-radius: 4px;">✕</button>
-                </div>
-                ` : ''}
             `;
+            const sysGrid = document.createElement('div');
+            sysGrid.className = 'node-type-grid';
+            defaultPresets.forEach(preset => {
+                sysGrid.appendChild(this._createNodePresetCard(preset, true));
+            });
+            sysSec.appendChild(sysGrid);
+            wrapper.appendChild(sysSec);
+        }
 
-            // 프리셋 수정/삭제 버튼 (사용자 템플릿만)
-            if (!preset.isDefault) {
-                card.querySelector('.edit-preset-btn')?.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    this.showCustomWizardModal(preset);
-                });
+        // ✨ 2. 내가 만든 커스텀 노드 섹션
+        const customSec = document.createElement('div');
+        customSec.innerHTML = `
+            <div style="font-size: 12px; font-weight: 700; color: #f1e05a; margin-bottom: 10px; display: flex; align-items: center; gap: 6px;">
+                <span>✨ 내가 만든 커스텀 노드</span>
+                <span style="font-size: 10px; font-weight: 400; color: var(--color-text-tertiary);">(사용자 제작 / DB 보관)</span>
+            </div>
+        `;
+        const customGrid = document.createElement('div');
+        customGrid.className = 'node-type-grid';
 
-                card.querySelector('.delete-preset-btn')?.addEventListener('click', async (e) => {
-                    e.stopPropagation();
-                    if (confirm(`'${preset.name}' 노드 템플릿을 삭제할까요?`)) {
-                        await window.storage?.deleteCustomNodePreset(preset.id);
-                        await this.renderCustomNodePresets();
-                        window.showToast?.('노드 템플릿이 삭제되었습니다.');
-                    }
-                });
+        if (userPresets.length === 0) {
+            customGrid.innerHTML = `
+                <div style="grid-column: 1 / -1; padding: 20px; text-align: center; color: var(--color-text-tertiary); background: var(--color-bg-secondary); border-radius: 10px; border: 1px dashed var(--color-border); font-size: 12px;">
+                    아직 추가한 커스텀 노드가 없습니다.<br>하단 <strong style="color: #f1e05a;">[✨ 나만의 커스텀 노드 정의하기]</strong>를 눌러 새로 제작해보세요!
+                </div>
+            `;
+        } else {
+            userPresets.forEach(preset => {
+                customGrid.appendChild(this._createNodePresetCard(preset, false));
+            });
+        }
+        customSec.appendChild(customGrid);
+        wrapper.appendChild(customSec);
+
+        container.appendChild(wrapper);
+    }
+
+    _createNodePresetCard(preset, isDefault = false) {
+        const card = document.createElement('div');
+        card.className = 'node-type-card';
+        card.style.position = 'relative';
+
+        let typeBadge = isDefault ? '기본 노드' : '커스텀 노드';
+
+        let portsPreviewHtml = '';
+        if (preset.portsConfig) {
+            const inArr = preset.portsConfig.inputs || [];
+            const outArr = preset.portsConfig.outputs || [];
+            const inDots = inArr.map(p => `<span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:${p.color || '#2ecc71'}; margin-right:3px;" title="${this.escapeHtml(p.name)}"></span>`).join('');
+            const outDots = outArr.map(p => `<span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:${p.color || '#00ffcc'}; margin-right:3px;" title="${this.escapeHtml(p.name)}"></span>`).join('');
+            if (inArr.length > 0 || outArr.length > 0) {
+                portsPreviewHtml = `<div style="margin-top:5px; font-size:10px; color:var(--color-text-tertiary); display:flex; gap:10px; align-items:center;">
+                    ${inArr.length > 0 ? `<span>📥 ${inDots}</span>` : ''}
+                    ${outArr.length > 0 ? `<span>📤 ${outDots}</span>` : ''}
+                </div>`;
             }
+        }
 
-            // 카드 클릭 시 입력값들이 채워진 상태로 노드 즉시 생성!
-            card.addEventListener('click', async () => {
-                this.hideNodeSelectModal();
-                await this.createNodeFromPreset(preset);
+        card.innerHTML = `
+            <div class="node-type-icon">${preset.icon || '📄'}</div>
+            <div class="node-type-info" style="flex: 1; padding-right: 48px;">
+                <div class="node-type-title" style="display: flex; align-items: center; justify-content: space-between;">
+                    <span>${this.escapeHtml(preset.name)}</span>
+                    <span style="font-size: 10px; color: ${isDefault ? 'var(--color-accent-primary)' : '#f1e05a'}; background: var(--color-bg-secondary); padding: 2px 6px; border-radius: 8px;">${typeBadge}</span>
+                </div>
+                <div class="node-type-desc">${this.escapeHtml(preset.desc || '노드 템플릿')}</div>
+                ${portsPreviewHtml}
+            </div>
+            ${!isDefault ? `
+            <div class="preset-card-actions" style="position: absolute; top: 6px; right: 6px; display: flex; gap: 2px;">
+                <button class="edit-preset-btn" title="템플릿 수정" style="background: transparent; border: none; color: var(--color-text-tertiary); cursor: pointer; font-size: 14px; padding: 2px 5px; border-radius: 4px;">✏️</button>
+                <button class="delete-preset-btn" title="템플릿 삭제" style="background: transparent; border: none; color: var(--color-text-tertiary); cursor: pointer; font-size: 14px; padding: 2px 5px; border-radius: 4px;">✕</button>
+            </div>
+            ` : ''}
+        `;
+
+        if (!isDefault) {
+            card.querySelector('.edit-preset-btn')?.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.showCustomWizardModal(preset);
             });
 
-            container.appendChild(card);
+            card.querySelector('.delete-preset-btn')?.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                if (confirm(`'${preset.name}' 커스텀 노드를 삭제할까요?`)) {
+                    await window.storage?.deleteCustomNodePreset(preset.id);
+                    await this.renderCustomNodePresets();
+                    window.showToast?.('커스텀 노드가 삭제되었습니다.');
+                }
+            });
+        }
+
+        card.addEventListener('click', async () => {
+            this.hideNodeSelectModal();
+            await this.createNodeFromPreset(preset);
         });
+
+        return card;
     }
 
     async createNodeFromPreset(preset) {
         let contentObj = {
             isCustomNode: true,
+            widgets: Array.isArray(preset.widgets) ? preset.widgets : [],
             fields: preset.fields || [],
             code: preset.code || '',
             portsConfig: preset.portsConfig || null
@@ -957,11 +995,11 @@ class FileTreeManager {
         // 1) 이름 및 상세 설명 처리
         let rawName = preset.name;
         let nodeDesc = '';
-
         const needPromptName = !!preset.promptForName;
         const needPromptDesc = !!preset.promptForDesc;
+        const hasImageWidget = Array.isArray(preset.widgets) && preset.widgets.some(w => w.type === 'image_canvas');
 
-        if (needPromptName || needPromptDesc) {
+        if (needPromptName || needPromptDesc || hasImageWidget) {
             const prompted = await this._promptNodeDetails(preset);
             if (prompted.isCancelled) return; // 취소 시 생성 중단
 
@@ -976,6 +1014,13 @@ class FileTreeManager {
                 // promptForDesc가 꺼진 경우: 무조건 이름을 그대로 상세 설명으로 사용!
                 nodeDesc = rawName;
             }
+
+            if (prompted.image) {
+                contentObj.image_val = prompted.image;
+                (contentObj.widgets || []).forEach(w => {
+                    if (w.type === 'image_canvas') contentObj[w.key] = prompted.image;
+                });
+            }
         } else {
             // promptForDesc가 꺼진 경우: 무조건 이름을 그대로 상세 설명으로 사용!
             nodeDesc = rawName;
@@ -989,12 +1034,8 @@ class FileTreeManager {
             type: 'file',
             template: 'custom_node',
             isCustomNode: true,
-            isTextFieldsNode: !!preset.isTextFieldsNode,
-            isSystemPromptNode: !!preset.isSystemPromptNode,
-            isAiMetaNode: !!preset.isAiMetaNode,
             description: nodeDesc,
             code: preset.code || '',
-            fields: preset.fields || [],
             content: JSON.stringify(contentObj, null, 2),
             portsConfig: preset.portsConfig || null
         };
@@ -1014,6 +1055,7 @@ class FileTreeManager {
 
             const needName = !!preset.promptForName;
             const needDesc = !!preset.promptForDesc;
+            const hasImageWidget = Array.isArray(preset.widgets) && preset.widgets.some(w => w.type === 'image_canvas');
 
             const overlay = document.createElement('div');
             overlay.id = 'nodeDetailsPromptModal';
@@ -1042,6 +1084,21 @@ class FileTreeManager {
                 `;
             }
 
+            if (hasImageWidget) {
+                fieldsHtml += `
+                    <div style="margin-bottom: 14px;">
+                        <label style="font-size:11px; font-weight:700; color:#e74c3c; display:block; margin-bottom:4px;">🖼️ 노드 이미지 선택 (필수★)</label>
+                        <div id="promptImageDropzone" style="border: 2px dashed #e74c3c; background: rgba(231,76,60,0.08); border-radius: 8px; padding: 14px; text-align: center; cursor: pointer;">
+                            <div id="promptImagePreviewContainer" style="display:none; margin-bottom:8px;">
+                                <img id="promptImagePreview" style="max-height:120px; border-radius:6px; border:1px solid var(--color-border);">
+                            </div>
+                            <div id="promptImageText" style="font-size:12px; font-weight:600; color:var(--color-text-secondary);">클릭하거나 이미지를 업로드하세요</div>
+                            <input type="file" id="promptFileInput" accept="image/*" style="display:none;">
+                        </div>
+                    </div>
+                `;
+            }
+
             overlay.innerHTML = `
                 <div style="
                     background: var(--color-surface-2, #1e1e2e);
@@ -1057,7 +1114,7 @@ class FileTreeManager {
                         <span style="font-size:26px; line-height:1;">${preset.icon || '📄'}</span>
                         <div>
                             <div style="font-size:14px; font-weight:700; color:var(--color-text-primary);">${this.escapeHtml(preset.name)}</div>
-                            <div style="font-size:11px; color:var(--color-text-tertiary); margin-top:2px;">새 노드의 정보 설정</div>
+                            <div style="font-size:11px; color:var(--color-text-tertiary); margin-top:2px;">새 노드의 정보 설정 ${hasImageWidget ? '<b style="color:#e74c3c;">(사진 첨부 필요)</b>' : ''}</div>
                         </div>
                     </div>
                     ${fieldsHtml}
@@ -1074,19 +1131,47 @@ class FileTreeManager {
             const descInput = document.getElementById('nodePromptDescInput');
             const confirmBtn = document.getElementById('nodePromptConfirm');
             const cancelBtn = document.getElementById('nodePromptCancel');
+            const dropzone = document.getElementById('promptImageDropzone');
+            const fileInput = document.getElementById('promptFileInput');
+            const previewContainer = document.getElementById('promptImagePreviewContainer');
+            const previewImg = document.getElementById('promptImagePreview');
+            const promptImageText = document.getElementById('promptImageText');
+
+            let imageData = null;
+
+            if (dropzone && fileInput) {
+                dropzone.addEventListener('click', () => fileInput.click());
+                fileInput.addEventListener('change', (e) => {
+                    const f = e.target.files?.[0];
+                    if (f) {
+                        const reader = new FileReader();
+                        reader.onload = (ev) => {
+                            imageData = ev.target.result;
+                            if (previewImg) previewImg.src = imageData;
+                            if (previewContainer) previewContainer.style.display = 'block';
+                            if (promptImageText) promptImageText.textContent = `✅ ${f.name} 선택됨 (클릭하여 변경)`;
+                        };
+                        reader.readAsDataURL(f);
+                    }
+                });
+            }
 
             const cleanup = () => overlay.remove();
 
             const handleConfirm = () => {
+                if (hasImageWidget && !imageData) {
+                    window.showToast?.('⚠️ 노드 생성을 위해 이미지 파일 첨부가 필요합니다.', 'warning');
+                    return;
+                }
                 const nameVal = nameInput ? nameInput.value : null;
                 const descVal = descInput ? descInput.value : null;
                 cleanup();
-                resolve({ name: nameVal, desc: descVal, isCancelled: false });
+                resolve({ name: nameVal, desc: descVal, image: imageData, isCancelled: false });
             };
 
             const handleCancel = () => {
                 cleanup();
-                resolve({ name: null, desc: null, isCancelled: true });
+                resolve({ name: null, desc: null, image: null, isCancelled: true });
             };
 
             confirmBtn.addEventListener('click', handleConfirm);
@@ -1124,14 +1209,52 @@ class FileTreeManager {
             btn.classList.toggle('active', isActive);
         });
 
+        document.getElementById('wizardTabContentConfig')?.classList.toggle('hidden', tabName !== 'config');
+        document.getElementById('wizardTabContentUi')?.classList.toggle('hidden', tabName !== 'ui');
+        document.getElementById('wizardTabContentPorts')?.classList.toggle('hidden', tabName !== 'ports');
+        document.getElementById('wizardTabContentCode')?.classList.toggle('hidden', tabName !== 'code');
+    }
 
-        const dataContent = document.getElementById('wizardTabContentData');
-        const codeContent = document.getElementById('wizardTabContentCode');
-        const configContent = document.getElementById('wizardTabContentConfig');
+    addWizardWidgetRow(type, label = '', key = '') {
+        const list = document.getElementById('wizardWidgetLayoutList');
+        if (!list) return;
 
-        if (dataContent) dataContent.classList.toggle('hidden', tabName !== 'data');
-        if (codeContent) codeContent.classList.toggle('hidden', tabName !== 'code');
-        if (configContent) configContent.classList.toggle('hidden', tabName !== 'config');
+        const widgetIcons = {
+            'input_text': '📝',
+            'text_viewer': '👁️',
+            'approval_gate': '✅',
+            'choice_select': '🔀',
+            'editor_canvas': '📄',
+            'image_canvas': '🖼️'
+        };
+
+        const widgetNames = {
+            'input_text': '텍스트 입력창',
+            'text_viewer': '텍스트 뷰어 (출력)',
+            'approval_gate': '검수 승인 게이트',
+            'choice_select': '분기 선택 버튼',
+            'editor_canvas': '원고 에디터',
+            'image_canvas': '이미지 뷰어'
+        };
+
+        const icon = widgetIcons[type] || '🧩';
+        const defaultLabel = label || widgetNames[type] || 'UI 위젯';
+        const defaultKey = key || (`var_${Date.now().toString(36).slice(-4)}`);
+
+        const row = document.createElement('div');
+        row.className = 'stat-field-row flex gap-xs items-center mb-xs';
+        row.dataset.widgetType = type;
+        row.style.cssText = 'background: var(--color-surface-1); padding: 8px 10px; border-radius: 6px; border: 1px solid var(--color-border);';
+
+        row.innerHTML = `
+            <span style="font-size: 13px;">${icon}</span>
+            <input type="text" class="input widget-label-input" value="${this.escapeHtml(defaultLabel)}" placeholder="위젯 라벨 이름" style="flex: 1; font-size: 12px;">
+            <input type="text" class="input widget-key-input" value="${this.escapeHtml(defaultKey)}" placeholder="변수 Key" style="width: 110px; font-size: 11px; font-family: monospace;">
+            <button type="button" class="btn btn-danger btn-xs remove-widget-row-btn">✕</button>
+        `;
+
+        row.querySelector('.remove-widget-row-btn')?.addEventListener('click', () => row.remove());
+        list.appendChild(row);
     }
 
     showCustomWizardModal(presetToEdit = null) {
@@ -1173,6 +1296,14 @@ class FileTreeManager {
                 presetToEdit.fields.filter(f => typeof f.val === 'number').forEach(f => this.addWizardStatRow(f.name, f.val));
             } else if (!presetToEdit) {
                 this.addWizardStatRow('', 0);
+            }
+        }
+
+        const widgetList = document.getElementById('wizardWidgetLayoutList');
+        if (widgetList) {
+            widgetList.innerHTML = '';
+            if (Array.isArray(presetToEdit?.widgets) && presetToEdit.widgets.length > 0) {
+                presetToEdit.widgets.forEach(w => this.addWizardWidgetRow(w.type, w.label, w.key));
             }
         }
 
@@ -1547,6 +1678,16 @@ class FileTreeManager {
         });
 
 
+        const widgets = [];
+        document.querySelectorAll('#wizardWidgetLayoutList .stat-field-row').forEach((row, idx) => {
+            const wType = row.dataset.widgetType;
+            const wLabel = row.querySelector('.widget-label-input')?.value.trim() || `위젯 ${idx + 1}`;
+            const wKey = row.querySelector('.widget-key-input')?.value.trim() || `var_${idx + 1}`;
+            if (wType) {
+                widgets.push({ id: `w_${idx + 1}`, type: wType, label: wLabel, key: wKey });
+            }
+        });
+
         // 포트 핀 정보 수집 (이름, 핀 색상)
         const inputs = [];
         document.querySelectorAll('#wizardInputPortList .stat-field-row').forEach((row, idx) => {
@@ -1576,6 +1717,7 @@ class FileTreeManager {
             desc,
             isCustomNode: true,
             wizardType: type,
+            widgets,
             fields,
             code,
             portsConfig,
@@ -1592,30 +1734,7 @@ class FileTreeManager {
         window.showToast?.(isEditing ? `'${name}' 프리셋 수정이 저장되었습니다! ✏️` : `'${name}' 커스텀 노드가 노드 목록에 추가되었습니다! ✨`);
     }
 
-    async createCustomTextFieldsNode(name, icon, desc, fields, portsConfig = null, outputTemplate = '') {
-        let finalTemplate = outputTemplate;
-        if (!finalTemplate) {
-            finalTemplate = `📌 《 {$이름$} 》\n` + fields.map(f => `• ${f.name}: {$${f.name}$}`).join('\n');
-        }
 
-        const contentObj = {
-            isTextFieldsNode: true,
-            textFields: fields.map(f => ({ name: f.name, val: f.val })),
-            outputTemplate: finalTemplate,
-            currentTab: 'manage'
-        };
-
-        const fileData = {
-            name: `${icon} ${name}`,
-            type: 'file',
-            isTextFieldsNode: true,
-            description: desc,
-            content: JSON.stringify(contentObj, null, 2),
-            portsConfig
-        };
-
-        await this.createNewCustomNode(fileData);
-    }
 
     async createNewCustomNode(fileData) {
         try {
@@ -1628,21 +1747,20 @@ class FileTreeManager {
             const siblings = (this.files || []).filter(f => !f.parentId);
             const maxOrder = siblings.length > 0 ? Math.max(...siblings.map(f => f.order || 0)) : -1;
 
-            const created = await storage.createFile({
+            const dataToCreate = {
                 projectId,
                 name: fileData.name,
                 type: fileData.type || 'file',
                 description: fileData.description || '',
                 content: fileData.content || '',
                 isCustomNode: fileData.isCustomNode !== undefined ? !!fileData.isCustomNode : true,
-                isTextFieldsNode: !!fileData.isTextFieldsNode,
-                isSystemPromptNode: !!fileData.isSystemPromptNode,
-                isAiMetaNode: !!fileData.isAiMetaNode,
                 portsConfig: fileData.portsConfig || null,
                 template: fileData.template || fileData.defaultTemplate || 'custom_node',
                 parentId: null,
                 order: maxOrder + 1
-            });
+            };
+
+            const created = window.nodeManager ? await window.nodeManager.createNode(dataToCreate) : await storage.createFile(dataToCreate);
 
             if (projectId) {
                 await this.loadProjectFiles(projectId);
@@ -2201,18 +2319,18 @@ class FileTreeManager {
     async deleteItem(file) {
         const msg = file.type === 'folder' ? `"${file.name}" 폴더와 모든 내용이 삭제됩니다. 계속할까요?` : `"${file.name}" 파일을 삭제할까요?`;
         if (confirm(msg)) {
-            // 삭제 전, 해당 파일(또는 폴더 내의 파일들)이 캔버스에 열려 있다면 창 닫기
+            // 삭제 전, 해당 파일(또는 폴더 내의 파일들)이 캔버스에 열려 있다면 창 닫기 (이중 confirm 방지를 위해 skipConfirm = true 전달)
             if (window.windowManager) {
                 if (file.type === 'folder') {
                     // 폴더 삭제 시 하위 파일들도 모두 닫기
                     const children = this.files.filter(f => f.parentId === file.id || this.isDescendant(f.id, file.id));
                     for (const child of children) {
                         if (child.type === 'file') {
-                            await window.windowManager.closeWindow(child.id);
+                            await window.windowManager.closeWindow(child.id, true);
                         }
                     }
                 } else {
-                    await window.windowManager.closeWindow(file.id);
+                    await window.windowManager.closeWindow(file.id, true);
                 }
             }
 

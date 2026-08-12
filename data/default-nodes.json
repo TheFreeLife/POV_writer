@@ -1,0 +1,48 @@
+[
+  {
+    "id": "preset_sys_character",
+    "name": "👤 캐릭터 설정 카드",
+    "icon": "👤",
+    "desc": "이름, 소속, 성격, 특이사항 입력란과 프로필 생성 코드가 포함된 기본 노드",
+    "isDefault": true,
+    "promptForName": true,
+    "promptForDesc": false,
+    "widgets": [
+      {
+        "id": "w_name",
+        "type": "input_text",
+        "label": "캐릭터 이름",
+        "key": "name",
+        "rows": 1,
+        "placeholder": "이름을 입력하세요 (예: 강현우)"
+      },
+      {
+        "id": "w_role",
+        "type": "input_text",
+        "label": "소속 / 정체",
+        "key": "role",
+        "rows": 1,
+        "placeholder": "소속 및 정체 (예: 중앙 아카데미 3학년)"
+      },
+      {
+        "id": "w_traits",
+        "type": "input_text",
+        "label": "성격 및 주요 특징",
+        "key": "traits",
+        "rows": 3,
+        "placeholder": "캐릭터 성격, 외모, 배경 특징..."
+      }
+    ],
+    "portsConfig": {
+      "inputs": [],
+      "outputs": [
+        {
+          "id": "out_1",
+          "name": "프로필 데이터",
+          "color": "#00ffcc"
+        }
+      ]
+    },
+    "code": "const 프로필 = `📌 《 ${input.name || '미정'} 》\\n• 소속: ${input.role || '미정'}\\n• 특징: ${input.traits || '없음'}`;\nreturn { '프로필 데이터': 프로필 };"
+  }
+]

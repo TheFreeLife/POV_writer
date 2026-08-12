@@ -102,6 +102,11 @@ class WindowManager {
             }
         });
 
+        document.getElementById('stopGraphExecBtn')?.addEventListener('click', () => {
+            execPopmenu?.classList.add('hidden');
+            window.nodeEngine?.stopExecution();
+        });
+
         // 단축키 (Ctrl + Enter로 전체 그래프 실행)
         document.addEventListener('keydown', (e) => {
             if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
@@ -671,6 +676,7 @@ class WindowManager {
             modified: false
         };
         this.windows.set(fileId, windowInfo);
+        window.nodeManager?.registerNode(fileId, windowInfo);
 
         // 타자기 모드 초기 상태 반영
         if (file.windowState?.isLineFocus && windowInfo.textarea) {
@@ -688,18 +694,8 @@ class WindowManager {
         // 포커스
         this.focusWindow(fileId);
 
-        // 리스트 합산기 및 커스텀 노드(수치 노드 포함) 초기 렌더링
-        const isAggregator = file.isAggregatorNode || file.template === 'aggregator' || (file.content && typeof file.content === 'string' && file.content.includes('"isAggregatorNode"'));
-        const isDataViewer = file.isDataViewerNode || file.template === 'viewer' || (file.content && typeof file.content === 'string' && file.content.includes('"isDataViewerNode"'));
-        const isCustomNode = !isAggregator && !isDataViewer && (file.isCustomNode || file.template === 'custom_node' || file.template === 'text_fields' || file.isTextFieldsNode || (file.content && typeof file.content === 'string' && file.content.includes('"isCustomNode"')));
-
-        if (isAggregator) {
-            this.renderAggregatorNode(fileId);
-        } else if (isDataViewer) {
-            this.renderDataViewerNode(fileId);
-        } else if (isCustomNode) {
-            this.renderCustomNode(fileId);
-        }
+        // 노드 타입별 초기 UI 렌더링 (합산기, 데이터 뷰어, 승인 노드, 분기 노드, 커스텀 노드 등)
+        this.refreshNodeUI(fileId);
 
 
 
@@ -719,85 +715,8 @@ class WindowManager {
      * 현재 노드의 입력값 및 모든 설정 상태를 그대로 보존하여 노드 템플릿으로 저장
      */
     async saveNodeAsTemplate(fileId) {
-        const info = this.windows.get(fileId);
-        if (!info || !info.file) return;
-
-        const file = info.file;
-        const winEl = info.element;
-
-        // 1. 현재 DOM 입력 필드 최신 상태를 file.content 객체/문자열로 집계
-        if (file.isTextFieldsNode || (file.content && typeof file.content === 'string' && file.content.includes('"isTextFieldsNode"'))) {
-            try {
-                const container = winEl.querySelector(`#textFieldContainer_${fileId}`);
-                if (container) {
-                    const data = typeof file.content === 'string' ? JSON.parse(file.content) : file.content;
-                    const fields = data.textFields || [];
-                    const rows = container.querySelectorAll('.stat-item-row');
-                    rows.forEach((row, idx) => {
-                        if (fields[idx]) {
-                            const valInput = row.querySelector('.stat-name-input:nth-child(2)');
-                            if (valInput) fields[idx].value = valInput.value;
-                        }
-                    });
-                    const outTplTextarea = container.querySelector('.memo-textarea');
-                    if (outTplTextarea) data.outputTemplate = outTplTextarea.value;
-
-                    file.content = JSON.stringify(data, null, 2);
-                }
-            } catch (e) {}
-        } else if (file.isSystemPromptNode || (file.content && typeof file.content === 'string' && file.content.includes('"command"'))) {
-            try {
-                const cmdInput = winEl.querySelector(`#sysPromptCommand_${fileId}`);
-                const txtTextarea = winEl.querySelector(`#sysPromptText_${fileId}`);
-                if (cmdInput && txtTextarea) {
-                    const data = { command: cmdInput.value, text: txtTextarea.value };
-                    file.content = JSON.stringify(data, null, 2);
-                }
-            } catch (e) {}
-        } else if (file.isAiMetaNode || (file.content && typeof file.content === 'string' && file.content.includes('"role"'))) {
-            try {
-                const roleInput = winEl.querySelector(`#aiMetaRole_${fileId}`);
-                const taskTextarea = winEl.querySelector(`#aiMetaTask_${fileId}`);
-                const instTextarea = winEl.querySelector(`#aiMetaInstructions_${fileId}`);
-                if (roleInput && taskTextarea && instTextarea) {
-                    const data = { role: roleInput.value, task: taskTextarea.value, instructions: instTextarea.value };
-                    file.content = JSON.stringify(data, null, 2);
-                }
-            } catch (e) {}
-        } else {
-            const textarea = winEl.querySelector('.window-textarea');
-            if (textarea) {
-                file.content = textarea.value;
-            }
-        }
-
-        // 파일 최신 변경사항 DB 저장
-        await window.storage.updateFile(fileId, { content: file.content });
-
-        const rawName = (file.name || '새 노드').replace(/^[^\w\s가-힣]+\s*/, '').trim();
-        const customName = prompt('이 노드를 어떤 이름의 템플릿으로 저장하시겠습니까?', rawName);
-        if (!customName || !customName.trim()) return;
-
-        const templateObj = {
-            id: 'tpl_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
-            name: customName.trim(),
-            icon: file.icon || '📄',
-            desc: `입력 칸이 채워진 노드 템플릿 (${new Date().toLocaleDateString()})`,
-            wizardType: file.template || 'file',
-            template: file.template || 'file',
-            isTextFieldsNode: !!file.isTextFieldsNode,
-            isSystemPromptNode: !!file.isSystemPromptNode,
-            isAiMetaNode: !!file.isAiMetaNode,
-            content: file.content || '',
-            portsConfig: file.portsConfig || null,
-            createdAt: Date.now()
-        };
-
-        await window.storage.createTemplate(templateObj);
-        window.showToast?.(`'${templateObj.name}' 노드가 입력 보존 템플릿으로 저장되었습니다! ⭐`);
-
-        if (window.templateManager) {
-            await window.templateManager.renderNodeTemplatesInSelectModal();
+        if (window.nodeManager) {
+            return await window.nodeManager.saveNodeAsTemplate(fileId);
         }
     }
 
@@ -1032,12 +951,9 @@ class WindowManager {
      */
     createWindowDOM(file, x, y, width, height) {
         const isCollapsed = file.windowState?.isCollapsed || false;
-        const isImage = file.template === 'image' || (file.content && typeof file.content === 'string' && file.content.startsWith('data:image'));
-        const isAggregator = file.isAggregatorNode || file.template === 'aggregator' || (file.content && typeof file.content === 'string' && file.content.includes('"isAggregatorNode"'));
-        const isDataViewer = file.isDataViewerNode || file.template === 'viewer' || (file.content && typeof file.content === 'string' && file.content.includes('"isDataViewerNode"'));
-        const isApproval = file.isApprovalNode || file.template === 'approval' || (file.content && typeof file.content === 'string' && file.content.includes('"isApprovalNode"'));
-        const isChoice = file.isChoiceNode || file.template === 'choice' || (file.content && typeof file.content === 'string' && file.content.includes('"isChoiceNode"'));
-        const isCustomNode = !isAggregator && !isDataViewer && !isApproval && !isChoice && (file.isCustomNode || file.template === 'custom_node' || file.template === 'text_fields' || file.isTextFieldsNode || (file.content && typeof file.content === 'string' && file.content.includes('"isCustomNode"')));
+        const norm = window.nodeEngine?.normalizeNodeData(file);
+        const nodeType = norm?.nodeType || 'manuscript';
+        const isImage = nodeType === 'image';
         
         const win = document.createElement('div');
         win.className = `editor-window${isCollapsed ? ' collapsed' : ''}${isImage ? ' image-window' : ''}`;
@@ -1054,7 +970,7 @@ class WindowManager {
         const collapseChar = isCollapsed ? '+' : '−';
 
         let bodyContent = '';
-        if (isImage) {
+        if (nodeType === 'image') {
             const hasImage = !!file.content;
             bodyContent = `
                 <div class="window-body image-body">
@@ -1070,25 +986,23 @@ class WindowManager {
                     </div>
                 </div>
             `;
-        } else if (isAggregator) {
+        } else if (nodeType === 'aggregator') {
             bodyContent = `
-                <div class="stat-calculator-container" id="aggregatorContainer_${file.id}">
-                    <!-- 리스트 합산기 노드 UI가 렌더링됩니다 -->
-                </div>
+                <div class="stat-calculator-container" id="aggregatorContainer_${file.id}"></div>
             `;
-        } else if (isDataViewer) {
+        } else if (nodeType === 'viewer') {
             bodyContent = `
-                <div class="stat-calculator-container" id="dataViewerContainer_${file.id}">
-                    <!-- 데이터 뷰어 노드 UI가 렌더링됩니다 -->
-                </div>
+                <div class="stat-calculator-container" id="dataViewerContainer_${file.id}"></div>
             `;
-        } else if (isCustomNode) {
+        } else if (nodeType === 'approval') {
             bodyContent = `
-                <div class="window-body custom-node-body" style="padding:0; height:calc(100% - 35px); overflow-y:auto; box-sizing:border-box;">
-                    <!-- 커스텀 정의 노드 UI가 렌더링됩니다 -->
-                </div>
+                <div class="stat-calculator-container" id="approvalContainer_${file.id}"></div>
             `;
-        } else {
+        } else if (nodeType === 'choice') {
+            bodyContent = `
+                <div class="stat-calculator-container" id="choiceContainer_${file.id}"></div>
+            `;
+        } else if (nodeType === 'manuscript') {
             bodyContent = `
                 <div class="window-editor">
                     <div class="window-backdrop"></div>
@@ -1097,16 +1011,20 @@ class WindowManager {
                         spellcheck="false">${this.escapeHtml(file.content || '')}</textarea>
                 </div>
             `;
+        } else {
+            bodyContent = `
+                <div class="window-body custom-node-body" style="padding:0; height:calc(100% - 35px); overflow-y:auto; box-sizing:border-box;"></div>
+            `;
         }
 
 
-        const isImageNode = file.template === 'image' || (file.content && typeof file.content === 'string' && file.content.startsWith('data:image'));
-        const isManuscriptNode = !isCustomNode && !isAggregator && !isDataViewer && !isImageNode;
+        const isImageNode = nodeType === 'image';
+        const isManuscriptNode = nodeType === 'manuscript';
 
         const defaultInputs = (isImageNode || isManuscriptNode) ? [] : [{ id: 'in_1', name: '입력 데이터' }];
         const defaultOutputs = isManuscriptNode ? [{ id: 'out_1', name: '원고 결과', color: '#00ffcc' }] : [{ id: 'out_1', name: '출력 데이터', color: '#00ffcc' }];
 
-        const portsConfig = file.portsConfig || {
+        const portsConfig = norm?.portsConfig || file.portsConfig || {
             inputs: defaultInputs,
             outputs: defaultOutputs
         };
@@ -2029,17 +1947,18 @@ class WindowManager {
     /**
      * 노드 삭제 (닫기 클릭 시 숨기지 않고 노드 완전 삭제)
      */
-    async closeWindow(fileId) {
+    async closeWindow(fileId, skipConfirm = false) {
         const info = this.windows.get(fileId);
         const file = info?.file || (window.fileTreeManager?.files || []).find(f => String(f.id) === String(fileId)) || { id: fileId, name: '이 노드' };
         const fileName = file.name || '이 노드';
 
-        if (confirm(`'${fileName}' 노드를 완전히 삭제할까요?\n연결된 핀과 데이터도 함께 제거됩니다.`)) {
+        if (skipConfirm || confirm(`'${fileName}' 노드를 완전히 삭제할까요?\n연결된 핀과 데이터도 함께 제거됩니다.`)) {
             // DOM 창 제거
             if (info && info.element) {
                 info.element.remove();
             }
             this.windows.delete(fileId);
+            window.nodeManager?.unregisterNode(fileId);
             this.selectedWindowIds.delete(fileId);
 
             // 연결선 및 캐시 상태 파괴
@@ -2283,102 +2202,9 @@ class WindowManager {
      * 선택한 노드의 모든 입력값과 커스텀 데이터, 포트 설정을 그대로 복제하여 새 노드로 캔버스에 생성
      */
     async duplicateNode(fileId) {
-        const info = this.windows.get(fileId);
-        if (!info || !info.file) return;
-
-        const originalFile = info.file;
-        const winEl = info.element;
-
-        // 1. 현재 DOM의 최신 입력 데이터(Text, Fields, Stat, Prompts) 집계 및 동기화
-        let currentContent = originalFile.content;
-
-        if (originalFile.isTextFieldsNode || (currentContent && typeof currentContent === 'string' && currentContent.includes('"isTextFieldsNode"'))) {
-            try {
-                const container = winEl.querySelector(`#textFieldContainer_${fileId}`);
-                if (container) {
-                    const data = typeof currentContent === 'string' ? JSON.parse(currentContent) : currentContent;
-                    const fields = data.textFields || [];
-                    const rows = container.querySelectorAll('.stat-item-row');
-                    rows.forEach((row, idx) => {
-                        if (fields[idx]) {
-                            const valInput = row.querySelector('.stat-name-input:nth-child(2)');
-                            if (valInput) fields[idx].value = valInput.value;
-                        }
-                    });
-                    const outTplTextarea = container.querySelector('.memo-textarea');
-                    if (outTplTextarea) data.outputTemplate = outTplTextarea.value;
-                    currentContent = JSON.stringify(data, null, 2);
-                }
-            } catch (e) {}
-        } else if (originalFile.isSystemPromptNode || (currentContent && typeof currentContent === 'string' && currentContent.includes('"command"'))) {
-            try {
-                const cmdInput = winEl.querySelector(`#sysPromptCommand_${fileId}`);
-                const txtTextarea = winEl.querySelector(`#sysPromptText_${fileId}`);
-                if (cmdInput && txtTextarea) {
-                    const data = { command: cmdInput.value, text: txtTextarea.value };
-                    currentContent = JSON.stringify(data, null, 2);
-                }
-            } catch (e) {}
-        } else if (originalFile.isAiMetaNode || (currentContent && typeof currentContent === 'string' && currentContent.includes('"role"'))) {
-            try {
-                const roleInput = winEl.querySelector(`#aiMetaRole_${fileId}`);
-                const taskTextarea = winEl.querySelector(`#aiMetaTask_${fileId}`);
-                const instTextarea = winEl.querySelector(`#aiMetaInstructions_${fileId}`);
-                if (roleInput && taskTextarea && instTextarea) {
-                    const data = { role: roleInput.value, task: taskTextarea.value, instructions: instTextarea.value };
-                    currentContent = JSON.stringify(data, null, 2);
-                }
-            } catch (e) {}
-        } else {
-            const textarea = winEl.querySelector('.window-textarea');
-            if (textarea) {
-                currentContent = textarea.value;
-            }
+        if (window.nodeManager) {
+            return await window.nodeManager.duplicateNode(fileId);
         }
-
-        // 원본 노드 업데이트
-        await storage.updateFile(fileId, { content: currentContent });
-
-        // 2. 원본 노드 위치 근처(오른쪽/아래로 40px offset)에 새 노드 윈도우 배치
-        const origX = parseInt(winEl.style.left, 10) || 100;
-        const origY = parseInt(winEl.style.top, 10) || 100;
-        const origWidth = parseInt(winEl.style.width, 10) || 480;
-        const origHeight = parseInt(winEl.style.height, 10) || 380;
-
-        const newWindowState = {
-            x: origX + 40,
-            y: origY + 40,
-            width: origWidth,
-            height: origHeight,
-            collapsed: false,
-            zIndex: (this.maxZIndex || 10) + 1
-        };
-
-        const fileData = {
-            projectId: originalFile.projectId,
-            name: originalFile.name, // storage.createFile 이 자동으로 중복 방지 (1), (2) 추가함!
-            type: originalFile.type || 'file',
-            parentId: originalFile.parentId || null,
-            content: currentContent,
-            template: originalFile.template || null,
-            isSystemPromptNode: !!originalFile.isSystemPromptNode,
-            isAiMetaNode: !!originalFile.isAiMetaNode,
-            isTextFieldsNode: !!originalFile.isTextFieldsNode,
-            portsConfig: originalFile.portsConfig ? JSON.parse(JSON.stringify(originalFile.portsConfig)) : null,
-            description: originalFile.description || '',
-            windowState: newWindowState
-        };
-
-        const duplicatedFile = await storage.createFile(fileData);
-
-        // 3. 파일 트리 갱신
-        if (window.fileTreeManager) {
-            await window.fileTreeManager.loadProjectFiles(originalFile.projectId);
-        }
-
-        // 4. 복제된 새 노드 창 즉시 열기 및 포커스
-        await this.openWindow(duplicatedFile.id);
-        window.showToast?.(`'${duplicatedFile.name}' 노드가 동일한 내용으로 복사되었습니다! 📋`);
     }
 
     addNodePortEditRow(type = 'input', name = '', color = '') {
@@ -2808,418 +2634,6 @@ class WindowManager {
         return icons[template] || '📄';
     }
 
-    /**
-     * 수치 계산기 렌더링 (탭 인터페이스 및 출력 템플릿 추가)
-     */
-    renderStatCalculator(fileId) {
-        const info = this.windows.get(fileId);
-        const container = document.getElementById(`statContainer_${fileId}`);
-        if (!info || !container) return;
-
-        let data;
-        try {
-            data = JSON.parse(info.file.content || '{"stats":[], "history":[], "outputTemplate":""}');
-            if (!data.stats) data.stats = [];
-            if (!data.history) data.history = [];
-            if (data.currentTab === undefined) data.currentTab = 'manage';
-            // 기본 템플릿 제공
-            if (!data.outputTemplate) {
-                data.outputTemplate = "《 {{이름}} 상태창 》\n" + 
-                                     data.stats.map(s => `[${s.name}: {{${s.name}}}]`).join(' ');
-            }
-        } catch (e) {
-            data = { stats: [], history: [], outputTemplate: "", currentTab: 'manage' };
-        }
-
-        const tab = data.currentTab;
-
-        container.innerHTML = `
-            <div class="stat-tabs">
-                <div class="stat-tab ${tab === 'manage' ? 'active' : ''}" onclick="window.windowManager.switchStatTab('${fileId}', 'manage')">⚙️ 스탯 관리</div>
-                <div class="stat-tab ${tab === 'template' ? 'active' : ''}" onclick="window.windowManager.switchStatTab('${fileId}', 'template')">📝 출력 양식</div>
-                <div class="stat-tab ${tab === 'history' ? 'active' : ''}" onclick="window.windowManager.switchStatTab('${fileId}', 'history')">📜 변경 기록</div>
-            </div>
-            
-            <div class="stat-content" id="statContent_${fileId}">
-                ${tab === 'manage' ? `
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                        <span style="font-size: 15px; font-weight: 700; color: var(--color-text-secondary);">캐릭터 스탯 설정</span>
-                        <button class="btn btn-icon btn-secondary" onclick="window.windowManager.addStatItem('${fileId}')" title="항목 추가" style="width: 32px; height: 32px; font-size: 18px;">＋</button>
-                    </div>
-                    ${data.stats.map((s, idx) => `
-                        <div class="stat-item-row">
-                            <input type="text" class="stat-name-input" value="${this.escapeHtml(s.name)}" 
-                                onchange="window.windowManager.onStatNameChange('${fileId}', ${idx}, this.value)" placeholder="항목명">
-                            <div class="stat-controls">
-                                <button class="stat-btn" onclick="window.windowManager.updateStat('${fileId}', ${idx}, -1)">-</button>
-                                <span class="stat-value">${s.value}</span>
-                                <button class="stat-btn" onclick="window.windowManager.updateStat('${fileId}', ${idx}, 1)">+</button>
-                            </div>
-                            <div style="display: flex; gap: 4px;">
-                                <input type="number" class="stat-input-small" placeholder="값" 
-                                    onkeypress="if(event.key==='Enter') window.windowManager.updateStat('${fileId}', ${idx}, parseInt(this.value) || 0, true)">
-                            </div>
-                            <button class="btn btn-icon" style="color: var(--color-text-muted); font-size: 16px;" 
-                                onclick="window.windowManager.removeStatItem('${fileId}', ${idx})">✕</button>
-                        </div>
-                    `).join('')}
-                    ${data.stats.length === 0 ? '<div style="text-align: center; padding: 40px; color: var(--color-text-tertiary); font-size: 14px;">등록된 스탯이 없습니다.<br>항목을 추가하세요.</div>' : ''}
-                    <button class="stat-add-btn" onclick="window.windowManager.addStatItem('${fileId}')">+ 새 항목 추가</button>
-                ` : ''}
-
-                ${tab === 'template' ? `
-                    <div style="height: 100%; display: flex; flex-direction: column; gap: 16px;">
-                        <div style="font-size: 16px; font-weight: 700; color: var(--color-text-secondary); letter-spacing: -0.02em;">출력 양식 커스텀</div>
-                        <div style="font-size: 14px; color: #fff; line-height: 1.8; background: #1a1f26; padding: 16px; border-radius: 10px; border: 1px solid rgba(88, 166, 255, 0.3); box-shadow: inset 0 0 20px rgba(0,0,0,0.2);">
-                            <b style="color: var(--color-accent-primary); font-size: 15px; display: block; margin-bottom: 8px;">💡 작성 가이드</b>
-                            변수는 <code style="color: #ffffff; background: #30363d; padding: 2px 8px; border-radius: 4px; font-family: inherit; font-weight: 700; border: 1px solid rgba(255, 255, 255, 0.1);">{$스탯이름$}</code> 형태로 넣으세요.<br>
-                            <code style="color: #ffffff; background: #30363d; padding: 2px 8px; border-radius: 4px; font-family: inherit; font-weight: 700; border: 1px solid rgba(255, 255, 255, 0.1);">{$이름$}</code>은 파일명으로 자동 치환됩니다.
-                        </div>
-                        <textarea class="input" id="statTemplateEditor_${fileId}" style="flex: 1; font-family: inherit; font-size: 18px; line-height: 1.7; padding: 20px; resize: none; background: var(--color-bg-primary); color: #e6edf3; border: 1px solid var(--color-border); letter-spacing: 0.01em;"
-                            placeholder="본문에 불러올 때 사용될 양식을 작성하세요...">${this.escapeHtml(data.outputTemplate)}</textarea>
-                        
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 4px;">
-                            <div style="font-size: 12px; color: var(--color-text-tertiary); font-weight: 500; display: flex; flex-wrap: wrap; gap: 8px; align-items: center;">
-                                <span style="color: var(--color-accent-primary);">변수:</span> 
-                                <span style="background: var(--color-surface-3); padding: 2px 8px; border-radius: 4px;">{$이름$}</span>
-                                ${data.stats.map(s => `<span style="background: var(--color-surface-3); padding: 2px 8px; border-radius: 4px;">{$${s.name}$}</span>`).join('')}
-                            </div>
-                            <button class="btn btn-primary" style="padding: 8px 24px; font-weight: 700;" 
-                                onclick="window.windowManager.updateStatTemplate('${fileId}', document.getElementById('statTemplateEditor_${fileId}').value)">저장</button>
-                        </div>
-                    </div>
-                ` : ''}
-
-                ${tab === 'history' ? `
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-                        <span style="font-size: 15px; font-weight: 700; color: var(--color-text-secondary);">변경 기록 (최근 100개)</span>
-                        <span style="cursor: pointer; font-size: 12px; color: var(--color-accent-danger); opacity: 0.8; font-weight: 600;" onclick="window.windowManager.clearStatHistory('${fileId}')">기록 삭제</span>
-                    </div>
-                    <div style="font-family: var(--font-mono); font-size: 13px;">
-                        ${data.history.slice().reverse().map(h => `
-                            <div class="history-item">
-                                <span class="history-time">${new Date(h.time).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second:'2-digit'})}</span>
-                                <span style="font-weight: 600;">${this.escapeHtml(h.name)}</span>: 
-                                <span>${h.prev} → ${h.curr}</span>
-                                <span class="${h.diff >= 0 ? 'history-diff-plus' : 'history-diff-minus'}">
-                                    (${h.diff >= 0 ? '+' : ''}${h.diff})
-                                </span>
-                            </div>
-                        `).join('')}
-                        ${data.history.length === 0 ? '<div style="text-align: center; padding: 40px; color: var(--color-text-tertiary);">기록이 없습니다.</div>' : ''}
-                    </div>
-                ` : ''}
-            </div>
-        `;
-    }
-
-    async switchStatTab(fileId, tab) {
-        const info = this.windows.get(fileId);
-        if (!info) return;
-        let data = JSON.parse(info.file.content || '{}');
-        data.currentTab = tab;
-        await this.saveStatData(fileId, data);
-    }
-
-    async updateStatTemplate(fileId, template) {
-        const info = this.windows.get(fileId);
-        if (!info) return;
-        let data = JSON.parse(info.file.content || '{}');
-        data.outputTemplate = template;
-        await this.saveStatData(fileId, data);
-        window.showToast?.('출력 양식이 저장되었습니다.');
-    }
-
-    async updateStat(fileId, index, delta, isAbsolute = false) {
-        const info = this.windows.get(fileId);
-        if (!info) return;
-
-        let data = JSON.parse(info.file.content || '{"stats":[], "history":[]}');
-        const stat = data.stats[index];
-        if (!stat) return;
-
-        const prev = stat.value;
-        const diff = isAbsolute ? delta : delta; // delta가 증분일 수도, 절대값일 수도 있음 (여기선 인자명 그대로 처리)
-        
-        if (isAbsolute) {
-            stat.value = delta;
-        } else {
-            stat.value += delta;
-        }
-
-        const actualDiff = stat.value - prev;
-        if (actualDiff === 0) return;
-
-        // 기록 추가
-        data.history.push({
-            time: Date.now(),
-            name: stat.name || '미지정',
-            prev: prev,
-            curr: stat.value,
-            diff: actualDiff
-        });
-
-        // 최대 100개까지만 기록 유지
-        if (data.history.length > 100) data.history.shift();
-
-        await this.saveStatData(fileId, data);
-    }
-
-    async addStatItem(fileId) {
-        const info = this.windows.get(fileId);
-        if (!info) return;
-
-        let data = JSON.parse(info.file.content || '{"stats":[], "history":[]}');
-        data.stats.push({ name: '새 스탯', value: 10 });
-        
-        await this.saveStatData(fileId, data);
-    }
-
-    async removeStatItem(fileId, index) {
-        if (!confirm('이 항목을 삭제할까요?')) return;
-        const info = this.windows.get(fileId);
-        if (!info) return;
-
-        let data = JSON.parse(info.file.content || '{"stats":[], "history":[]}');
-        data.stats.splice(index, 1);
-        
-        await this.saveStatData(fileId, data);
-    }
-
-    async onStatNameChange(fileId, index, newName) {
-        const info = this.windows.get(fileId);
-        if (!info) return;
-
-        let data = JSON.parse(info.file.content || '{"stats":[], "history":[]}');
-        data.stats[index].name = newName;
-        
-        await this.saveStatData(fileId, data);
-    }
-
-    async clearStatHistory(fileId) {
-        if (!confirm('변경 기록을 모두 삭제할까요?')) return;
-        const info = this.windows.get(fileId);
-        if (!info) return;
-
-        let data = JSON.parse(info.file.content || '{"stats":[], "history":[]}');
-        data.history = [];
-        
-        await this.saveStatData(fileId, data);
-    }
-
-    async saveStatData(fileId, data) {
-        const info = this.windows.get(fileId);
-        if (!info) return;
-
-        const content = JSON.stringify(data);
-        info.file.content = content;
-        
-        await storage.updateFile(fileId, { content });
-        this.renderStatCalculator(fileId);
-    }
-
-
-
-
-    /**
-     * 리스트 합산기 노드의 UI를 렌더링합니다.
-     * - 연결된 상위 노드 목록을 보여주고 활성/비활성 토글 제공
-     * - 비활성화된 키는 content.disabledKeys[]에 저장
-     */
-    renderAggregatorNode(fileId) {
-        const info = this.getWindowInfo(fileId);
-        if (!info) return;
-
-        const container = info.element.querySelector(`#aggregatorContainer_${fileId}`);
-        if (!container) return;
-
-        // 저장된 disabledKeys 로드
-        let data = { isAggregatorNode: true, disabledKeys: [] };
-        try { data = JSON.parse(info.file.content || '{}'); } catch (e) {}
-        const disabledKeys = Array.isArray(data.disabledKeys) ? data.disabledKeys : [];
-
-        // 이 노드에 연결된 상위 노드 목록 수집
-        const inConns = (this.nodeConnections || []).filter(c => String(c.toId) === String(fileId));
-
-        const saveDisabled = (newDisabled) => {
-            data.disabledKeys = newDisabled;
-            info.file.content = JSON.stringify(data);
-            window.storage?.updateFile(fileId, { content: info.file.content });
-        };
-
-        if (inConns.length === 0) {
-            container.innerHTML = `
-                <div style="padding: 16px 14px; display: flex; flex-direction: column; gap: 10px; height: 100%; overflow-y: auto;">
-                    <div style="font-size: 11px; font-weight: 700; color: var(--color-accent-primary); margin-bottom: 2px;">🔗 리스트 합산기</div>
-                    <div style="
-                        font-size: 12px; color: var(--color-text-tertiary); text-align: center;
-                        padding: 24px 12px; background: var(--color-surface-1);
-                        border: 1px dashed var(--color-border); border-radius: 8px; line-height: 1.7;
-                    ">
-                        🔌 아직 연결된 노드가 없습니다.<br>
-                        <span style="font-size: 11px;">왼쪽 Input 핀에 여러 노드를 연결하세요.</span>
-                    </div>
-                    <div style="font-size: 11px; color: var(--color-text-tertiary); line-height: 1.6; background: var(--color-surface-1); padding: 8px 10px; border-radius: 6px; border: 1px solid var(--color-border);">
-                        💡 연결된 각 노드의 output이 <b>딕셔너리 항목</b>으로 쌓여<br>
-                        하나의 리스트로 합산됩니다.
-                    </div>
-                </div>
-            `;
-            return;
-        }
-
-        // 연결된 노드 정보 수집 및 키 중복 처리
-        const keyCount = {};
-        const entries = inConns.map(conn => {
-            const fromInfo = this.getWindowInfo(conn.fromId);
-            const fromFile = fromInfo?.file || (window.fileTreeManager?.files || []).find(f => String(f.id) === String(conn.fromId));
-            if (!fromFile) return null; // 완전히 지워진 노드 제외
-
-            const rawName = fromFile.name || conn.fromId;
-            const cleanName = rawName.replace(/^[\u{1F300}-\u{1FFFF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]\s*/u, '').trim() || rawName;
-            keyCount[cleanName] = (keyCount[cleanName] || 0) + 1;
-            return { conn, rawName, cleanName, fromInfo };
-        }).filter(Boolean);
-
-        // 중복 키 넘버링
-        const keyIndex = {};
-        const keyedEntries = entries.map(entry => {
-            const base = entry.cleanName;
-            if (keyCount[base] > 1) {
-                keyIndex[base] = (keyIndex[base] || 0) + 1;
-                return { ...entry, key: keyIndex[base] === 1 ? base : `${base}_${keyIndex[base]}` };
-            }
-            return { ...entry, key: base };
-        });
-
-        const rowsHtml = keyedEntries.map(({ key, rawName, conn }) => {
-            const isDisabled = disabledKeys.includes(key);
-            return `
-                <div class="aggregator-row" data-key="${this.escapeHtml(key)}" style="
-                    display: flex; align-items: center; gap: 10px;
-                    background: var(--color-surface-1); border: 1px solid var(--color-border);
-                    border-radius: 8px; padding: 8px 10px;
-                    ${isDisabled ? 'opacity: 0.45;' : ''}
-                ">
-                    <div style="flex: 1; min-width: 0;">
-                        <div style="font-size: 12px; font-weight: 600; color: var(--color-text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${this.escapeHtml(rawName)}">${this.escapeHtml(key)}</div>
-                        <div style="font-size: 10px; color: var(--color-text-tertiary); margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${this.escapeHtml(rawName)}</div>
-                    </div>
-                    <label class="toggle-switch" title="${isDisabled ? '비활성화됨 — 클릭해서 활성화' : '활성화됨 — 클릭해서 비활성화'}" style="flex-shrink: 0;">
-                        <input type="checkbox" class="agg-toggle" data-key="${this.escapeHtml(key)}" ${isDisabled ? '' : 'checked'}>
-                        <span class="toggle-slider"></span>
-                    </label>
-                </div>
-            `;
-        }).join('');
-
-        const activeCount = keyedEntries.filter(e => !disabledKeys.includes(e.key)).length;
-
-        container.innerHTML = `
-            <div style="padding: 12px 12px 10px; display: flex; flex-direction: column; gap: 8px; height: 100%; overflow-y: auto; box-sizing: border-box;">
-                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 2px;">
-                    <span style="font-size: 11px; font-weight: 700; color: var(--color-accent-primary);">🔗 연결된 노드 (${activeCount}/${keyedEntries.length} 활성)</span>
-                    <span style="font-size: 10px; color: var(--color-text-tertiary);">토글로 출력 조정</span>
-                </div>
-                ${rowsHtml}
-                <div style="font-size: 10px; color: var(--color-text-tertiary); line-height: 1.5; margin-top: 4px; padding: 6px 8px; background: var(--color-surface-1); border-radius: 6px; border: 1px solid var(--color-border);">
-                    💡 키 = 노드 이름 / 값 = 해당 노드의 output 핀 값<br>
-                    활성화된 항목만 <b>합산 리스트</b>에 포함됩니다.
-                </div>
-            </div>
-        `;
-
-        // 토글 이벤트
-        container.querySelectorAll('.agg-toggle').forEach(chk => {
-            chk.addEventListener('change', () => {
-                const key = chk.dataset.key;
-                const row = chk.closest('.aggregator-row');
-                let cur = Array.isArray(data.disabledKeys) ? [...data.disabledKeys] : [];
-                if (chk.checked) {
-                    cur = cur.filter(k => k !== key);
-                    row.style.opacity = '1';
-                } else {
-                    if (!cur.includes(key)) cur.push(key);
-                    row.style.opacity = '0.45';
-                }
-                saveDisabled(cur);
-                // 헤더 카운트 갱신
-                const activeNow = keyedEntries.filter(e => !cur.includes(e.key)).length;
-                const headerEl = container.querySelector('span[style*="color-accent-primary"]');
-                if (headerEl) headerEl.textContent = `🔗 연결된 노드 (${activeNow}/${keyedEntries.length} 활성)`;
-            });
-        });
-    }
-
-    /**
-     * 데이터 뷰어(디버그) 노드의 UI를 렌더링합니다.
-     * - Input으로 들어온 데이터를 실시간 모니터링
-     * - 텍스트/숫자/리스트/객체 JSON 프리티 프린팅 및 복사 기능 제공
-     */
-    async renderDataViewerNode(fileId) {
-        const info = this.getWindowInfo(fileId);
-        if (!info) return;
-
-        const container = info.element?.querySelector(`#dataViewerContainer_${fileId}`);
-        if (!container) return;
-
-        let inputVars = {};
-        if (window.nodeEngine) {
-            inputVars = window.nodeEngine.collectInputVars(fileId);
-        }
-
-        const rawVal = inputVars['입력 데이터'] ?? inputVars['input'] ?? (Object.values(inputVars)[0] ?? null);
-
-        let typeLabel = 'Empty (데이터 없음)';
-        let displayContent = '(연결된 입력 데이터가 없거나 빈 상태입니다)';
-        let isJson = false;
-
-        if (rawVal !== null && rawVal !== undefined) {
-            if (typeof rawVal === 'string') {
-                typeLabel = `String (${rawVal.length}자)`;
-                displayContent = rawVal || '(빈 텍스트)';
-            } else if (typeof rawVal === 'number') {
-                typeLabel = `Number (숫자: ${rawVal})`;
-                displayContent = String(rawVal);
-            } else if (typeof rawVal === 'boolean') {
-                typeLabel = `Boolean (${rawVal})`;
-                displayContent = String(rawVal);
-            } else if (Array.isArray(rawVal)) {
-                typeLabel = `Array [${rawVal.length}개 항목]`;
-                displayContent = JSON.stringify(rawVal, null, 2);
-                isJson = true;
-            } else if (typeof rawVal === 'object') {
-                typeLabel = `Object [딕셔너리]`;
-                displayContent = JSON.stringify(rawVal, null, 2);
-                isJson = true;
-            }
-        }
-
-        container.innerHTML = `
-            <div style="padding: 12px; display: flex; flex-direction: column; gap: 10px; height: 100%; box-sizing: border-box;">
-                <div style="display: flex; justify-content: space-between; align-items: center; background: var(--color-surface-1); padding: 8px 12px; border-radius: 6px; border: 1px solid var(--color-border);">
-                    <div style="display: flex; align-items: center; gap: 6px;">
-                        <span style="font-size: 13px;">👁️</span>
-                        <span style="font-size: 11px; font-weight: 700; color: var(--color-accent-primary);">모니터링 타입:</span>
-                        <span style="font-size: 11px; font-weight: 800; color: #00ffcc; background: rgba(0,255,204,0.1); padding: 2px 6px; border-radius: 4px;">${this.escapeHtml(typeLabel)}</span>
-                    </div>
-                    <button type="button" class="btn btn-secondary btn-xs copy-viewer-btn" style="font-size: 11px; padding: 2px 8px;">📋 데이터 복사</button>
-                </div>
-
-                <div style="flex: 1; min-height: 120px; display: flex; flex-direction: column;">
-                    <pre class="viewer-pre" style="flex: 1; font-size: 12px; background: var(--color-bg-primary); padding: 12px; border-radius: 8px; border: 1px solid var(--color-border); white-space: pre-wrap; word-break: break-all; overflow-y: auto; margin: 0; font-family: ${isJson ? 'var(--font-family-mono)' : 'inherit'}; color: var(--color-text-primary); line-height: 1.6;">${this.escapeHtml(displayContent)}</pre>
-                </div>
-            </div>
-        `;
-
-        const copyBtn = container.querySelector('.copy-viewer-btn');
-        copyBtn?.addEventListener('click', () => {
-            navigator.clipboard.writeText(displayContent).then(() => {
-                window.showToast?.('모니터링 데이터가 클립보드에 복사되었습니다! 📋');
-            });
-        });
-    }
-
     // ─────────────────────────────────────────────
     // 전역 노드 라이프사이클 및 이벤트 브로드캐스터
     // ─────────────────────────────────────────────
@@ -3266,8 +2680,18 @@ class WindowManager {
             </div>
         `;
 
+        const checkExecutableState = () => {
+            if (rawVal === null || rawVal === undefined) {
+                window.showToast?.('⚠️ 그래프 실행 상태가 아닙니다. 먼저 상단 [▶️ 전체 그래프 실행]을 눌러주세요.', 'warning');
+                return false;
+            }
+            return true;
+        };
+
         // 상위 연산 재시도 버튼 (직전 상위 노드 재실행)
         container.querySelector('.retry-upstream-btn')?.addEventListener('click', async () => {
+            if (!checkExecutableState()) return;
+
             const inConns = (window.nodeEngine?._getConnections() || []).filter(c => String(c.toId) === String(fileId));
             if (inConns.length === 0) {
                 window.showToast?.('연결된 상위 노드가 없습니다.', 'warning');
@@ -3286,14 +2710,39 @@ class WindowManager {
             window.showToast?.('상위 노드가 새로 연산되었습니다! ✨', 'success');
         });
 
-        // 승인 버튼
+        // 승인 버튼 (대기 중인 검수 결과를 승인 완료 처리 후 즉시 하위 노드로 전파 실행)
         container.querySelector('.approve-gate-btn')?.addEventListener('click', async () => {
+            if (!checkExecutableState()) return;
+
+            // 🌟 승인 노드의 대기 하이라이트(node-paused) 즉시 해제 및 성공 순간 펄스 적용
+            if (info?.element) {
+                info.element.classList.remove('node-paused', 'node-executing');
+                info.element.classList.add('node-success-pulse');
+                setTimeout(() => info.element.classList.remove('node-success-pulse'), 800);
+            }
+
             contentData.isApproved = true;
             info.file.content = JSON.stringify(contentData);
             await storage.updateFile(fileId, { content: info.file.content });
+
+            // 🌟 승인 노드의 outputCache에 상위 데이터 패킷 설정 후 하위 노드로 즉시 연산 전파!
+            if (window.nodeEngine) {
+                const inVal = rawVal;
+                const outputPins = info.file.portsConfig?.outputs ?? [];
+                const outPinName = outputPins[0]?.name || '승인 데이터';
+                const portId = outputPins[0]?.id || 'appr_out';
+                const packet = window.nodeEngine.createDataPacket(inVal, fileId, info.file.name, portId, outPinName);
+                window.nodeEngine.outputCache.set(String(fileId), { [outPinName]: packet });
+
+                const downstreamIds = window.nodeEngine.getDownstreamNodeIds(fileId);
+                for (const dId of downstreamIds) {
+                    await window.nodeEngine.runNode(dId);
+                }
+            }
+
+            // 승인 완료 상태(isApproved = true)로 UI 갱신 및 유지
             this.refreshNodeUI(fileId);
-            this.notifyNodeChanged(fileId, 'outputChange');
-            window.showToast?.('결과물이 승인되었습니다! 하위 노드로 진행 가능합니다. ✅', 'success');
+            window.showToast?.('결과물이 승인 완료되었습니다! 하위 노드로 연산 데이터가 전달되었습니다. ✅', 'success');
         });
 
         // 상태 초기화
@@ -3306,84 +2755,19 @@ class WindowManager {
         });
     }
 
-    /**
-     * 사용자 선택 분기 노드 (Interactive Choice Node) UI 렌더링
-     */
-    renderChoiceNode(fileId) {
-        const info = this.getWindowInfo(fileId);
-        if (!info) return;
 
-        const container = info.element.querySelector(`#choiceContainer_${fileId}`);
-        if (!container) return;
-
-        let contentData = {};
-        try { contentData = JSON.parse(info.file.content || '{}'); } catch(e){}
-
-        const selectedChoiceId = contentData.selectedChoiceId || 'choice_1';
-        const outputs = info.file.portsConfig?.outputs ?? [];
-
-        const buttonsHtml = outputs.map(p => {
-            const isSelected = p.id === selectedChoiceId;
-            return `
-                <button type="button" class="btn choice-opt-btn" data-choice-id="${p.id}" style="padding: 10px; font-size: 11px; font-weight: bold; text-align: left; display: flex; justify-content: space-between; align-items: center; border-radius: 6px; border: 1.5px solid ${isSelected ? (p.color || '#3498db') : 'var(--color-border)'}; background: ${isSelected ? 'rgba(52, 152, 219, 0.15)' : 'var(--color-surface-1)'}; color: ${isSelected ? '#ffffff' : 'var(--color-text-secondary)'}; cursor: pointer;">
-                    <span>🔀 ${this.escapeHtml(p.name)}</span>
-                    <span style="font-size: 10px; opacity: 0.8;">${isSelected ? '선택됨 🎯' : '선택하기'}</span>
-                </button>
-            `;
-        }).join('');
-
-        container.innerHTML = `
-            <div style="padding: 12px; display: flex; flex-direction: column; gap: 10px; height: 100%; box-sizing: border-box;">
-                <div style="font-size: 11px; color: var(--color-text-secondary); font-weight: bold;">
-                    🔀 원하는 경로 선택지를 클릭하세요:
-                </div>
-                <div style="display: flex; flex-direction: column; gap: 6px; flex: 1; overflow-y: auto;">
-                    ${buttonsHtml}
-                </div>
-            </div>
-        `;
-
-        container.querySelectorAll('.choice-opt-btn').forEach(btn => {
-            btn.addEventListener('click', async () => {
-                const choiceId = btn.dataset.choiceId;
-                contentData.selectedChoiceId = choiceId;
-                info.file.content = JSON.stringify(contentData);
-                await storage.updateFile(fileId, { content: info.file.content });
-                this.refreshNodeUI(fileId);
-                this.notifyNodeChanged(fileId, 'outputChange');
-                window.showToast?.('분기 경로가 선택되었습니다. 🔀');
-            });
-        });
-    }
 
     /**
      * 특정 노드의 UI를 타입에 구애받지 않고 자동으로 판단하여 갱신합니다.
      */
+    /**
+     * 특정 노드의 UI를 단일 노드 스키마(normalizeNodeData)로 렌더링합니다.
+     */
     refreshNodeUI(fileId) {
         const info = this.getWindowInfo(fileId);
-        if (!info) return;
+        if (!info || !info.file) return;
 
-        const f = info.file;
-        const isAggregator = f.isAggregatorNode || f.template === 'aggregator' || (f.content && typeof f.content === 'string' && f.content.includes('"isAggregatorNode"'));
-        const isDataViewer = f.isDataViewerNode || f.template === 'viewer' || (f.content && typeof f.content === 'string' && f.content.includes('"isDataViewerNode"'));
-        const isApproval = f.isApprovalNode || f.template === 'approval' || (f.content && typeof f.content === 'string' && f.content.includes('"isApprovalNode"'));
-        const isChoice = f.isChoiceNode || f.template === 'choice' || (f.content && typeof f.content === 'string' && f.content.includes('"isChoiceNode"'));
-        const isTextFields = f.isTextFieldsNode || (f.content && typeof f.content === 'string' && f.content.includes('"isTextFieldsNode"'));
-        const isCustomNode = !isAggregator && !isDataViewer && !isApproval && !isChoice && (f.isCustomNode || f.template === 'custom_node' || f.template === 'text_fields' || f.isTextFieldsNode || (f.content && typeof f.content === 'string' && f.content.includes('"isCustomNode"')));
-
-        if (isAggregator) {
-            this.renderAggregatorNode(fileId);
-        } else if (isDataViewer) {
-            this.renderDataViewerNode(fileId);
-        } else if (isApproval) {
-            this.renderApprovalNode(fileId);
-        } else if (isChoice) {
-            this.renderChoiceNode(fileId);
-        } else if (isTextFields) {
-            this.renderTextFieldsNode(fileId);
-        } else if (isCustomNode) {
-            this.renderCustomNode(fileId);
-        }
+        this.renderCustomNode(fileId);
     }
 
     /**
@@ -3448,83 +2832,46 @@ class WindowManager {
      * 커스텀 정의 노드의 UI를 렌더링합니다.
      * (수치/텍스트 입력 항목 + 동작 코드 실행/보기 + Output 결과)
      */
+    /**
+     * 조립된 UI 위젯 목록(widgets)을 기반으로 노드 윈도우 UI를 통합 렌더링합니다.
+     */
     async renderCustomNode(fileId) {
         const info = this.getWindowInfo(fileId);
-        if (!info) return;
+        if (!info || !info.file) return;
 
-        const windowEl = info.element;
-        if (!windowEl) return;
+        const container = info.element.querySelector('.custom-node-body') || info.element.querySelector('.window-body');
+        if (!container) return;
 
-        const body = windowEl.querySelector('.window-body');
-        if (!body) return;
+        const norm = window.nodeEngine?.normalizeNodeData(info.file);
+        const { contentData, widgets } = norm || {};
 
-        let data = {};
-        try {
-            data = JSON.parse(info.file.content || '{}');
-        } catch (e) {
-            data = {};
+        const onUpdate = (updatedContentData) => {
+            info.file.content = JSON.stringify(updatedContentData, null, 2);
+            window.storage?.updateFile(fileId, { content: info.file.content });
+            this.notifyNodeChanged(fileId, 'outputChange');
+        };
+
+        let widgetsHtml = (widgets || []).map(w => window.widgetManager ? window.widgetManager.renderWidget(w, contentData, fileId) : '').join('');
+
+        if (!widgetsHtml) {
+            widgetsHtml = `<div style="font-size: 11px; color: var(--color-text-tertiary); text-align: center; padding: 12px;">등록된 UI 위젯이 없습니다.</div>`;
         }
 
-        let fields = [];
-        if (Array.isArray(data.fields) && data.fields.length > 0) {
-            fields = data.fields;
-        } else if (Array.isArray(info.file.fields) && info.file.fields.length > 0) {
-            fields = info.file.fields;
-        } else if (Array.isArray(data.textFields) && data.textFields.length > 0) {
-            fields = data.textFields.map(f => ({ name: f.name, val: f.val || '', type: 'text', rows: f.rows || 1 }));
-        }
-
-        const textFields = fields.map(f => ({
-            name: f.name,
-            val: f.val ?? '',
-            rows: f.rows || 1,
-            type: 'text'
-        }));
-
-        // 입력 폼 HTML 생성
-        let fieldsHtml = '';
-
-        if (textFields.length > 0) {
-            fieldsHtml += `
-                <div style="margin-bottom: 10px;">
-                    <div style="font-size: 11px; font-weight: 700; color: var(--color-accent-primary); margin-bottom: 6px;">🏷️ 텍스트 입력 항목</div>
-                    ${textFields.map((f, i) => `
-                        <div style="margin-bottom: 8px; background: var(--color-surface-1); padding: 8px 10px; border-radius: 6px; border: 1px solid var(--color-border);">
-                            <div style="font-size: 11px; font-weight: 600; margin-bottom: 4px; color: var(--color-text-secondary);">${this.escapeHtml(f.name)}</div>
-                            <textarea class="input stat-input-field" data-var-name="${this.escapeHtml(f.name)}" data-field-index="${i}" data-field-kind="text" rows="${f.rows || 1}" style="width: 100%; font-size: 12px; line-height: 1.5; resize: vertical; min-height: ${Math.max(30, (f.rows || 1) * 22)}px;" placeholder="${this.escapeHtml(f.name)} 입력">${this.escapeHtml(f.val ?? '')}</textarea>
-                        </div>
-                    `).join('')}
-                </div>
-            `;
-        }
-
-        if (textFields.length === 0) {
-            fieldsHtml = `<div style="font-size: 11px; color: var(--color-text-tertiary); font-style: italic; margin-bottom: 10px; text-align: center; padding: 10px; background: var(--color-surface-1); border-radius: 6px; border: 1px dashed var(--color-border);">직접 입력 항목이 없습니다.</div>`;
-        }
-
-        // 전체 UI 조합 (순수 입력 항목 전용 UI)
-        body.innerHTML = `
-            <div class="custom-node-container" style="padding: 12px; display: flex; flex-direction: column; gap: 10px; box-sizing: border-box;">
-                <!-- 입력 변수 항목 영역 -->
-                ${fieldsHtml}
+        container.innerHTML = `
+            <div style="padding: 10px; display: flex; flex-direction: column; gap: 8px; box-sizing: border-box;">
+                ${widgetsHtml}
             </div>
         `;
 
-        // 1) 입력 필드 실시간 자동 저장
-        body.querySelectorAll('.stat-input-field').forEach(inputEl => {
-            inputEl.addEventListener('input', () => {
-                const varName = inputEl.dataset.varName;
-                const val = inputEl.type === 'number' ? (parseFloat(inputEl.value) || 0) : inputEl.value;
-
-                // data 객체 및 file 업데이트
-                const targetField = fields.find(f => f.name === varName);
-                if (targetField) targetField.val = val;
-
-                data.fields = fields;
-                info.file.content = JSON.stringify(data, null, 2);
-                window.storage?.updateFile(fileId, { content: info.file.content });
-            });
+        // 위젯 전용 이벤트 바인딩 (widgetManager로 위임)
+        (widgets || []).forEach(w => {
+            window.widgetManager?.bindWidgetEvents(container, w, contentData, onUpdate, fileId);
         });
+
+        // 환경 설정 에디터 스타일 적용
+        if (typeof window.toolsPanel?.applySettings === 'function' && window.toolsPanel?.currentSettings) {
+            window.toolsPanel.applySettings(window.toolsPanel.currentSettings);
+        }
     }
 
 
@@ -4156,20 +3503,15 @@ class WindowManager {
             inPortId = inPin?.dataset.portId || 'in_1';
         }
 
-        // aggregator 노드는 input 핀 하나에 여러 연결 허용 (중복 제거 스킵)
-        const targetInfo = this.getWindowInfo(inputId);
-        const isAggregator = targetInfo?.file?.isAggregatorNode ||
-            targetInfo?.file?.template === 'aggregator' ||
-            (targetInfo?.file?.content && typeof targetInfo.file.content === 'string' && targetInfo.file.content.includes('"isAggregatorNode"'));
-
-        const existingInConnIndex = this.nodeConnections.findIndex(c =>
+        // 모든 노드의 입력 핀에 대해 다중 연결선을 허용하되, 완전히 동일한 핀 간 중복 선만 방지
+        const isExactDuplicate = this.nodeConnections.some(c =>
+            String(c.fromId) === String(outputId) && c.fromPortId === outPortId &&
             String(c.toId) === String(inputId) && c.toPortId === inPortId
         );
 
-        let replacedOld = false;
-        if (!isAggregator && existingInConnIndex !== -1) {
-            this.nodeConnections.splice(existingInConnIndex, 1);
-            replacedOld = true;
+        if (isExactDuplicate) {
+            window.showToast?.('이미 동일하게 연결된 포트 핀선입니다. 🔗', 'warning');
+            return;
         }
 
         const connId = 'conn_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
@@ -4185,7 +3527,7 @@ class WindowManager {
 
         this.renderConnections();
         this.saveConnections();
-        window.showToast?.(replacedOld ? 'Input 핀 연결이 새로 교체되었습니다! 🔗' : '노드 포트 핀이 연결되었습니다! 🔗', 'success');
+        window.showToast?.('노드 포트 핀이 연결되었습니다! 🔗', 'success');
 
         // 중앙 이벤트 통보 시스템을 통해 하위 연관 노드 및 UI 연쇄 자동 새로고침!
         this.notifyNodeChanged(outputId, 'connectionChange');
@@ -4341,15 +3683,9 @@ class WindowManager {
             svg.appendChild(pathEl);
         });
 
-        // 리스트 합산기 및 데이터 뷰어 노드가 캔버스에 있는 경우 연결 갱신 반영
+        // 캔버스 노드들의 UI 연결 갱신 반영
         this.windows.forEach((info, fId) => {
-            const f = info.file;
-            if (f.isAggregatorNode || f.template === 'aggregator' || (f.content && typeof f.content === 'string' && f.content.includes('"isAggregatorNode"'))) {
-                this.renderAggregatorNode(fId);
-            }
-            if (f.isDataViewerNode || f.template === 'viewer' || (f.content && typeof f.content === 'string' && f.content.includes('"isDataViewerNode"'))) {
-                this.renderDataViewerNode(fId);
-            }
+            this.refreshNodeUI(fId);
         });
     }
 

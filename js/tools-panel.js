@@ -30,6 +30,11 @@ class ToolsPanel {
         
         this.setupEventListeners();
         this.renderTab('stats');
+
+        // 앱 시작 시 저장된 에디터 설정(글자색, 배경색, 폰트 등) 초기 1회 즉시 적용
+        if (this.settings) {
+            this.applySettings(this.settings);
+        }
     }
 
     setupEventListeners() {
@@ -1079,6 +1084,8 @@ class ToolsPanel {
     }
 
     applySettings(s) {
+        if (!s) return;
+        this.currentSettings = s;
         const root = document.documentElement;
         root.style.setProperty('--color-highlight', s.highlightColor || '#2563eb');
         root.style.setProperty('--color-hyperlink', s.hyperlinkColor || '#58a6ff');
@@ -1089,17 +1096,27 @@ class ToolsPanel {
         const textareas = document.querySelectorAll('.window-textarea');
         const backdrops = document.querySelectorAll('.window-backdrop');
         const editors = document.querySelectorAll('.window-editor');
+        const widgetEditors = document.querySelectorAll('.widget-editor-textarea');
         
         editors.forEach(ed => {
             ed.style.backgroundColor = s.backgroundColor;
         });
 
-        [...textareas, ...backdrops].forEach(el => {
+        [...textareas, ...backdrops, ...widgetEditors].forEach(el => {
             if (!el) return;
             el.style.fontFamily = s.fontFamily;
             el.style.fontSize = s.fontSize + 'px';
             el.style.lineHeight = s.lineHeight;
             el.style.letterSpacing = s.letterSpacing + 'px';
+        });
+
+        widgetEditors.forEach(we => {
+            if (!we) return;
+            we.style.color = s.textColor || '#e6edf3';
+            we.style.caretColor = s.textColor || '#e6edf3';
+            if (s.backgroundColor) {
+                we.style.backgroundColor = s.backgroundColor;
+            }
         });
 
         textareas.forEach(ta => {

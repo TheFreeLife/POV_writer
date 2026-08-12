@@ -62,6 +62,9 @@
             <button id="runTargetNodeBtn" class="btn btn-secondary btn-sm" style="width: 100%; justify-content: flex-start; gap: 8px; font-weight: 600;">
               <span>🎯</span> 목표(End) 노드 연산
             </button>
+            <button id="stopGraphExecBtn" class="btn btn-danger btn-sm" style="width: 100%; justify-content: flex-start; gap: 8px; font-weight: 700; background: rgba(231,76,60,0.15); color: #ff6b6b; border: 1px solid rgba(231,76,60,0.4);">
+              <span>🛑</span> 모든 실행 중단
+            </button>
             <div style="height: 1px; background: var(--color-border); margin: 2px 0;"></div>
             <label style="display: flex; align-items: center; justify-content: space-between; cursor: pointer; font-size: 11px; font-weight: 600; color: var(--color-text-secondary); padding: 4px 6px; user-select: none;">
               <span style="display: flex; align-items: center; gap: 6px;">⚡ 실시간 자동 연산</span>
@@ -128,16 +131,28 @@
       </section>
 
       <style>
-        /* 실행 중인 노드 하이라이트 애니메이션 */
+        /* 실행 중인 노드 초록색 Glowing 하이라이트 애니메이션 */
         .editor-window.node-executing {
-          border-color: #00ffcc !important;
-          box-shadow: 0 0 25px rgba(0, 255, 204, 0.6), inset 0 0 15px rgba(0, 255, 204, 0.2) !important;
-          animation: pulse-executing 1.2s infinite ease-in-out !important;
+          border-color: #2ecc71 !important;
+          box-shadow: 0 0 25px rgba(46, 204, 113, 0.75), inset 0 0 15px rgba(46, 204, 113, 0.3) !important;
+          animation: pulse-executing 1s infinite ease-in-out !important;
         }
         @keyframes pulse-executing {
-          0% { box-shadow: 0 0 15px rgba(0, 255, 204, 0.4); }
-          50% { box-shadow: 0 0 30px rgba(0, 255, 204, 0.85); }
-          100% { box-shadow: 0 0 15px rgba(0, 255, 204, 0.4); }
+          0% { box-shadow: 0 0 15px rgba(46, 204, 113, 0.4); border-color: #2ecc71 !important; }
+          50% { box-shadow: 0 0 30px rgba(46, 204, 113, 0.9); border-color: #27ae60 !important; }
+          100% { box-shadow: 0 0 15px rgba(46, 204, 113, 0.4); border-color: #2ecc71 !important; }
+        }
+
+        /* 승인 대기(일시 정지) 중인 노드 하이라이트 애니메이션 */
+        .editor-window.node-paused {
+          border-color: #f1c40f !important;
+          box-shadow: 0 0 25px rgba(241, 196, 15, 0.7), inset 0 0 15px rgba(241, 196, 15, 0.3) !important;
+          animation: pulse-paused 1.5s infinite ease-in-out !important;
+        }
+        @keyframes pulse-paused {
+          0% { box-shadow: 0 0 15px rgba(241, 196, 15, 0.4); border-color: #f39c12 !important; }
+          50% { box-shadow: 0 0 35px rgba(241, 196, 15, 0.9); border-color: #f1c40f !important; }
+          100% { box-shadow: 0 0 15px rgba(241, 196, 15, 0.4); border-color: #f39c12 !important; }
         }
 
         /* 실행 성공 노드 순간 펄스 */
@@ -252,65 +267,10 @@
         <h2 class="modal-title">➕ 노드 추가</h2>
         <button class="modal-close" id="closeNodeSelectModal">✕</button>
       </div>
-      <div class="modal-body" style="max-height: 480px; overflow-y: auto;">
-        <p class="node-select-subtitle">1. 기본 노드 형태</p>
-        <div class="node-type-grid">
-          
-          <div class="node-type-card" data-preset-type="file">
-            <div class="node-type-icon">📄</div>
-            <div class="node-type-info">
-              <div class="node-type-title">소설 / 원고 노드</div>
-              <div class="node-type-desc">장/절, 챕터 및 소설 원고 텍스트를 작성하는 에디터 노드입니다.</div>
-            </div>
-          </div>
-
-
-          <div class="node-type-card" data-preset-type="image">
-            <div class="node-type-icon">🖼️</div>
-            <div class="node-type-info">
-              <div class="node-type-title">이미지 / 지도 노드</div>
-              <div class="node-type-desc">일러스트, 지형 지도 등 시각 자원 파일을 캔버스에 추가하는 노드입니다.</div>
-            </div>
-          </div>
-
-
-          <div class="node-type-card" data-preset-type="aggregator">
-            <div class="node-type-icon">🔗</div>
-            <div class="node-type-info">
-              <div class="node-type-title">리스트 합산기 노드</div>
-              <div class="node-type-desc">여러 노드의 output을 하나의 Input 핀에 모아 딕셔너리 리스트로 출력하는 어댑터 노드입니다.</div>
-            </div>
-          </div>
-
-          <div class="node-type-card" data-preset-type="viewer">
-            <div class="node-type-icon">👁️</div>
-            <div class="node-type-info">
-              <div class="node-type-title">데이터 뷰어 (디버그 노드)</div>
-              <div class="node-type-desc">Input으로 들어온 데이터나 텍스트를 실시간으로 모니터링하고 그대로 Output으로 통과시키는 디버깅 노드입니다.</div>
-            </div>
-          </div>
-
-          <div class="node-type-card" data-preset-type="approval">
-            <div class="node-type-icon">⏸️</div>
-            <div class="node-type-info">
-              <div class="node-type-title">사용자 승인 노드 (HITL Gate)</div>
-              <div class="node-type-desc">중간 결과물을 확인하고 마음에 들 때까지 상위 연산을 재시도하거나 최종 승인하여 하위 노드로 전파하는 검수 노드입니다.</div>
-            </div>
-          </div>
-
-          <div class="node-type-card" data-preset-type="choice">
-            <div class="node-type-icon">🔀</div>
-            <div class="node-type-info">
-              <div class="node-type-title">사용자 선택 분기 노드 (Branch)</div>
-              <div class="node-type-desc">중간 결과물을 바탕으로 사용자가 직접 분기 옵션(Option A, B...)을 클릭하여 원하는 경로로 스토리를 전개시키는 선택 노드입니다.</div>
-            </div>
-          </div>
-        </div>
-
         <!-- 사용자 정의 커스텀 노드 형태 섹션 (구조 마법사) -->
-        <div id="customPresetsSection" class="mt-lg" style="border-top: 1px solid var(--color-border); padding-top: 16px;">
-          <p class="node-select-subtitle" style="margin-bottom: 12px;">✨ 내가 만든 커스텀 노드 형태 (구조 정의)</p>
-          <div id="customPresetsContainer" class="node-type-grid">
+        <div id="customPresetsSection" style="padding-top: 4px;">
+          <p class="node-select-subtitle" style="margin-bottom: 12px;">✨ 저장된 커스텀 노드 목록</p>
+          <div id="customPresetsContainer" style="display: flex; flex-direction: column; gap: 20px; width: 100%;">
             <!-- 동적으로 저장된 커스텀 노드 구조 카드가 렌더링됩니다 -->
           </div>
         </div>
@@ -350,17 +310,20 @@
         <h2 class="modal-title">✨ 나만의 커스텀 노드 정의 & 목록 추가</h2>
         <button class="modal-close" id="closeCustomWizardModal">✕</button>
       </div>
-      <div class="modal-body" style="padding-top: 10px;">
+      <div class="modal-body" style="padding-top: 10px; max-height: 70vh; overflow-y: auto;">
         <!-- 상단 탭 Nav 버튼 -->
         <div class="wizard-tabs-nav">
           <button type="button" class="wizard-tab-btn active" data-wizard-tab="config">
-            ⚙️ 노드 기본 설정
+            🏷️ 1. 기본 정보
           </button>
-          <button type="button" class="wizard-tab-btn" data-wizard-tab="data">
-            📊 데이터 항목 & 포트
+          <button type="button" class="wizard-tab-btn" data-wizard-tab="ui">
+            🧩 2. UI 레이아웃 조립
+          </button>
+          <button type="button" class="wizard-tab-btn" data-wizard-tab="ports">
+            🔌 3. 포트 핀 설정
           </button>
           <button type="button" class="wizard-tab-btn" data-wizard-tab="code">
-            ⚡ 동작 코드 (JS)
+            ⚡ 4. 연산 스크립트
           </button>
         </div>
 
@@ -377,7 +340,7 @@
               </div>
               <div style="flex: 1;">
                 <label style="font-size: 12px; font-weight: 700; color: var(--color-text-secondary); display: block; margin-bottom: 4px;">노드 이름</label>
-                <input type="text" class="input" id="wizardName" placeholder="노드 이름을 입력하세요 (예: 주인공 상태창)" style="width: 100%; font-size: 13px; font-weight: 600;">
+                <input type="text" class="input" id="wizardName" placeholder="노드 이름을 입력하세요 (예: 캐릭터 정보 설정)" style="width: 100%; font-size: 13px; font-weight: 600;">
               </div>
             </div>
             <div>
@@ -409,23 +372,35 @@
           </div>
         </div>
 
-        <!-- 2. 데이터 탭 (수치 항목 + 텍스트 항목 + 포트 핀 설정) -->
-        <div id="wizardTabContentData" class="wizard-tab-content hidden">
-
-
-          <!-- 텍스트형 입력 항목 -->
-          <div class="node-create-section mt-lg">
-            <div class="flex justify-between items-center mb-sm">
-              <label class="form-label" style="margin: 0;">🏷️ 텍스트형 입력 항목 <span style="font-size: 11px; color: var(--color-text-tertiary); font-weight: 400;">(텍스트로 직접 입력받을 항목)</span></label>
-              <button type="button" class="btn btn-secondary btn-sm" id="wizardAddTextFieldBtn">➕ 항목 추가</button>
+        <!-- 2. UI 레이아웃 조립 탭 (위젯 부품 툴바) -->
+        <div id="wizardTabContentUi" class="wizard-tab-content hidden">
+          <div class="node-create-section">
+            <label class="form-label" style="margin-bottom: 6px;">🧩 노드 UI 위젯 부품 추가 & 레이아웃 배치</label>
+            <div style="font-size: 11px; color: var(--color-text-tertiary); margin-bottom: 12px; line-height: 1.5;">
+              아래 부품 버튼을 클릭하여 노드 창 내부에 렌더링될 UI 요소(입력 폼, 텍스트 뷰어, 승인 게이트 등)를 자유롭게 조립하세요.
             </div>
-            <div id="wizardTextFieldsList" class="stat-fields-list">
-              <!-- 동적 텍스트 항목 추가 -->
+
+            <!-- 위젯 추가 툴바 -->
+            <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; background: var(--color-bg-secondary); padding: 10px; border-radius: 8px; border: 1px solid var(--color-border);">
+              <button type="button" class="btn btn-secondary btn-xs add-widget-btn" data-widget-type="input_text">➕ 📝 텍스트 입력창</button>
+              <button type="button" class="btn btn-secondary btn-xs add-widget-btn" data-widget-type="text_viewer">➕ 👁️ 텍스트 뷰어 (출력)</button>
+              <button type="button" class="btn btn-secondary btn-xs add-widget-btn" data-widget-type="approval_gate">➕ ✅ 검수 승인 게이트</button>
+              <button type="button" class="btn btn-secondary btn-xs add-widget-btn" data-widget-type="choice_select">➕ 🔀 분기 선택 버튼</button>
+              <button type="button" class="btn btn-secondary btn-xs add-widget-btn" data-widget-type="editor_canvas">➕ 📄 원고 에디터</button>
+              <button type="button" class="btn btn-secondary btn-xs add-widget-btn" data-widget-type="image_canvas">➕ 🖼️ 이미지 뷰어</button>
+            </div>
+
+            <!-- 조립된 위젯 목록 -->
+            <div id="wizardWidgetLayoutList" class="stat-fields-list" style="display: flex; flex-direction: column; gap: 8px; min-height: 120px; background: rgba(0,0,0,0.2); padding: 10px; border-radius: 8px; border: 1px dashed var(--color-border);">
+              <!-- 조립된 UI 위젯 항목들이 동적으로 들어옵니다 -->
             </div>
           </div>
+        </div>
 
-          <!-- 포트 핀 설정 -->
-          <div class="node-create-section mt-lg">
+
+        <!-- 3. 포트 핀 설정 탭 -->
+        <div id="wizardTabContentPorts" class="wizard-tab-content hidden">
+          <div class="node-create-section">
             <label class="form-label">노드 포트 (Input / Output 핀) 이름 및 핀 색상 설정</label>
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px;">
               
@@ -945,6 +920,8 @@ return { 총합, 랭크 };</pre>
   <script src="js/backup-manager.js"></script>
   <script src="js/file-tree.js"></script>
   <script src="js/template-manager.js"></script>
+  <script src="js/widget-manager.js"></script>
+  <script src="js/node-manager.js"></script>
   <script src="js/window-manager.js"></script>
   <script src="js/node-engine.js"></script>
 

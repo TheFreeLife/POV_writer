@@ -62,28 +62,71 @@ function showToast(message, type = 'success') {
     }, 3000);
 }
 
-// 전역 유틸리티 등록
+/**
+ * 🌟 프로젝트 진입 시 단일 통합 세션 초기화 (Single Orchestration Pipeline)
+ * 프로젝트 진입 시 필요한 모든 초기화 작업(설정 로드, UI 렌더링, 캔버스 복원, 폰트/색상 스타일 동기화)을 한눈에 관리합니다.
+ */
+async function initProjectSession(projectId) {
+    console.log(`[AppInitializer] 🚀 프로젝트 세션 통합 초기화 시작 (ID: ${projectId})`);
+
+    try {
+        window.currentProjectId = projectId;
+
+        // 1. 전역 설정(에디터 폰트, 색상, 테마) 최신 상태 동기화
+        if (window.toolsPanel) {
+            const settings = window.toolsPanel.loadSettingsSync() || window.toolsPanel.settings;
+            if (settings) {
+                window.toolsPanel.applySettings(settings);
+                console.log(`[AppInitializer] ⚙️ 1. 에디터 글로벌 설정 적용 완료`);
+            }
+        }
+
+        // 2. 프로젝트 데이터 및 사이드바 파일 트리 로드
+        if (window.fileTreeManager) {
+            await window.fileTreeManager.loadProjectFiles(projectId);
+            await window.fileTreeManager.renderCustomNodePresets();
+            console.log(`[AppInitializer] 📁 2. 프로젝트 파일 트리 및 커스텀 노드 프리셋 로드 완료`);
+        }
+
+        // 3. 노드 캔버스 및 저장된 노드 창/연결선 세션 복원
+        if (window.windowManager) {
+            await window.windowManager.restoreSession(projectId);
+            console.log(`[AppInitializer] 📌 3. 노드 캔버스 창 복원 및 핀 연결선 동기화 완료`);
+        }
+
+        // 4. 복원 완료된 노드 윈도우 위젯에 에디터 스타일 final 주입
+        if (window.toolsPanel?.currentSettings) {
+            window.toolsPanel.applySettings(window.toolsPanel.currentSettings);
+            console.log(`[AppInitializer] 🎨 4. 원고 위젯 글자색/배경색 최종 동기화 완료`);
+        }
+
+        console.log(`[AppInitializer] ✅ 프로젝트 세션 통합 초기화 완수!`);
+    } catch (err) {
+        console.error(`[AppInitializer] ❌ 프로젝트 세션 초기화 중 오류 발생:`, err);
+    }
+}
+
+// 전역 유틸리티 및 오케스트레이터 등록
 window.goBackToProjects = goBackToProjects;
 window.showToast = showToast;
+window.initProjectSession = initProjectSession;
 
 /**
- * 앱 초기화
+ * 앱 전체 초기화
  */
 async function initApp() {
     try {
         if (window.storage) await storage.init();
         if (window.projectManager) {
             await projectManager.renderProjectList();
-            projectManager.setupBackupEventListeners(); // 백업 이벤트 등록
+            projectManager.setupBackupEventListeners();
         }
 
-        // 설정 적용 (지연 실행)
-        setTimeout(() => {
-            if (window.toolsPanel) {
-                const settings = window.toolsPanel.loadSettingsSync();
-                window.toolsPanel.applySettings(settings);
-            }
-        }, 100);
+        // 글로벌 환경설정 초기 1회 적용
+        if (window.toolsPanel) {
+            const settings = window.toolsPanel.loadSettingsSync();
+            window.toolsPanel.applySettings(settings);
+        }
 
     } catch (error) {
         console.error('앱 초기화 오류:', error);
