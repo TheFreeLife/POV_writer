@@ -2187,3 +2187,74 @@ input[type="number"] {
   color: var(--color-text-tertiary);
   line-height: 1.4;
 }
+
+/* ===================================
+   화면 밖 노드 레이더 (Edge Indicator)
+   =================================== */
+
+.btn-secondary.active {
+  background: rgba(0, 255, 204, 0.15) !important;
+  border-color: rgba(0, 255, 204, 0.5) !important;
+  color: #00ffcc !important;
+  box-shadow: 0 0 10px rgba(0, 255, 204, 0.2);
+}
+
+.node-guide-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+  z-index: 850;
+  overflow: hidden;
+}
+
+.node-guide-badge {
+  position: absolute;
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  background: rgba(22, 27, 34, 0.88);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(0, 255, 204, 0.4);
+  border-radius: 20px;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  user-select: none;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4), 0 0 10px rgba(0, 255, 204, 0.15);
+  transform: translate(-50%, -50%);
+  transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+  white-space: nowrap;
+}
+
+.node-guide-badge:hover {
+  transform: translate(-50%, -50%) scale(1.08);
+  background: rgba(30, 38, 48, 0.95);
+  border-color: #00ffcc;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.6), 0 0 14px rgba(0, 255, 204, 0.35);
+}
+
+.node-guide-arrow {
+  display: inline-block;
+  font-size: 14px;
+  color: #00ffcc;
+  transition: transform 0.1s ease;
+}
+
+.node-guide-title {
+  max-width: 110px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.node-guide-distance {
+  font-size: 10px;
+  color: var(--color-text-tertiary, #8b949e);
+  font-weight: 400;
+}

@@ -44,6 +44,7 @@ class FileTreeManager {
                     if (presetType === 'stat') this.showNewStatModal();
                     else if (presetType === 'image') this.showNewImageModal();
                     else if (presetType === 'folder_collector') this.createCustomFolderCollectorNode('폴더 자동 수집기', '📂', '선택한 폴더의 모든 노드 자동 수집');
+                    else if (presetType === 'aggregator') this.createAggregatorNode();
                     else this.showNewItemModal('file');
 
                 });
@@ -306,6 +307,41 @@ class FileTreeManager {
         await this.createNewCustomNode(fileData);
     }
 
+
+    /**
+     * 리스트 합산기 노드 생성
+     * - 하나의 Input 핀에 여러 연결 허용
+     * - 연결된 상위 노드 output을 dict 리스트로 합산하여 output
+     */
+    async createAggregatorNode() {
+        const projectId = this.currentProjectId || window.app?.currentProjectId || (await storage.getProjects())?.[0]?.id;
+        if (!projectId) { alert('현재 선택된 프로젝트가 없습니다.'); return; }
+
+        const siblings = (this.files || []).filter(f => !f.parentId);
+        const maxOrder = siblings.length > 0 ? Math.max(...siblings.map(f => f.order || 0)) : -1;
+
+        const created = await storage.createFile({
+            projectId,
+            name: '🔗 리스트 합산기',
+            type: 'file',
+            description: '여러 노드의 output을 하나의 리스트로 모아 출력하는 어댑터 노드',
+            content: JSON.stringify({ isAggregatorNode: true, disabledKeys: [] }),
+            isAggregatorNode: true,
+            template: 'aggregator',
+            portsConfig: {
+                inputs: [{ id: 'agg_in', name: '여기에 연결', color: '#f39c12' }],
+                outputs: [{ id: 'agg_out', name: '합산 리스트', color: '#00ffcc' }]
+            },
+            parentId: null,
+            order: maxOrder + 1
+        });
+
+        if (projectId) await this.loadProjectFiles(projectId);
+        if (created && window.windowManager) {
+            window.windowManager.openWindow(created.id);
+            window.showToast?.(`'${created.name}' 노드가 생성되어 캔버스에 추가되었습니다. 🔗`);
+        }
+    }
 
     /**
      * 이미지 생성 모달 표시

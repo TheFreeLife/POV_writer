@@ -56,6 +56,58 @@ class NodeEngine {
         const input = {};
         const file = info.file;
 
+        // ── aggregator 노드 전용 수집 ──
+        const isAggregator = file.isAggregatorNode || file.template === 'aggregator' ||
+            (typeof file.content === 'string' && file.content.includes('"isAggregatorNode"'));
+
+        if (isAggregator) {
+            let data = {};
+            try { data = JSON.parse(file.content || '{}'); } catch (e) {}
+            const disabledKeys = Array.isArray(data.disabledKeys) ? data.disabledKeys : [];
+
+            const inConns = this._getConnections().filter(c => String(c.toId) === String(fileId));
+
+            // 중복 이름 카운트
+            const keyCount = {};
+            const entries = inConns.map(conn => {
+                const fromInfo = this._getInfo(conn.fromId);
+                const rawName = fromInfo?.file?.name || conn.fromId;
+                const cleanName = rawName.replace(/^[\u{1F300}-\u{1FFFF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]\s*/u, '').trim() || rawName;
+                keyCount[cleanName] = (keyCount[cleanName] || 0) + 1;
+                return { conn, fromInfo, cleanName };
+            });
+
+            const keyIndex = {};
+            const list = [];
+
+            entries.forEach(({ conn, fromInfo, cleanName }) => {
+                let key;
+                if (keyCount[cleanName] > 1) {
+                    keyIndex[cleanName] = (keyIndex[cleanName] || 0) + 1;
+                    key = keyIndex[cleanName] === 1 ? cleanName : `${cleanName}_${keyIndex[cleanName]}`;
+                } else {
+                    key = cleanName;
+                }
+
+                if (disabledKeys.includes(key)) return;
+
+                const upstreamOutput = this.outputCache.get(String(conn.fromId));
+                if (!upstreamOutput) return;
+
+                // 해당 연결의 output 핀 값을 포함
+                const fromPorts = fromInfo?.file?.portsConfig?.outputs ?? [];
+                const fromPort = fromPorts.find(p => p.id === conn.fromPortId) ?? fromPorts[0];
+                const outPinName = fromPort?.name;
+                const value = outPinName !== undefined ? upstreamOutput[outPinName] : upstreamOutput;
+
+                list.push({ [key]: value });
+            });
+
+            // aggregator 표준 input: 합산 리스트
+            input['합산 리스트'] = list;
+            return input;
+        }
+
         // 1) DOM 직접 입력값
         info.element?.querySelectorAll('.stat-input-field[data-var-name]').forEach(el => {
             const name = el.dataset.varName;
@@ -119,6 +171,14 @@ class NodeEngine {
         // ── 코드 없음: 데이터 보관 노드 ──
         if (!code) {
             const input = this.collectInputVars(fileId);
+            // aggregator 노드는 '합산 리스트' 핀으로 직접 output
+            const isAggregator = file.isAggregatorNode || file.template === 'aggregator' ||
+                (typeof file.content === 'string' && file.content.includes('"isAggregatorNode"'));
+            if (isAggregator) {
+                const output = { '합산 리스트': input['합산 리스트'] ?? [] };
+                this.outputCache.set(String(fileId), output);
+                return { output, warnings };
+            }
             const output = Object.fromEntries(pinNames.map(name => [name, input[name] ?? null]));
             this.outputCache.set(String(fileId), output);
             return { output, warnings };

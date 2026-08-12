@@ -40,6 +40,9 @@ class WindowManager {
         this.regionDragState = null;
         this.regionResizeState = null;
 
+        // 노드 레이더 (화면 밖 노드 가이드) 상태
+        this.isNodeGuideEnabled = false;
+
         this.init();
     }
 
@@ -72,6 +75,11 @@ class WindowManager {
         // 캔버스 그룹 영역 추가 버튼
         document.getElementById('addCanvasRegionBtn')?.addEventListener('click', () => {
             this.addCanvasRegion();
+        });
+
+        // 노드 레이더 (화면 밖 노드 가이드) 토글 버튼
+        document.getElementById('toggleNodeGuideBtn')?.addEventListener('click', () => {
+            this.toggleNodeGuide();
         });
 
         // 텍스트 병합 모달 버튼
@@ -246,6 +254,14 @@ class WindowManager {
                     this.resetZoom();
                 }
             }
+            // 노드 레이더 토글 단축키 (Ctrl+Shift+F)
+            if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'F') {
+                const editorScreen = document.getElementById('editorScreen');
+                if (editorScreen && !editorScreen.classList.contains('hidden')) {
+                    e.preventDefault();
+                    this.toggleNodeGuide();
+                }
+            }
         });
     }
 
@@ -307,6 +323,154 @@ class WindowManager {
     }
 
     /**
+     * 노드 레이더 (화면 밖 노드 가이드) 토글
+     */
+    toggleNodeGuide(forceState = null) {
+        this.isNodeGuideEnabled = forceState !== null ? forceState : !this.isNodeGuideEnabled;
+        const btn = document.getElementById('toggleNodeGuideBtn');
+        if (btn) {
+            if (this.isNodeGuideEnabled) {
+                btn.classList.add('active');
+                window.showToast?.('🧭 노드 레이더 ON: 화면 밖 노드 위치가 가장자리에 표시됩니다.', 'info');
+            } else {
+                btn.classList.remove('active');
+                window.showToast?.('🧭 노드 레이더 OFF', 'info');
+            }
+        }
+        this.updateNodeEdgeIndicators();
+    }
+
+    /**
+     * 특정 노드를 캔버스 화면 중앙으로 이동 (Pan만 수행)
+     */
+    panToWindow(fileId) {
+        const info = this.getWindowInfo(fileId);
+        if (!info || !info.element) return;
+
+        const el = info.element;
+        const canvasArea = document.getElementById('canvasArea');
+        if (!canvasArea) return;
+
+        const areaRect = canvasArea.getBoundingClientRect();
+        const w = parseFloat(el.style.width) || el.offsetWidth || 400;
+        const h = parseFloat(el.style.height) || el.offsetHeight || 300;
+        const nodeX = parseFloat(el.style.left) || 0;
+        const nodeY = parseFloat(el.style.top) || 0;
+
+        const nodeCenterX = nodeX + w / 2;
+        const nodeCenterY = nodeY + h / 2;
+
+        this.panX = areaRect.width / 2 - nodeCenterX * this.scale;
+        this.panY = areaRect.height / 2 - nodeCenterY * this.scale;
+
+        this.applyTransform();
+        this.saveProjectCanvasState();
+        this.focusWindow(fileId);
+    }
+
+    /**
+     * 화면 밖 노드 위치 레이더 (Edge Indicators) 실시간 갱신
+     */
+    updateNodeEdgeIndicators() {
+        const overlay = document.getElementById('nodeGuideOverlay');
+        if (!overlay) return;
+
+        if (!this.isNodeGuideEnabled) {
+            overlay.innerHTML = '';
+            return;
+        }
+
+        const canvasArea = document.getElementById('canvasArea');
+        if (!canvasArea) return;
+
+        const areaRect = canvasArea.getBoundingClientRect();
+        const viewW = areaRect.width;
+        const viewH = areaRect.height;
+        if (viewW <= 0 || viewH <= 0) return;
+
+        const centerX = viewW / 2;
+        const centerY = viewH / 2;
+        const PADDING = 45; // 화면 가장자리 여백
+
+        let html = '';
+
+        this.windows.forEach((info, fileId) => {
+            const el = info.element;
+            if (!el) return;
+
+            const nodeX = parseFloat(el.style.left) || 0;
+            const nodeY = parseFloat(el.style.top) || 0;
+            const w = parseFloat(el.style.width) || el.offsetWidth || 400;
+            const h = parseFloat(el.style.height) || el.offsetHeight || 300;
+
+            // 노드의 화면상 실제 경계
+            const screenLeft = nodeX * this.scale + this.panX;
+            const screenTop = nodeY * this.scale + this.panY;
+            const screenRight = screenLeft + w * this.scale;
+            const screenBottom = screenTop + h * this.scale;
+
+            // 노드가 화면 내부에 일정 부분 보이면 스킵
+            const isInView = (
+                screenRight > 30 &&
+                screenLeft < viewW - 30 &&
+                screenBottom > 30 &&
+                screenTop < viewH - 30
+            );
+
+            if (isInView) return;
+
+            // 노드의 화면 중심 좌표
+            const nodeScreenCenterX = (nodeX + w / 2) * this.scale + this.panX;
+            const nodeScreenCenterY = (nodeY + h / 2) * this.scale + this.panY;
+
+            // 방향 벡터
+            const dx = nodeScreenCenterX - centerX;
+            const dy = nodeScreenCenterY - centerY;
+
+            // 화면 경계 박스 교점 계산 (Ray-Box intersection)
+            const halfW = Math.max(10, viewW / 2 - PADDING);
+            const halfH = Math.max(10, viewH / 2 - PADDING);
+
+            const scaleFactor = Math.min(
+                halfW / Math.abs(dx || 0.0001),
+                halfH / Math.abs(dy || 0.0001)
+            );
+
+            const edgeX = centerX + dx * scaleFactor;
+            const edgeY = centerY + dy * scaleFactor;
+
+            // 화살표 회전 각도 (도)
+            const angleDeg = Math.atan2(dy, dx) * (180 / Math.PI);
+
+            // 노드 이름 & 아이콘
+            const file = info.file || {};
+            const icon = file.icon || (file.template ? this.getTemplateIcon(file.template) : '📄');
+            const name = file.name || '노드';
+
+            html += `
+                <div class="node-guide-badge" data-file-id="${fileId}" style="left: ${edgeX}px; top: ${edgeY}px;" title="'${this.escapeHtml(name)}' 노드로 이동">
+                    <span class="node-guide-arrow" style="transform: rotate(${angleDeg}deg);">➔</span>
+                    <span>${icon}</span>
+                    <span class="node-guide-title">${this.escapeHtml(name)}</span>
+                </div>
+            `;
+        });
+
+        overlay.innerHTML = html;
+
+        // 클릭 이벤트 바인딩
+        overlay.querySelectorAll('.node-guide-badge').forEach(badge => {
+            badge.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const fileId = badge.dataset.fileId;
+                if (fileId) {
+                    this.panToWindow(fileId);
+                }
+            });
+        });
+    }
+
+    /**
      * 캔버스 변형 적용 (Scale & Pan)
      */
     applyTransform(container) {
@@ -327,6 +491,9 @@ class WindowManager {
             const dotOpacity = this.scale < 0.5 ? Math.max(0, (this.scale - 0.3) / 0.2) : 1;
             area.style.setProperty('--dot-opacity', dotOpacity);
         }
+
+        // 화면 밖 노드 위치 레이더 갱신
+        this.updateNodeEdgeIndicators();
     }
 
     /**
@@ -445,11 +612,14 @@ class WindowManager {
         this.focusWindow(fileId);
 
         // 폴더 자동 수집 노드 및 커스텀 노드(수치 노드 포함) 초기 렌더링
+        const isAggregator = file.isAggregatorNode || file.template === 'aggregator' || (file.content && typeof file.content === 'string' && file.content.includes('"isAggregatorNode"'));
         const isFolderCollector = file.template === 'folder_collector' || file.isFolderCollectorNode || (file.content && typeof file.content === 'string' && file.content.includes('"isFolderCollectorNode"'));
-        const isCustomNode = !isFolderCollector && (file.isCustomNode || file.template === 'custom_node' || file.template === 'stat' || file.isStatNode || file.template === 'text_fields' || file.isTextFieldsNode || (file.content && typeof file.content === 'string' && (file.content.includes('"isCustomNode"') || file.content.includes('"stats"'))));
+        const isCustomNode = !isFolderCollector && !isAggregator && (file.isCustomNode || file.template === 'custom_node' || file.template === 'stat' || file.isStatNode || file.template === 'text_fields' || file.isTextFieldsNode || (file.content && typeof file.content === 'string' && (file.content.includes('"isCustomNode"') || file.content.includes('"stats"'))));
 
         if (isFolderCollector) {
             this.renderFolderCollectorNode(fileId);
+        } else if (isAggregator) {
+            this.renderAggregatorNode(fileId);
         } else if (isCustomNode) {
             this.renderCustomNode(fileId);
         }
@@ -465,6 +635,7 @@ class WindowManager {
         }
 
         this.renderConnections();
+        this.updateNodeEdgeIndicators();
     }
 
     /**
@@ -733,8 +904,9 @@ class WindowManager {
         const isStat = file.template === 'stat' || file.isStatNode;
         const isTextFields = file.isTextFieldsNode || (file.content && typeof file.content === 'string' && file.content.includes('"isTextFieldsNode"'));
         const isSystemPrompt = file.isSystemPromptNode || (file.content && typeof file.content === 'string' && file.content.includes('"command"'));
+        const isAggregator = file.isAggregatorNode || file.template === 'aggregator' || (file.content && typeof file.content === 'string' && file.content.includes('"isAggregatorNode"'));
         const isFolderCollector = file.template === 'folder_collector' || file.isFolderCollectorNode || (file.content && typeof file.content === 'string' && file.content.includes('"isFolderCollectorNode"'));
-        const isCustomNode = !isFolderCollector && (file.isCustomNode || file.template === 'custom_node' || file.template === 'stat' || file.isStatNode || file.template === 'text_fields' || file.isTextFieldsNode || (file.content && typeof file.content === 'string' && (file.content.includes('"isCustomNode"') || file.content.includes('"stats"'))));
+        const isCustomNode = !isFolderCollector && !isAggregator && (file.isCustomNode || file.template === 'custom_node' || file.template === 'stat' || file.isStatNode || file.template === 'text_fields' || file.isTextFieldsNode || (file.content && typeof file.content === 'string' && (file.content.includes('"isCustomNode"') || file.content.includes('"stats"'))));
 
 
 
@@ -773,6 +945,12 @@ class WindowManager {
             bodyContent = `
                 <div class="stat-calculator-container" id="folderCollectorContainer_${file.id}">
                     <!-- 폴더 자동 수집 노드 UI가 렌더링됩니다 -->
+                </div>
+            `;
+        } else if (isAggregator) {
+            bodyContent = `
+                <div class="stat-calculator-container" id="aggregatorContainer_${file.id}">
+                    <!-- 리스트 합산기 노드 UI가 렌더링됩니다 -->
                 </div>
             `;
         } else if (isCustomNode) {
@@ -1739,6 +1917,8 @@ class WindowManager {
         info.element.remove();
         this.windows.delete(fileId);
         this.selectedWindowIds.delete(fileId);
+
+        this.updateNodeEdgeIndicators();
 
         // 다른 창으로 포커스 이동
         if (this.activeWindowId === fileId) {
@@ -2713,6 +2893,135 @@ class WindowManager {
 
 
 
+
+    /**
+     * 리스트 합산기 노드의 UI를 렌더링합니다.
+     * - 연결된 상위 노드 목록을 보여주고 활성/비활성 토글 제공
+     * - 비활성화된 키는 content.disabledKeys[]에 저장
+     */
+    renderAggregatorNode(fileId) {
+        const info = this.getWindowInfo(fileId);
+        if (!info) return;
+
+        const container = info.element.querySelector(`#aggregatorContainer_${fileId}`);
+        if (!container) return;
+
+        // 저장된 disabledKeys 로드
+        let data = { isAggregatorNode: true, disabledKeys: [] };
+        try { data = JSON.parse(info.file.content || '{}'); } catch (e) {}
+        const disabledKeys = Array.isArray(data.disabledKeys) ? data.disabledKeys : [];
+
+        // 이 노드에 연결된 상위 노드 목록 수집
+        const inConns = (this.nodeConnections || []).filter(c => String(c.toId) === String(fileId));
+
+        const saveDisabled = (newDisabled) => {
+            data.disabledKeys = newDisabled;
+            info.file.content = JSON.stringify(data);
+            window.storage?.updateFile(fileId, { content: info.file.content });
+        };
+
+        if (inConns.length === 0) {
+            container.innerHTML = `
+                <div style="padding: 16px 14px; display: flex; flex-direction: column; gap: 10px; height: 100%; overflow-y: auto;">
+                    <div style="font-size: 11px; font-weight: 700; color: var(--color-accent-primary); margin-bottom: 2px;">🔗 리스트 합산기</div>
+                    <div style="
+                        font-size: 12px; color: var(--color-text-tertiary); text-align: center;
+                        padding: 24px 12px; background: var(--color-surface-1);
+                        border: 1px dashed var(--color-border); border-radius: 8px; line-height: 1.7;
+                    ">
+                        🔌 아직 연결된 노드가 없습니다.<br>
+                        <span style="font-size: 11px;">왼쪽 Input 핀에 여러 노드를 연결하세요.</span>
+                    </div>
+                    <div style="font-size: 11px; color: var(--color-text-tertiary); line-height: 1.6; background: var(--color-surface-1); padding: 8px 10px; border-radius: 6px; border: 1px solid var(--color-border);">
+                        💡 연결된 각 노드의 output이 <b>딕셔너리 항목</b>으로 쌓여<br>
+                        하나의 리스트로 합산됩니다.
+                    </div>
+                </div>
+            `;
+            return;
+        }
+
+        // 연결된 노드 정보 수집 및 키 중복 처리
+        const keyCount = {};
+        const entries = inConns.map(conn => {
+            const fromInfo = this.getWindowInfo(conn.fromId);
+            const rawName = fromInfo?.file?.name || conn.fromId;
+            // 이름에서 이모지 prefix 제거하여 깔끔한 키 만들기
+            const cleanName = rawName.replace(/^[\u{1F300}-\u{1FFFF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]\s*/u, '').trim() || rawName;
+            keyCount[cleanName] = (keyCount[cleanName] || 0) + 1;
+            return { conn, rawName, cleanName, fromInfo };
+        });
+
+        // 중복 키 넘버링
+        const keyIndex = {};
+        const keyedEntries = entries.map(entry => {
+            const base = entry.cleanName;
+            if (keyCount[base] > 1) {
+                keyIndex[base] = (keyIndex[base] || 0) + 1;
+                return { ...entry, key: keyIndex[base] === 1 ? base : `${base}_${keyIndex[base]}` };
+            }
+            return { ...entry, key: base };
+        });
+
+        const rowsHtml = keyedEntries.map(({ key, rawName, conn }) => {
+            const isDisabled = disabledKeys.includes(key);
+            return `
+                <div class="aggregator-row" data-key="${this.escapeHtml(key)}" style="
+                    display: flex; align-items: center; gap: 10px;
+                    background: var(--color-surface-1); border: 1px solid var(--color-border);
+                    border-radius: 8px; padding: 8px 10px;
+                    ${isDisabled ? 'opacity: 0.45;' : ''}
+                ">
+                    <div style="flex: 1; min-width: 0;">
+                        <div style="font-size: 12px; font-weight: 600; color: var(--color-text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${this.escapeHtml(rawName)}">${this.escapeHtml(key)}</div>
+                        <div style="font-size: 10px; color: var(--color-text-tertiary); margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${this.escapeHtml(rawName)}</div>
+                    </div>
+                    <label class="toggle-switch" title="${isDisabled ? '비활성화됨 — 클릭해서 활성화' : '활성화됨 — 클릭해서 비활성화'}" style="flex-shrink: 0;">
+                        <input type="checkbox" class="agg-toggle" data-key="${this.escapeHtml(key)}" ${isDisabled ? '' : 'checked'}>
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+            `;
+        }).join('');
+
+        const activeCount = keyedEntries.filter(e => !disabledKeys.includes(e.key)).length;
+
+        container.innerHTML = `
+            <div style="padding: 12px 12px 10px; display: flex; flex-direction: column; gap: 8px; height: 100%; overflow-y: auto; box-sizing: border-box;">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 2px;">
+                    <span style="font-size: 11px; font-weight: 700; color: var(--color-accent-primary);">🔗 연결된 노드 (${activeCount}/${keyedEntries.length} 활성)</span>
+                    <span style="font-size: 10px; color: var(--color-text-tertiary);">토글로 출력 조정</span>
+                </div>
+                ${rowsHtml}
+                <div style="font-size: 10px; color: var(--color-text-tertiary); line-height: 1.5; margin-top: 4px; padding: 6px 8px; background: var(--color-surface-1); border-radius: 6px; border: 1px solid var(--color-border);">
+                    💡 키 = 노드 이름 / 값 = 해당 노드의 output 핀 값<br>
+                    활성화된 항목만 <b>합산 리스트</b>에 포함됩니다.
+                </div>
+            </div>
+        `;
+
+        // 토글 이벤트
+        container.querySelectorAll('.agg-toggle').forEach(chk => {
+            chk.addEventListener('change', () => {
+                const key = chk.dataset.key;
+                const row = chk.closest('.aggregator-row');
+                let cur = Array.isArray(data.disabledKeys) ? [...data.disabledKeys] : [];
+                if (chk.checked) {
+                    cur = cur.filter(k => k !== key);
+                    row.style.opacity = '1';
+                } else {
+                    if (!cur.includes(key)) cur.push(key);
+                    row.style.opacity = '0.45';
+                }
+                saveDisabled(cur);
+                // 헤더 카운트 갱신
+                const activeNow = keyedEntries.filter(e => !cur.includes(e.key)).length;
+                const headerEl = container.querySelector('span[style*="color-accent-primary"]');
+                if (headerEl) headerEl.textContent = `🔗 연결된 노드 (${activeNow}/${keyedEntries.length} 활성)`;
+            });
+        });
+    }
+
     /**
      * 커스텀 정의 노드의 UI를 렌더링합니다.
      * (수치/텍스트 입력 항목 + 동작 코드 실행/보기 + Output 결과)
@@ -3448,12 +3757,18 @@ class WindowManager {
             inPortId = inPin?.dataset.portId || 'in_1';
         }
 
-        const existingInConnIndex = this.nodeConnections.findIndex(c => 
+        // aggregator 노드는 input 핀 하나에 여러 연결 허용 (중복 제거 스킵)
+        const targetInfo = this.getWindowInfo(inputId);
+        const isAggregator = targetInfo?.file?.isAggregatorNode ||
+            targetInfo?.file?.template === 'aggregator' ||
+            (targetInfo?.file?.content && typeof targetInfo.file.content === 'string' && targetInfo.file.content.includes('"isAggregatorNode"'));
+
+        const existingInConnIndex = this.nodeConnections.findIndex(c =>
             String(c.toId) === String(inputId) && c.toPortId === inPortId
         );
 
         let replacedOld = false;
-        if (existingInConnIndex !== -1) {
+        if (!isAggregator && existingInConnIndex !== -1) {
             this.nodeConnections.splice(existingInConnIndex, 1);
             replacedOld = true;
         }
@@ -3478,6 +3793,11 @@ class WindowManager {
             if (info.file.isTextFieldsNode || (info.file.content && typeof info.file.content === 'string' && info.file.content.includes('"isTextFieldsNode"'))) {
                 this.renderTextFieldsNode(fId);
             }
+            if (String(fId) === String(inputId) &&
+                (info.file.isAggregatorNode || info.file.template === 'aggregator' ||
+                 (info.file.content && typeof info.file.content === 'string' && info.file.content.includes('"isAggregatorNode"')))) {
+                this.renderAggregatorNode(fId);
+            }
         });
 
         // 포트 핀 CSS 애니메이션/트랜지션이 완전히 정돈된 후 연결선 위치 재동기화
@@ -3500,9 +3820,14 @@ class WindowManager {
             window.showToast?.('연결선이 삭제되었습니다.');
 
             // 연결 해제 시 노드 실시간 미리보기 갱신
+            const removedConn = this.nodeConnections.find ? null : null; // already removed
             this.windows.forEach((info, fId) => {
                 if (info.file.isTextFieldsNode || (info.file.content && typeof info.file.content === 'string' && info.file.content.includes('"isTextFieldsNode"'))) {
                     this.renderTextFieldsNode(fId);
+                }
+                if (info.file.isAggregatorNode || info.file.template === 'aggregator' ||
+                    (info.file.content && typeof info.file.content === 'string' && info.file.content.includes('"isAggregatorNode"'))) {
+                    this.renderAggregatorNode(fId);
                 }
             });
         }

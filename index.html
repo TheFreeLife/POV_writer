@@ -45,6 +45,7 @@
       <div class="flex gap-md items-center">
         <span id="autoSaveIndicator" class="auto-save-indicator"></span>
         <button class="btn btn-secondary" id="addCanvasRegionBtn" title="캔버스에 그룹 영역 추가">🔲 영역 추가</button>
+        <button class="btn btn-secondary" id="toggleNodeGuideBtn" title="화면 밖 노드 위치를 가장자리에 표시 (토글)">🧭 노드 레이더</button>
         <button class="btn btn-secondary" id="zenModeBtn" title="몰입 모드 (사이드바 숨기기)">🧘 몰입 모드</button>
         <button class="btn btn-secondary" id="saveBtn">💾 저장</button>
       </div>
@@ -97,6 +98,8 @@
         </div>
         <!-- 줌 배율 표시기 -->
         <div id="zoomIndicator" class="zoom-indicator">100%</div>
+        <!-- 화면 밖 노드 가이드 오버레이 -->
+        <div id="nodeGuideOverlay" class="node-guide-overlay"></div>
       </section>
 
       <!-- 우측 리사이저 -->
@@ -225,6 +228,13 @@
             </div>
           </div>
 
+          <div class="node-type-card" data-preset-type="aggregator">
+            <div class="node-type-icon">🔗</div>
+            <div class="node-type-info">
+              <div class="node-type-title">리스트 합산기 노드</div>
+              <div class="node-type-desc">여러 노드의 output을 하나의 Input 핀에 모아 딕셔너리 리스트로 출력하는 어댑터 노드입니다.</div>
+            </div>
+          </div>
 
         </div>
 
