@@ -1247,14 +1247,26 @@ class FileTreeManager {
         row.style.cssText = 'background: var(--color-surface-1); padding: 8px 10px; border-radius: 6px; border: 1px solid var(--color-border);';
 
         row.innerHTML = `
-            <span style="font-size: 13px;">${icon}</span>
-            <input type="text" class="input widget-label-input" value="${this.escapeHtml(defaultLabel)}" placeholder="위젯 라벨 이름" style="flex: 1; font-size: 12px;">
+            <span style="font-size: 13px;" title="${this.escapeHtml(widgetNames[type] || '')}">${icon}</span>
+            <input type="text" class="input widget-label-input field-name" value="${this.escapeHtml(defaultLabel)}" placeholder="위젯 라벨 이름" style="flex: 1; font-size: 12px;">
             <input type="text" class="input widget-key-input" value="${this.escapeHtml(defaultKey)}" placeholder="변수 Key" style="width: 110px; font-size: 11px; font-family: monospace;">
             <button type="button" class="btn btn-danger btn-xs remove-widget-row-btn">✕</button>
         `;
 
-        row.querySelector('.remove-widget-row-btn')?.addEventListener('click', () => row.remove());
+        row.querySelector('.remove-widget-row-btn')?.addEventListener('click', () => {
+            row.remove();
+            this.updateWizardVarChips();
+        });
+
+        // 이름 입력 시 코드 칩 업데이트 및 중복 검사 연동
+        const nameInput = row.querySelector('.widget-label-input');
+        if (nameInput) {
+            this.attachVarNameDuplicateCheck(nameInput);
+            nameInput.addEventListener('input', () => this.updateWizardVarChips());
+        }
+
         list.appendChild(row);
+        this.updateWizardVarChips();
     }
 
     showCustomWizardModal(presetToEdit = null) {
@@ -1402,6 +1414,7 @@ class FileTreeManager {
             '#wizardStatList .stat-field-row .field-name',
             '#wizardTextFieldsList .stat-field-row .field-name',
             '#wizardInputPortList .stat-field-row .field-name',
+            '#wizardWidgetLayoutList .stat-field-row .widget-label-input',
         ];
         const names = [];
         inputVarSelectors.forEach(sel => {

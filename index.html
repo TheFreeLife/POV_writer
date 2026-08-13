@@ -267,6 +267,7 @@
         <h2 class="modal-title">➕ 노드 추가</h2>
         <button class="modal-close" id="closeNodeSelectModal">✕</button>
       </div>
+      <div class="modal-body">
         <!-- 사용자 정의 커스텀 노드 형태 섹션 (구조 마법사) -->
         <div id="customPresetsSection" style="padding-top: 4px;">
           <p class="node-select-subtitle" style="margin-bottom: 12px;">✨ 저장된 커스텀 노드 목록</p>
@@ -274,7 +275,6 @@
             <!-- 동적으로 저장된 커스텀 노드 구조 카드가 렌더링됩니다 -->
           </div>
         </div>
-
       </div>
       <div class="modal-footer" style="display: flex; justify-content: space-between; align-items: center; gap: 12px;">
         <button class="btn btn-primary" id="openCustomWizardBtn">✨ 나만의 커스텀 노드 정의하기</button>
@@ -390,6 +390,11 @@
               <button type="button" class="btn btn-secondary btn-xs add-widget-btn" data-widget-type="image_canvas">➕ 🖼️ 이미지 뷰어</button>
             </div>
 
+            <div style="display: flex; gap: 8px; margin-bottom: 8px; padding: 0 10px; font-size: 11px; font-weight: 700; color: var(--color-text-tertiary);">
+              <span style="flex: 1;">위젯 라벨 (화면 표시 이름)</span>
+              <span style="width: 110px;">데이터 키 (코드용)</span>
+              <span style="width: 26px;"></span>
+            </div>
             <!-- 조립된 위젯 목록 -->
             <div id="wizardWidgetLayoutList" class="stat-fields-list" style="display: flex; flex-direction: column; gap: 8px; min-height: 120px; background: rgba(0,0,0,0.2); padding: 10px; border-radius: 8px; border: 1px dashed var(--color-border);">
               <!-- 조립된 UI 위젯 항목들이 동적으로 들어옵니다 -->

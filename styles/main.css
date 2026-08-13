@@ -331,7 +331,8 @@ body {
   min-width: 400px;
   max-width: 600px;
   max-height: 90vh;
-  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
   animation: slideUp 0.15s ease-out;
 }
 
@@ -369,6 +370,8 @@ body {
 
 .modal-body {
   margin-bottom: var(--spacing-lg);
+  overflow-y: auto;
+  flex: 1;
 }
 
 .modal-footer {
