@@ -1239,7 +1239,7 @@ class FileTreeManager {
 
         const icon = widgetIcons[type] || '🧩';
         const defaultLabel = label || widgetNames[type] || 'UI 위젯';
-        const defaultKey = key || (`var_${Date.now().toString(36).slice(-4)}`);
+        const defaultKey = key || label || defaultLabel;
 
         const row = document.createElement('div');
         row.className = 'stat-field-row flex gap-xs items-center mb-xs';
@@ -1248,8 +1248,8 @@ class FileTreeManager {
 
         row.innerHTML = `
             <span style="font-size: 13px;" title="${this.escapeHtml(widgetNames[type] || '')}">${icon}</span>
-            <input type="text" class="input widget-label-input field-name" value="${this.escapeHtml(defaultLabel)}" placeholder="위젯 라벨 이름" style="flex: 1; font-size: 12px;">
-            <input type="text" class="input widget-key-input" value="${this.escapeHtml(defaultKey)}" placeholder="변수 Key" style="width: 110px; font-size: 11px; font-family: monospace;">
+            <input type="text" class="input widget-label-input field-name" value="${this.escapeHtml(defaultLabel)}" placeholder="항목 제목 (예: 소속)" style="flex: 1; font-size: 12px;">
+            <input type="text" class="input widget-key-input" value="${this.escapeHtml(defaultKey)}" placeholder="변수 Key" style="width: 110px; font-size: 11px; font-family: monospace;" title="코드 작성 시 사용될 변수 Key">
             <button type="button" class="btn btn-danger btn-xs remove-widget-row-btn">✕</button>
         `;
 
@@ -1258,11 +1258,26 @@ class FileTreeManager {
             this.updateWizardVarChips();
         });
 
-        // 이름 입력 시 코드 칩 업데이트 및 중복 검사 연동
         const nameInput = row.querySelector('.widget-label-input');
+        const keyInput = row.querySelector('.widget-key-input');
+
+        let isKeyManuallyEdited = false;
+        if (keyInput) {
+            keyInput.addEventListener('input', () => {
+                isKeyManuallyEdited = true;
+                this.updateWizardVarChips();
+            });
+            this.attachVarNameDuplicateCheck(keyInput);
+        }
+
         if (nameInput) {
             this.attachVarNameDuplicateCheck(nameInput);
-            nameInput.addEventListener('input', () => this.updateWizardVarChips());
+            nameInput.addEventListener('input', () => {
+                if (!isKeyManuallyEdited && keyInput) {
+                    keyInput.value = nameInput.value.trim();
+                }
+                this.updateWizardVarChips();
+            });
         }
 
         list.appendChild(row);
@@ -1404,7 +1419,7 @@ class FileTreeManager {
 
     /**
      * 현재 input 변수 목록을 칩(chip) 형태로 wizardVarChips에 표시합니다.
-     * 클릭하면 코드 에디터에 input.변수명 을 삽입합니다.
+     * 클릭하면 코드 에디터에 input.변수명 또는 input['제목'] 을 삽입합니다.
      */
     updateWizardVarChips() {
         const container = document.getElementById('wizardVarChips');
@@ -1415,6 +1430,7 @@ class FileTreeManager {
             '#wizardTextFieldsList .stat-field-row .field-name',
             '#wizardInputPortList .stat-field-row .field-name',
             '#wizardWidgetLayoutList .stat-field-row .widget-label-input',
+            '#wizardWidgetLayoutList .stat-field-row .widget-key-input',
         ];
         const names = [];
         inputVarSelectors.forEach(sel => {
@@ -1433,15 +1449,18 @@ class FileTreeManager {
         names.forEach(name => {
             const chip = document.createElement('button');
             chip.type = 'button';
-            chip.textContent = `input.${name}`;
-            chip.title = `코드 에디터에 'input.${name}' 삽입`;
+            const isSimpleIdent = /^[a-zA-Z_$][a-zA-Z0-9_$]*$/.test(name);
+            const varExpr = isSimpleIdent ? `input.${name}` : `input['${name}']`;
+
+            chip.textContent = varExpr;
+            chip.title = `코드 에디터에 '${varExpr}' 삽입`;
             chip.style.cssText = 'font-size: 11px; font-family: monospace; padding: 2px 8px; border-radius: 12px; border: 1px solid var(--color-accent-primary); background: transparent; color: var(--color-accent-primary); cursor: pointer;';
             chip.addEventListener('click', () => {
                 const editor = document.getElementById('wizardCodeEditor');
                 if (!editor) return;
                 const start = editor.selectionStart;
                 const end = editor.selectionEnd;
-                const insert = `input.${name}`;
+                const insert = varExpr;
                 editor.value = editor.value.slice(0, start) + insert + editor.value.slice(end);
                 editor.selectionStart = editor.selectionEnd = start + insert.length;
                 editor.focus();
@@ -1481,6 +1500,13 @@ class FileTreeManager {
             const name = row.querySelector('.field-name')?.value.trim();
             if (name) input[name] = `[${name} 샘플 값]`;
         });
+        document.querySelectorAll('#wizardWidgetLayoutList .stat-field-row').forEach((row, idx) => {
+            const label = row.querySelector('.widget-label-input')?.value.trim();
+            const key = row.querySelector('.widget-key-input')?.value.trim();
+            const sampleVal = `[${label || key || '위젯' + (idx + 1)} 샘플 값]`;
+            if (label) input[label] = sampleVal;
+            if (key) input[key] = sampleVal;
+        });
 
         try {
             const fn = new Function('input', `return (async () => { ${code} })()`);
@@ -1497,8 +1523,9 @@ class FileTreeManager {
 
     /**
      * Wizard 내 현재 정의된 모든 변수 이름 목록을 반환합니다.
-     * stat 항목, textfield 항목, input 핀, output 핀 이름을 모두 포함합니다.
-     * @param {HTMLElement|null} excludeEl - 중복 검사에서 제외할 input 요소 (자기 자신 수정 시)
+     * stat 항목, textfield 항목, input 핀, output 핀 및 위젯 라벨/Key 이름을 포함하되,
+     * excludeEl이 속한 동일 위젯 행 내의 라벨/Key는 자기 자신이므로 중복 검사에서 제외합니다.
+     * @param {HTMLElement|null} excludeEl - 중복 검사에서 제외할 input 요소
      */
     getWizardAllVarNames(excludeEl = null) {
         const names = [];
@@ -1512,9 +1539,25 @@ class FileTreeManager {
             document.querySelectorAll(sel).forEach(el => {
                 if (el === excludeEl) return;
                 const v = el.value.trim();
-                if (v) names.push(v);
+                if (v && !names.includes(v)) names.push(v);
             });
         });
+
+        const parentRow = excludeEl?.closest('#wizardWidgetLayoutList .stat-field-row');
+        document.querySelectorAll('#wizardWidgetLayoutList .stat-field-row').forEach(row => {
+            if (row === parentRow) return;
+            const labelEl = row.querySelector('.widget-label-input');
+            const keyEl = row.querySelector('.widget-key-input');
+            if (labelEl && labelEl !== excludeEl) {
+                const lv = labelEl.value.trim();
+                if (lv && !names.includes(lv)) names.push(lv);
+            }
+            if (keyEl && keyEl !== excludeEl) {
+                const kv = keyEl.value.trim();
+                if (kv && !names.includes(kv)) names.push(kv);
+            }
+        });
+
         return names;
     }
 
@@ -1526,7 +1569,7 @@ class FileTreeManager {
         inputEl.addEventListener('blur', () => {
             const val = inputEl.value.trim();
             if (!val) {
-                inputEl.style.borderColor = '';
+                inputEl.style.outline = '';
                 inputEl.title = '';
                 return;
             }
@@ -1534,7 +1577,7 @@ class FileTreeManager {
             if (others.includes(val)) {
                 inputEl.style.outline = '2px solid var(--color-accent-danger)';
                 inputEl.title = `⚠️ '${val}' 이름이 이미 사용 중입니다. 변수명은 노드 내에서 유일해야 합니다.`;
-                window.showToast?.(`⚠️ '${val}' 이름이 이미 사용 중입니다!`, 'error');
+                window.showToast?.(`⚠️ '${val}' 이름이 다른 항목에서 이미 사용 중입니다!`, 'error');
             } else {
                 inputEl.style.outline = '';
                 inputEl.title = '';
@@ -1646,32 +1689,59 @@ class FileTreeManager {
             return;
         }
 
-        // 변수명 중복 검사
-        const allVarInputs = [
-            ...document.querySelectorAll('#wizardStatList .stat-field-row .field-name'),
-            ...document.querySelectorAll('#wizardTextFieldsList .stat-field-row .field-name'),
-            ...document.querySelectorAll('#wizardInputPortList .stat-field-row .field-name'),
-            ...document.querySelectorAll('#wizardOutputPortList .stat-field-row .field-name'),
-        ];
-        const seen = new Set();
+        // 변수명 중복 검사 (다른 항목과의 변수명 충돌만 검사)
+        const usedVarNamesMap = new Map();
         let duplicateEl = null;
         let duplicateName = '';
-        for (const el of allVarInputs) {
-            const v = el.value.trim();
-            if (!v) continue;
-            if (seen.has(v)) {
-                duplicateEl = el;
-                duplicateName = v;
-                break;
+
+        const simpleSelectors = [
+            '#wizardStatList .stat-field-row .field-name',
+            '#wizardTextFieldsList .stat-field-row .field-name',
+            '#wizardInputPortList .stat-field-row .field-name',
+            '#wizardOutputPortList .stat-field-row .field-name',
+        ];
+        for (const sel of simpleSelectors) {
+            for (const el of document.querySelectorAll(sel)) {
+                const v = el.value.trim();
+                if (!v) continue;
+                if (usedVarNamesMap.has(v)) {
+                    duplicateEl = el;
+                    duplicateName = v;
+                    break;
+                }
+                usedVarNamesMap.set(v, el);
             }
-            seen.add(v);
+            if (duplicateEl) break;
         }
+
+        if (!duplicateEl) {
+            document.querySelectorAll('#wizardWidgetLayoutList .stat-field-row').forEach(row => {
+                if (duplicateEl) return;
+                const labelEl = row.querySelector('.widget-label-input');
+                const keyEl = row.querySelector('.widget-key-input');
+                const labelVal = labelEl?.value.trim();
+                const keyVal = keyEl?.value.trim();
+
+                const widgetNames = new Set([labelVal, keyVal].filter(Boolean));
+                for (const n of widgetNames) {
+                    if (usedVarNamesMap.has(n)) {
+                        duplicateEl = labelEl || keyEl;
+                        duplicateName = n;
+                        break;
+                    }
+                }
+                for (const n of widgetNames) {
+                    usedVarNamesMap.set(n, labelEl || keyEl);
+                }
+            });
+        }
+
         if (duplicateEl) {
             duplicateEl.style.outline = '2px solid var(--color-accent-danger)';
             duplicateEl.title = `⚠️ '${duplicateName}' 이름이 중복되었습니다. 변수명은 노드 내에서 유일해야 합니다.`;
             duplicateEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
             duplicateEl.focus();
-            window.showToast?.(`⚠️ 변수명 '${duplicateName}'이 중복됩니다. 저장할 수 없습니다.`, 'error');
+            window.showToast?.(`⚠️ 변수명 '${duplicateName}'이 다른 항목과 중복됩니다. 저장할 수 없습니다.`, 'error');
             return;
         }
 
@@ -1695,7 +1765,7 @@ class FileTreeManager {
         document.querySelectorAll('#wizardWidgetLayoutList .stat-field-row').forEach((row, idx) => {
             const wType = row.dataset.widgetType;
             const wLabel = row.querySelector('.widget-label-input')?.value.trim() || `위젯 ${idx + 1}`;
-            const wKey = row.querySelector('.widget-key-input')?.value.trim() || `var_${idx + 1}`;
+            const wKey = row.querySelector('.widget-key-input')?.value.trim() || wLabel || `var_${idx + 1}`;
             if (wType) {
                 widgets.push({ id: `w_${idx + 1}`, type: wType, label: wLabel, key: wKey });
             }

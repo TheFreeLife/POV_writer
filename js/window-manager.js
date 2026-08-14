@@ -2833,6 +2833,17 @@ class WindowManager {
      * (수치/텍스트 입력 항목 + 동작 코드 실행/보기 + Output 결과)
      */
     /**
+     * 포커스가 맞춰져 있거나 이미 DOM이 생성된 상태에서 DOM 재생성 없이 위젯 값만 선택적(In-place)으로 갱신합니다.
+     */
+    _updateViewerElementsOnly(container, file) {
+        const norm = window.nodeEngine?.normalizeNodeData(file);
+        const { contentData, widgets } = norm || {};
+        (widgets || []).forEach(w => {
+            window.widgetManager?.updateWidgetValueInPlace(container, w, contentData);
+        });
+    }
+
+    /**
      * 조립된 UI 위젯 목록(widgets)을 기반으로 노드 윈도우 UI를 통합 렌더링합니다.
      */
     async renderCustomNode(fileId) {
@@ -2845,6 +2856,15 @@ class WindowManager {
         const norm = window.nodeEngine?.normalizeNodeData(info.file);
         const { contentData, widgets } = norm || {};
 
+        // 🌟 1) 이미 DOM 구성이 완료되어 있는 노드인 경우 (단순 값/데이터 업데이트 시)
+        // DOM 파괴/재생성(innerHTML) 없이 변경된 데이터 값만 선택적 차분 갱신(In-Place Update)하여 성능 최적화!
+        const existingWrapper = container.querySelector('.custom-node-widgets-wrapper');
+        if (existingWrapper) {
+            this._updateViewerElementsOnly(container, info.file);
+            return;
+        }
+
+        // 🌟 2) 최초 렌더링 시에만 HTML 구조 조립 및 DOM 배치
         const onUpdate = (updatedContentData) => {
             info.file.content = JSON.stringify(updatedContentData, null, 2);
             window.storage?.updateFile(fileId, { content: info.file.content });
@@ -2858,7 +2878,7 @@ class WindowManager {
         }
 
         container.innerHTML = `
-            <div style="padding: 10px; display: flex; flex-direction: column; gap: 8px; box-sizing: border-box;">
+            <div class="custom-node-widgets-wrapper" style="padding: 10px; display: flex; flex-direction: column; gap: 8px; box-sizing: border-box;">
                 ${widgetsHtml}
             </div>
         `;
@@ -3710,6 +3730,8 @@ class WindowManager {
             console.warn('시스템 프롬프트 데이터 파싱 실패, 기본값 사용');
         }
 
+        if (container.contains(document.activeElement)) return;
+
         container.innerHTML = `
             <div class="sys-prompt-form" style="padding: 12px; display: flex; flex-direction: column; gap: 10px; height: 100%; overflow-y: auto; background: var(--color-bg-primary);">
                 
@@ -3750,6 +3772,8 @@ class WindowManager {
     renderAiMetaNodeUI(file, win) {
         const container = win.querySelector(`#aiMetaContainer_${file.id}`);
         if (!container) return;
+
+        if (container.contains(document.activeElement)) return;
 
         let metaData = {
             role: "대박을 친 한국의 웹소설 작가 (카카오페이지/네이버 시리즈 스타일)",

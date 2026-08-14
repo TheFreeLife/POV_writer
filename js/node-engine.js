@@ -291,6 +291,13 @@ class NodeEngine {
             if (w.key && contentData[w.key] !== undefined) {
                 input[w.key] = contentData[w.key];
             }
+            if (w.label) {
+                if (w.key && contentData[w.key] !== undefined) {
+                    input[w.label] = contentData[w.key];
+                } else if (contentData[w.label] !== undefined) {
+                    input[w.label] = contentData[w.label];
+                }
+            }
         });
 
         // 2) 상위 연결선(Connections) 유입 데이터 수집 (핀별 다중 연결 수용)

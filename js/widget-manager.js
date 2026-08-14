@@ -21,9 +21,8 @@ class WidgetManager {
                 const currentVal = contentData[key] !== undefined ? contentData[key] : (w.defaultVal || '');
                 return `
                     <div class="widget-item" style="display: flex; flex-direction: column; gap: 4px;">
-                        <label style="font-size: 11px; font-weight: bold; color: var(--color-text-secondary); display: flex; align-items: center; justify-content: space-between;">
-                            <span>📝 ${this.escapeHtml(w.label || '텍스트 입력')}</span>
-                            <span style="font-size: 10px; color: var(--color-text-tertiary); font-family: monospace;">{${this.escapeHtml(key)}}</span>
+                        <label style="font-size: 11px; font-weight: bold; color: var(--color-text-secondary);">
+                            📝 ${this.escapeHtml(w.label || '텍스트 입력')}
                         </label>
                         ${rows > 1 ? `
                             <textarea class="input widget-input-field" data-widget-key="${this.escapeHtml(key)}" rows="${rows}" style="font-family: inherit; font-size: 12px; padding: 8px; resize: vertical; background: var(--color-bg-primary); border: 1px solid var(--color-border); border-radius: 6px; color: var(--color-text-primary);" placeholder="${this.escapeHtml(w.placeholder || '내용을 입력하세요...')}">${this.escapeHtml(currentVal)}</textarea>
@@ -106,7 +105,7 @@ class WidgetManager {
                         <label style="font-size: 11px; font-weight: bold; color: var(--color-text-secondary);">
                             👁️ ${this.escapeHtml(w.label || '모니터링 뷰어')}
                         </label>
-                        <pre style="font-family: var(--font-family-mono); font-size: 11px; background: var(--color-bg-primary); border: 1px solid var(--color-border); border-radius: 6px; padding: 8px; white-space: pre-wrap; word-break: break-all; margin: 0; color: var(--color-text-primary); max-height: 160px; overflow-y: auto;">${this.escapeHtml(displayStr)}</pre>
+                        <pre class="widget-text-viewer-pre" data-widget-key="${this.escapeHtml(key)}" style="font-family: var(--font-family-mono); font-size: 11px; background: var(--color-bg-primary); border: 1px solid var(--color-border); border-radius: 6px; padding: 8px; white-space: pre-wrap; word-break: break-all; margin: 0; color: var(--color-text-primary); max-height: 160px; overflow-y: auto;">${this.escapeHtml(displayStr)}</pre>
                     </div>
                 `;
             },
@@ -204,6 +203,54 @@ class WidgetManager {
         const handler = this.widgets.get(widget.type);
         if (handler && handler.bindEvents) {
             handler.bindEvents(container, widget, contentData, onUpdate, fileId);
+        }
+    }
+
+    /**
+     * DOM 파괴 및 재생성 없이 이미 존재하는 위젯 element의 값(Text/Value/Src)만 선택적으로 차분 갱신합니다.
+     */
+    updateWidgetValueInPlace(container, widget, contentData) {
+        if (!container) return;
+        const key = widget.key;
+
+        if (widget.type === 'text_viewer') {
+            const k = key || 'displayVal';
+            const val = contentData[k] !== undefined ? contentData[k] : (contentData.output || '(결과 데이터 없음)');
+            const displayStr = typeof val === 'object' ? JSON.stringify(val, null, 2) : String(val);
+            const preEl = container.querySelector(`.widget-text-viewer-pre[data-widget-key="${k}"]`) || container.querySelector('pre');
+            if (preEl && preEl.textContent !== displayStr) {
+                preEl.textContent = displayStr;
+            }
+        } else if (widget.type === 'input_text') {
+            const k = key || 'val';
+            const val = contentData[k] !== undefined ? contentData[k] : (widget.defaultVal || '');
+            const inputEl = container.querySelector(`.widget-input-field[data-widget-key="${k}"]`);
+            if (inputEl && document.activeElement !== inputEl && inputEl.value !== val) {
+                inputEl.value = val;
+            }
+        } else if (widget.type === 'editor_canvas') {
+            const k = key || 'editorVal';
+            const val = contentData[k] !== undefined ? contentData[k] : (contentData.content || '');
+            const textarea = container.querySelector(`.widget-editor-textarea[data-widget-key="${k}"]`);
+            if (textarea && document.activeElement !== textarea && textarea.value !== val) {
+                textarea.value = val;
+            }
+        } else if (widget.type === 'image_canvas') {
+            const k = key || 'image_val';
+            const imgSrc = contentData[k] || contentData.image || widget.defaultSrc || '';
+            const imgEl = container.querySelector('.widget-image-preview');
+            if (imgEl && imgEl.getAttribute('src') !== imgSrc) {
+                if (imgSrc) {
+                    imgEl.src = imgSrc;
+                }
+            }
+        } else if (widget.type === 'approval_gate') {
+            const isApproved = !!contentData.isApproved;
+            const statusLabel = container.querySelector('.widget-item span[style*="font-weight: bold"]');
+            if (statusLabel) {
+                statusLabel.style.color = isApproved ? '#2ecc71' : '#f39c12';
+                statusLabel.textContent = isApproved ? '✅ 검수 승인 완료' : '⏸️ 승인 대기 중';
+            }
         }
     }
 
