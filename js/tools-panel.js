@@ -68,21 +68,7 @@ class ToolsPanel {
         
         this.renderTab(tabName);
 
-        // [추가] 통계 탭에서 목표 입력창 이벤트 바인딩
-        if (tabName === 'stats') {
-            const goalInput = document.getElementById('dailyGoalInput');
-            if (goalInput) {
-                goalInput.addEventListener('change', async (e) => {
-                    const newVal = parseInt(e.target.value) || 1000;
-                    this.settings.dailyGoal = newVal;
-                    localStorage.setItem('editorSettings', JSON.stringify(this.settings));
-                    if (window.storage) {
-                        await window.storage.saveGlobalSettings('editorSettings', this.settings);
-                    }
-                    this.updateStats(); // 즉시 갱신
-                });
-            }
-        }
+
 
         // 통계 탭으로 전환될 때 관찰 시작
         const chartContainer = document.getElementById('statsChartContainer');
@@ -137,25 +123,6 @@ class ToolsPanel {
                 <div class="stats-item"><span class="stats-label">문장 수</span><span class="stats-value" id="sentenceCount">0</span></div>
                 <div class="stats-item"><span class="stats-label">단락 수</span><span class="stats-value" id="paragraphCount">0</span></div>
                 <div class="stats-item"><span class="stats-label">노드 / 폴더</span><span class="stats-value" id="fileFolderCount">0 / 0</span></div>
-            </div>
-
-            <!-- 집필 목표 영역 -->
-            <div class="stats-section-title" style="margin-top: 24px; margin-bottom: 12px; font-size: 13px; font-weight: 700; color: var(--color-text-secondary); display: flex; justify-content: space-between; align-items: center;">
-                <span>🎯 오늘의 집필 목표</span>
-                <div style="display: flex; align-items: center; gap: 4px;">
-                    <input type="number" id="dailyGoalInput" value="${this.settings.dailyGoal || 1000}" 
-                        style="width: 60px; height: 24px; font-size: 11px; padding: 0 6px; border-radius: 4px; border: 1px solid var(--color-border); background: var(--color-bg-primary); color: var(--color-text-primary); text-align: right;">
-                    <span style="font-size: 11px; color: var(--color-text-tertiary);">자</span>
-                </div>
-            </div>
-            <div style="background: var(--color-surface-2); padding: 16px; border-radius: 12px; border: 1px solid var(--color-border);">
-                <div style="display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 8px;">
-                    <span id="goalProgressText" style="font-weight: 600; color: var(--color-accent-success);">진행률: 0%</span>
-                    <span id="todayWordCountText" style="color: var(--color-text-tertiary);">0 / ${this.settings.dailyGoal || 1000}자</span>
-                </div>
-                <div style="width: 100%; height: 8px; background: var(--color-bg-tertiary); border-radius: 4px; overflow: hidden;">
-                    <div id="goalProgressBar" style="width: 0%; height: 100%; background: var(--gradient-success); transition: width 0.3s ease;"></div>
-                </div>
             </div>
 
             <div class="stats-section-title" style="margin-top: 24px; margin-bottom: 16px; font-size: 13px; font-weight: 700; color: var(--color-text-secondary); display: flex; align-items: center; gap: 8px;">
@@ -221,9 +188,6 @@ class ToolsPanel {
             if (getEl('fileFolderCount')) getEl('fileFolderCount').textContent = `${fileCount} / ${folderCount}`;
             if (getEl('dialogueCount')) getEl('dialogueCount').textContent = `${dialogueCount.toLocaleString()}회`;
 
-            // 1-1. 집필 목표 업데이트
-            this.updateGoalProgress(charCount);
-
             // 2. 날짜별 기록 업데이트 및 추이 계산
             this.updateStatsHistory(charCount);
 
@@ -232,41 +196,6 @@ class ToolsPanel {
 
         } catch (error) {
             console.error('통계 갱신 실패:', error);
-        }
-    }
-
-    /**
-     * 오늘의 집필 목표 진행률 계산
-     */
-    updateGoalProgress(currentCharCount) {
-        const historyKey = `statsHistory_${this.currentProjectId}`;
-        let history = {};
-        try {
-            history = JSON.parse(localStorage.getItem(historyKey) || '{}');
-        } catch (e) { history = {}; }
-
-        // 어제 날짜 구하기
-        const now = new Date();
-        const yesterday = new Date(now);
-        yesterday.setDate(now.getDate() - 1);
-        const yesterdayStr = yesterday.toISOString().split('T')[0];
-
-        // 어제까지의 누적 글자수 (기록이 없으면 현재 글자수와 동일하다고 가정 -> 오늘 작업량 0)
-        const yesterdayCount = history[yesterdayStr] !== undefined ? history[yesterdayStr] : currentCharCount;
-        
-        // 오늘 작업량 = 현재 전체 글자수 - 어제 전체 글자수
-        const todayCount = Math.max(0, currentCharCount - yesterdayCount);
-        const goal = this.settings.dailyGoal || 1000;
-        const percent = Math.min(100, Math.round((todayCount / goal) * 100));
-
-        const getEl = id => document.getElementById(id);
-        if (getEl('goalProgressText')) getEl('goalProgressText').textContent = `진행률: ${percent}%`;
-        if (getEl('todayWordCountText')) getEl('todayWordCountText').textContent = `${todayCount.toLocaleString()} / ${goal.toLocaleString()}자`;
-        if (getEl('goalProgressBar')) getEl('goalProgressBar').style.width = `${percent}%`;
-        
-        // 100% 달성 시 색상 강조
-        if (percent >= 100 && getEl('goalProgressBar')) {
-            getEl('goalProgressBar').style.background = 'var(--gradient-primary)';
         }
     }
 
