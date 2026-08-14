@@ -63,11 +63,24 @@ class NodeManager {
     async createNode(fileData) {
         if (!window.storage) return null;
         try {
+            let customW = fileData.defaultWidth;
+            let customH = fileData.defaultHeight;
+            if ((!customW || !customH) && typeof fileData.content === 'string') {
+                try {
+                    const parsed = JSON.parse(fileData.content);
+                    if (parsed.defaultWidth) customW = parsed.defaultWidth;
+                    if (parsed.defaultHeight) customH = parsed.defaultHeight;
+                } catch(e) {}
+            }
+
+            const reqW = customW || 520;
+            const reqH = customH || 400;
+
             const defaultState = {
                 x: 120 + Math.floor(Math.random() * 60),
                 y: 120 + Math.floor(Math.random() * 60),
-                width: 440,
-                height: 360,
+                width: reqW,
+                height: reqH,
                 collapsed: false,
                 zIndex: ++this.maxZIndex
             };

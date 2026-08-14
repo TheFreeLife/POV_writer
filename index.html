@@ -369,6 +369,26 @@
                 <span class="toggle-slider"></span>
               </label>
             </div>
+            <!-- 노드 기본 창 크기 설정 -->
+            <div class="wizard-toggle-row" style="margin-top: 10px; display: flex; align-items: center; justify-content: space-between;">
+              <div class="wizard-toggle-info" style="flex: 1;">
+                <span class="wizard-toggle-label">📐 노드 창 기본 크기 지정</span>
+                <span class="wizard-toggle-desc">노드를 캔버스에 추가할 때 열릴 초기 창의 너비(W)와 높이(H)를 설정합니다</span>
+              </div>
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <div style="display: flex; align-items: center; gap: 4px; background: var(--color-bg-primary); padding: 4px 10px; border-radius: 6px; border: 1px solid var(--color-border);">
+                  <span style="font-size: 11px; font-weight: 700; color: var(--color-text-secondary);">W</span>
+                  <input type="number" class="input" id="wizardDefaultWidth" value="520" min="300" max="1600" step="10" style="width: 62px; font-size: 12px; padding: 2px 4px; text-align: right; font-family: monospace; border: none; background: transparent;">
+                  <span style="font-size: 11px; color: var(--color-text-tertiary);">px</span>
+                </div>
+                <span style="font-size: 12px; color: var(--color-text-tertiary); font-weight: bold;">×</span>
+                <div style="display: flex; align-items: center; gap: 4px; background: var(--color-bg-primary); padding: 4px 10px; border-radius: 6px; border: 1px solid var(--color-border);">
+                  <span style="font-size: 11px; font-weight: 700; color: var(--color-text-secondary);">H</span>
+                  <input type="number" class="input" id="wizardDefaultHeight" value="400" min="200" max="1400" step="10" style="width: 62px; font-size: 12px; padding: 2px 4px; text-align: right; font-family: monospace; border: none; background: transparent;">
+                  <span style="font-size: 11px; color: var(--color-text-tertiary);">px</span>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 

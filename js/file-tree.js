@@ -1029,6 +1029,9 @@ class FileTreeManager {
         const iconPrefix = preset.icon ? `${preset.icon} ` : '';
         const nodeName = `${iconPrefix}${rawName}`;
 
+        if (preset.defaultWidth) contentObj.defaultWidth = preset.defaultWidth;
+        if (preset.defaultHeight) contentObj.defaultHeight = preset.defaultHeight;
+
         const fileData = {
             name: nodeName,
             type: 'file',
@@ -1037,7 +1040,9 @@ class FileTreeManager {
             description: nodeDesc,
             code: preset.code || '',
             content: JSON.stringify(contentObj, null, 2),
-            portsConfig: preset.portsConfig || null
+            portsConfig: preset.portsConfig || null,
+            defaultWidth: preset.defaultWidth || 520,
+            defaultHeight: preset.defaultHeight || 400
         };
 
         await this.createNewCustomNode(fileData);
@@ -1316,6 +1321,11 @@ class FileTreeManager {
         const descInput = document.getElementById('wizardDesc');
         if (nameInput) nameInput.value = presetToEdit?.name || '';
         if (descInput) descInput.value = presetToEdit?.desc || '';
+
+        const defWidthInput = document.getElementById('wizardDefaultWidth');
+        const defHeightInput = document.getElementById('wizardDefaultHeight');
+        if (defWidthInput) defWidthInput.value = presetToEdit?.defaultWidth || 520;
+        if (defHeightInput) defHeightInput.value = presetToEdit?.defaultHeight || 400;
 
         const iconBtn = document.getElementById('wizardIconBtn');
         const iconInput = document.getElementById('wizardIcon');
@@ -1803,6 +1813,8 @@ class FileTreeManager {
         const code = document.getElementById('wizardCodeEditor')?.value.trim() || '';
         const promptForName = !!(document.getElementById('wizardPromptForName')?.checked);
         const promptForDesc = !!(document.getElementById('wizardPromptForDesc')?.checked);
+        const defaultWidth = parseInt(document.getElementById('wizardDefaultWidth')?.value) || 520;
+        const defaultHeight = parseInt(document.getElementById('wizardDefaultHeight')?.value) || 400;
         const isEditing = !!this.editingCustomPresetId;
         const presetId = this.editingCustomPresetId || ('preset_' + Date.now());
 
@@ -1819,6 +1831,8 @@ class FileTreeManager {
             portsConfig,
             promptForName,
             promptForDesc,
+            defaultWidth,
+            defaultHeight
         };
 
         await window.storage?.saveCustomNodePreset(presetData);
@@ -1853,7 +1867,9 @@ class FileTreeManager {
                 portsConfig: fileData.portsConfig || null,
                 template: fileData.template || fileData.defaultTemplate || 'custom_node',
                 parentId: null,
-                order: maxOrder + 1
+                order: maxOrder + 1,
+                defaultWidth: fileData.defaultWidth || 520,
+                defaultHeight: fileData.defaultHeight || 400
             };
 
             const created = window.nodeManager ? await window.nodeManager.createNode(dataToCreate) : await storage.createFile(dataToCreate);

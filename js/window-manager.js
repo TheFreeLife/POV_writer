@@ -640,8 +640,20 @@ class WindowManager {
         const canvasArea = document.getElementById('canvasArea');
         if (!container) return;
 
-        const defW = 520;
-        const defH = 400;
+        let contentData = file.contentData;
+        if (!contentData && typeof file.content === 'string') {
+            try {
+                contentData = JSON.parse(file.content);
+            } catch(e) {
+                contentData = {};
+            }
+        }
+        contentData = contentData || {};
+
+        const customDefW = contentData.defaultWidth || file.defaultWidth || file.windowState?.width;
+        const customDefH = contentData.defaultHeight || file.defaultHeight || file.windowState?.height;
+        const defW = customDefW || 520;
+        const defH = customDefH || 400;
 
         let x, y, width = defW, height = defH;
 
@@ -651,8 +663,9 @@ class WindowManager {
         if (savedState && typeof savedState.x === 'number' && typeof savedState.y === 'number') {
             x = savedState.x;
             y = savedState.y;
-            width = savedState.width || defW;
-            height = savedState.height || defH;
+            // 사용자가 직접 창을 드래그해서 크기를 바꾼 적이 있는 경우만 savedState 크기 사용, 아니면 정의 시 지정한 기본 크기(defW/defH) 사용
+            width = (savedState.isUserResized && savedState.width) ? savedState.width : defW;
+            height = (savedState.isUserResized && savedState.height) ? savedState.height : defH;
         } else {
             // 위치 저장이 전혀 없던 신규 노드만 화면 중앙 배치
             const center = this.calculateViewCenter(width, height);
@@ -1700,7 +1713,8 @@ class WindowManager {
                     x: !isNaN(posX) ? posX : win.offsetLeft,
                     y: !isNaN(posY) ? posY : win.offsetTop,
                     width: !isNaN(wVal) ? wVal : win.offsetWidth,
-                    height: !isNaN(hVal) ? hVal : win.offsetHeight
+                    height: !isNaN(hVal) ? hVal : win.offsetHeight,
+                    isUserResized: true
                 });
             }
             this.resizeState = null;
