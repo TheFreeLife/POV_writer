@@ -1215,7 +1215,7 @@ class FileTreeManager {
         document.getElementById('wizardTabContentCode')?.classList.toggle('hidden', tabName !== 'code');
     }
 
-    addWizardWidgetRow(type, label = '', key = '') {
+    addWizardWidgetRow(type, label = '', key = '', rows = 1) {
         const list = document.getElementById('wizardWidgetLayoutList');
         if (!list) return;
 
@@ -1240,17 +1240,29 @@ class FileTreeManager {
         const icon = widgetIcons[type] || '🧩';
         const defaultLabel = label || widgetNames[type] || 'UI 위젯';
         const defaultKey = key || label || defaultLabel;
+        const defaultRows = rows || (type === 'editor_canvas' ? 5 : 1);
+        const showRowsOption = ['input_text', 'editor_canvas', 'text_viewer'].includes(type);
 
         const row = document.createElement('div');
-        row.className = 'stat-field-row flex gap-xs items-center mb-xs';
+        row.className = 'stat-field-row mb-xs';
         row.dataset.widgetType = type;
-        row.style.cssText = 'background: var(--color-surface-1); padding: 8px 10px; border-radius: 6px; border: 1px solid var(--color-border);';
+        row.style.cssText = 'background: var(--color-surface-1); padding: 8px 10px; border-radius: 6px; border: 1px solid var(--color-border); display: flex; gap: 6px; align-items: center; box-sizing: border-box;';
 
         row.innerHTML = `
-            <span style="font-size: 13px;" title="${this.escapeHtml(widgetNames[type] || '')}">${icon}</span>
-            <input type="text" class="input widget-label-input field-name" value="${this.escapeHtml(defaultLabel)}" placeholder="항목 제목 (예: 소속)" style="flex: 1; font-size: 12px;">
-            <input type="text" class="input widget-key-input" value="${this.escapeHtml(defaultKey)}" placeholder="변수 Key" style="width: 110px; font-size: 11px; font-family: monospace;" title="코드 작성 시 사용될 변수 Key">
-            <button type="button" class="btn btn-danger btn-xs remove-widget-row-btn">✕</button>
+            <span style="font-size: 13px; width: 18px; text-align: center; display: inline-block; flex-shrink: 0;" title="${this.escapeHtml(widgetNames[type] || '')}">${icon}</span>
+            <input type="text" class="input widget-label-input field-name" value="${this.escapeHtml(defaultLabel)}" placeholder="항목 제목 (예: 소속)" style="flex: 1; font-size: 12px; min-width: 0;">
+            ${showRowsOption ? `
+                <select class="input widget-rows-input" style="font-size: 11px; padding: 2px 4px; width: 58px; height: 26px; flex-shrink: 0;" title="입력창 기본 세로 높이 (줄 수)">
+                    <option value="1" ${defaultRows == 1 ? 'selected' : ''}>1줄</option>
+                    <option value="2" ${defaultRows == 2 ? 'selected' : ''}>2줄</option>
+                    <option value="3" ${defaultRows == 3 ? 'selected' : ''}>3줄</option>
+                    <option value="5" ${defaultRows == 5 ? 'selected' : ''}>5줄</option>
+                    <option value="8" ${defaultRows == 8 ? 'selected' : ''}>8줄</option>
+                    <option value="12" ${defaultRows == 12 ? 'selected' : ''}>12줄</option>
+                </select>
+            ` : `<div style="width: 58px; flex-shrink: 0;"></div>`}
+            <input type="text" class="input widget-key-input" value="${this.escapeHtml(defaultKey)}" placeholder="변수 Key" style="width: 110px; font-size: 11px; font-family: monospace; flex-shrink: 0;" title="코드 작성 시 사용될 변수 Key">
+            <button type="button" class="btn btn-danger btn-xs remove-widget-row-btn" style="width: 22px; flex-shrink: 0; padding: 2px 0; text-align: center;">✕</button>
         `;
 
         row.querySelector('.remove-widget-row-btn')?.addEventListener('click', () => {
@@ -1330,7 +1342,7 @@ class FileTreeManager {
         if (widgetList) {
             widgetList.innerHTML = '';
             if (Array.isArray(presetToEdit?.widgets) && presetToEdit.widgets.length > 0) {
-                presetToEdit.widgets.forEach(w => this.addWizardWidgetRow(w.type, w.label, w.key));
+                presetToEdit.widgets.forEach(w => this.addWizardWidgetRow(w.type, w.label, w.key, w.rows));
             }
         }
 
@@ -1766,8 +1778,9 @@ class FileTreeManager {
             const wType = row.dataset.widgetType;
             const wLabel = row.querySelector('.widget-label-input')?.value.trim() || `위젯 ${idx + 1}`;
             const wKey = row.querySelector('.widget-key-input')?.value.trim() || wLabel || `var_${idx + 1}`;
+            const wRows = parseInt(row.querySelector('.widget-rows-input')?.value) || (wType === 'editor_canvas' ? 5 : 1);
             if (wType) {
-                widgets.push({ id: `w_${idx + 1}`, type: wType, label: wLabel, key: wKey });
+                widgets.push({ id: `w_${idx + 1}`, type: wType, label: wLabel, key: wKey, rows: wRows });
             }
         });
 

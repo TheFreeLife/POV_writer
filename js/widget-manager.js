@@ -19,16 +19,13 @@ class WidgetManager {
                 const rows = w.rows || 1;
                 const key = w.key || 'val';
                 const currentVal = contentData[key] !== undefined ? contentData[key] : (w.defaultVal || '');
+                const minHeight = rows === 1 ? '32px' : `${Math.max(38, rows * 22)}px`;
                 return `
                     <div class="widget-item" style="display: flex; flex-direction: column; gap: 4px;">
                         <label style="font-size: 11px; font-weight: bold; color: var(--color-text-secondary);">
                             📝 ${this.escapeHtml(w.label || '텍스트 입력')}
                         </label>
-                        ${rows > 1 ? `
-                            <textarea class="input widget-input-field" data-widget-key="${this.escapeHtml(key)}" rows="${rows}" style="font-family: inherit; font-size: 12px; padding: 8px; resize: vertical; background: var(--color-bg-primary); border: 1px solid var(--color-border); border-radius: 6px; color: var(--color-text-primary);" placeholder="${this.escapeHtml(w.placeholder || '내용을 입력하세요...')}">${this.escapeHtml(currentVal)}</textarea>
-                        ` : `
-                            <input type="text" class="input widget-input-field" data-widget-key="${this.escapeHtml(key)}" value="${this.escapeHtml(currentVal)}" style="font-family: inherit; font-size: 12px; padding: 6px 8px; background: var(--color-bg-primary); border: 1px solid var(--color-border); border-radius: 6px; color: var(--color-text-primary);" placeholder="${this.escapeHtml(w.placeholder || '내용을 입력하세요...')}">
-                        `}
+                        <textarea class="input widget-input-field" data-widget-key="${this.escapeHtml(key)}" rows="${rows}" style="font-family: inherit; font-size: 12px; padding: 6px 8px; resize: vertical; min-height: ${minHeight}; background: var(--color-bg-primary); border: 1px solid var(--color-border); border-radius: 6px; color: var(--color-text-primary);" placeholder="${this.escapeHtml(w.placeholder || '내용을 입력하세요...')}">${this.escapeHtml(currentVal)}</textarea>
                     </div>
                 `;
             },
@@ -48,13 +45,15 @@ class WidgetManager {
         this.register('editor_canvas', {
             render: (w, contentData, fileId) => {
                 const key = w.key || 'editorVal';
+                const rows = w.rows || 5;
                 const val = contentData[key] !== undefined ? contentData[key] : (contentData.content || '');
+                const minHeight = `${Math.max(80, rows * 24)}px`;
                 return `
-                    <div class="widget-item" style="display: flex; flex-direction: column; gap: 4px; flex: 1; min-height: 140px;">
+                    <div class="widget-item" style="display: flex; flex-direction: column; gap: 4px; flex: 1; min-height: 100px;">
                         <label style="font-size: 11px; font-weight: bold; color: var(--color-text-secondary);">
                             🖋️ ${this.escapeHtml(w.label || '소설 원고 작성 에디터')}
                         </label>
-                        <textarea class="widget-editor-textarea" data-widget-key="${this.escapeHtml(key)}" style="flex: 1; font-size: 14px; line-height: 1.8; padding: 12px; resize: vertical; border-radius: 8px; border: 1px solid var(--color-border); outline: none;" placeholder="원고 본문을 작성하세요...">${this.escapeHtml(val)}</textarea>
+                        <textarea class="widget-editor-textarea" data-widget-key="${this.escapeHtml(key)}" rows="${rows}" style="flex: 1; font-size: 14px; line-height: 1.8; padding: 12px; resize: vertical; min-height: ${minHeight}; border-radius: 8px; border: 1px solid var(--color-border); outline: none;" placeholder="원고 본문을 작성하세요...">${this.escapeHtml(val)}</textarea>
                     </div>
                 `;
             },
@@ -125,8 +124,11 @@ class WidgetManager {
                             <button type="button" class="btn btn-xs reset-appr-btn" style="font-size: 10px; padding: 2px 6px;">🔄 초기화</button>
                         </div>
                         <div style="display: flex; gap: 6px;">
-                            <button type="button" class="btn btn-success btn-xs approve-gate-btn" style="flex: 1; padding: 6px; font-weight: bold; font-size: 11px;">
-                                ${isApproved ? '✅ 승인 유지' : '✅ 승인 및 진행'}
+                            <button type="button" class="btn btn-warning btn-xs reject-retry-btn" style="flex: 1; padding: 6px; font-weight: bold; font-size: 11px;" title="결과물이 마음에 들지 않을 경우 상위 노드의 작업을 다시 수행합니다">
+                                🛑 반려 및 재시도
+                            </button>
+                            <button type="button" class="btn btn-success btn-xs approve-gate-btn" style="flex: 1; padding: 6px; font-weight: bold; font-size: 11px; background: ${isApproved ? '#27ae60' : '#2ecc71'};">
+                                ${isApproved ? '✅ 승인 상태' : '✅ 승인 및 진행'}
                             </button>
                         </div>
                     </div>
@@ -134,14 +136,57 @@ class WidgetManager {
             },
             bindEvents: (container, w, contentData, onUpdate, fileId) => {
                 const apprBtn = container.querySelector('.approve-gate-btn');
+                const rejectBtn = container.querySelector('.reject-retry-btn');
                 const resetBtn = container.querySelector('.reset-appr-btn');
+
+                // 승인 및 하위 전파 실행
                 if (apprBtn) {
-                    apprBtn.addEventListener('click', () => {
+                    apprBtn.addEventListener('click', async () => {
                         contentData.isApproved = true;
                         onUpdate(contentData);
-                        window.showToast?.('검수가 승인 완료되었습니다! ✅');
+
+                        if (fileId && window.nodeEngine) {
+                            const downstreamIds = window.nodeEngine.getDownstreamNodeIds(fileId);
+                            if (downstreamIds.length > 0) {
+                                window.showToast?.('승인 완료! 하위 노드 연산을 진행합니다... 🚀', 'success');
+                                for (const dId of downstreamIds) {
+                                    await window.nodeEngine.runNode(dId);
+                                }
+                            } else {
+                                window.showToast?.('검수가 승인 완료되었습니다! ✅', 'success');
+                            }
+                        }
                     });
                 }
+
+                // 반려 및 상위 노드 연산 재시도
+                if (rejectBtn) {
+                    rejectBtn.addEventListener('click', async () => {
+                        if (!fileId || !window.nodeEngine) return;
+
+                        const connections = window.nodeEngine._getConnections() || [];
+                        const inConns = connections.filter(c => String(c.toId) === String(fileId));
+
+                        if (inConns.length === 0) {
+                            window.showToast?.('⚠️ 연결된 상위 노드가 없습니다.', 'warning');
+                            return;
+                        }
+
+                        window.showToast?.('🔄 상위 작업 연산을 재시도합니다...');
+                        contentData.isApproved = false;
+                        onUpdate(contentData);
+
+                        for (const conn of inConns) {
+                            window.nodeEngine.clearNodeCache(conn.fromId);
+                            await window.nodeEngine.runNode(conn.fromId);
+                            window.windowManager?.refreshNodeUI(conn.fromId);
+                        }
+
+                        window.showToast?.('✨ 상위 작업이 새로 연산되었습니다!', 'success');
+                    });
+                }
+
+                // 초기화
                 if (resetBtn) {
                     resetBtn.addEventListener('click', () => {
                         contentData.isApproved = false;
@@ -247,9 +292,14 @@ class WidgetManager {
         } else if (widget.type === 'approval_gate') {
             const isApproved = !!contentData.isApproved;
             const statusLabel = container.querySelector('.widget-item span[style*="font-weight: bold"]');
+            const apprBtn = container.querySelector('.approve-gate-btn');
             if (statusLabel) {
                 statusLabel.style.color = isApproved ? '#2ecc71' : '#f39c12';
                 statusLabel.textContent = isApproved ? '✅ 검수 승인 완료' : '⏸️ 승인 대기 중';
+            }
+            if (apprBtn) {
+                apprBtn.style.background = isApproved ? '#27ae60' : '#2ecc71';
+                apprBtn.textContent = isApproved ? '✅ 승인 상태' : '✅ 승인 및 진행';
             }
         }
     }
