@@ -653,7 +653,7 @@ class WindowManager {
         const customDefW = contentData.defaultWidth || file.defaultWidth || file.windowState?.width;
         const customDefH = contentData.defaultHeight || file.defaultHeight || file.windowState?.height;
         const defW = customDefW || 520;
-        const defH = customDefH || 400;
+        const defH = customDefH || 650;
 
         let x, y, width = defW, height = defH;
 

@@ -74,7 +74,7 @@ class NodeManager {
             }
 
             const reqW = customW || 520;
-            const reqH = customH || 400;
+            const reqH = customH || 650;
 
             const defaultState = {
                 x: 120 + Math.floor(Math.random() * 60),

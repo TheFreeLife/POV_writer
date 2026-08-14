@@ -1042,7 +1042,7 @@ class FileTreeManager {
             content: JSON.stringify(contentObj, null, 2),
             portsConfig: preset.portsConfig || null,
             defaultWidth: preset.defaultWidth || 520,
-            defaultHeight: preset.defaultHeight || 400
+            defaultHeight: preset.defaultHeight || 650
         };
 
         await this.createNewCustomNode(fileData);
@@ -1325,7 +1325,7 @@ class FileTreeManager {
         const defWidthInput = document.getElementById('wizardDefaultWidth');
         const defHeightInput = document.getElementById('wizardDefaultHeight');
         if (defWidthInput) defWidthInput.value = presetToEdit?.defaultWidth || 520;
-        if (defHeightInput) defHeightInput.value = presetToEdit?.defaultHeight || 400;
+        if (defHeightInput) defHeightInput.value = presetToEdit?.defaultHeight || 650;
 
         const iconBtn = document.getElementById('wizardIconBtn');
         const iconInput = document.getElementById('wizardIcon');
@@ -1814,7 +1814,7 @@ class FileTreeManager {
         const promptForName = !!(document.getElementById('wizardPromptForName')?.checked);
         const promptForDesc = !!(document.getElementById('wizardPromptForDesc')?.checked);
         const defaultWidth = parseInt(document.getElementById('wizardDefaultWidth')?.value) || 520;
-        const defaultHeight = parseInt(document.getElementById('wizardDefaultHeight')?.value) || 400;
+        const defaultHeight = parseInt(document.getElementById('wizardDefaultHeight')?.value) || 650;
         const isEditing = !!this.editingCustomPresetId;
         const presetId = this.editingCustomPresetId || ('preset_' + Date.now());
 
@@ -1869,7 +1869,7 @@ class FileTreeManager {
                 parentId: null,
                 order: maxOrder + 1,
                 defaultWidth: fileData.defaultWidth || 520,
-                defaultHeight: fileData.defaultHeight || 400
+                defaultHeight: fileData.defaultHeight || 650
             };
 
             const created = window.nodeManager ? await window.nodeManager.createNode(dataToCreate) : await storage.createFile(dataToCreate);
