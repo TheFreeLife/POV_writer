@@ -802,20 +802,24 @@ class ToolsPanel {
         const presets = await this.loadColorPresets();
 
         return `
+          <div style="background: rgba(52, 152, 219, 0.1); border: 1px solid rgba(52, 152, 219, 0.3); padding: 10px 12px; border-radius: 8px; font-size: 11px; color: var(--color-text-secondary); margin-bottom: 14px; line-height: 1.5;">
+            💡 아래 설정 항목들은 오직 <strong>소설 원고 본문 에디터</strong>의 서식 및 스타일(폰트, 색상, 행간 등)에만 전용으로 적용됩니다.
+          </div>
+
           <div class="settings-section">
-            <h3 class="settings-section-title">에디터 기본</h3>
+            <h3 class="settings-section-title">📖 원고 에디터 기본 색상</h3>
             <div class="form-group">
-              <label class="form-label">배경색</label>
+              <label class="form-label">원고 배경색</label>
               <input type="color" class="input" id="editorBgColor" value="${s.backgroundColor}" style="height: 40px; padding: 4px;">
             </div>
             <div class="form-group">
-              <label class="form-label">폰트 색상</label>
+              <label class="form-label">원고 폰트 색상</label>
               <input type="color" class="input" id="editorTextColor" value="${s.textColor}" style="height: 40px; padding: 4px;">
             </div>
             
             <div style="margin-top: 16px; padding-top: 16px; border-top: 1px dashed var(--color-border);">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-                    <span style="font-size: 13px; font-weight: 600; color: var(--color-text-primary);">색상 프리셋</span>
+                    <span style="font-size: 13px; font-weight: 600; color: var(--color-text-primary);">원고 색상 프리셋</span>
                     <button class="btn btn-secondary" id="savePresetBtn" style="padding: 4px 10px; font-size: 11px; height: 28px;">현재 조합 저장</button>
                 </div>
                 
@@ -831,40 +835,31 @@ class ToolsPanel {
                     ${presets.length === 0 ? '<div style="grid-column: 1/-1; font-size: 11px; color: var(--color-text-tertiary); text-align: center; padding: 10px;">저장된 프리셋이 없습니다.</div>' : ''}
                 </div>
             </div>
-
-            <div class="form-group" style="margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--color-border);">
-              <label class="form-label">새 창 기본 너비 <span id="winWidthValue">${s.defaultWinWidth}px</span></label>
-              <input type="range" class="input-range" id="defaultWinWidth" min="360" max="1200" step="10" value="${s.defaultWinWidth}">
-            </div>
-            <div class="form-group">
-              <label class="form-label">새 창 기본 높이 <span id="winHeightValue">${s.defaultWinHeight}px</span></label>
-              <input type="range" class="input-range" id="defaultWinHeight" min="280" max="1000" step="10" value="${s.defaultWinHeight}">
-            </div>
           </div>
 
           <div class="settings-section">
-            <h3 class="settings-section-title">텍스트 스타일</h3>
+            <h3 class="settings-section-title">✍️ 원고 본문 텍스트 스타일</h3>
             <div class="form-group">
-              <label class="form-label">폰트 패밀리</label>
+              <label class="form-label">원고 폰트 종류</label>
               <select class="input" id="editorFontFamily">
-                <option value="'Noto Serif KR', serif" ${s.fontFamily.includes('Noto Serif') ? 'selected' : ''}>본명조</option>
-                <option value="'Noto Sans KR', sans-serif" ${s.fontFamily.includes('Noto Sans') ? 'selected' : ''}>본고딕</option>
+                <option value="'Noto Serif KR', serif" ${s.fontFamily.includes('Noto Serif') ? 'selected' : ''}>본명조 (소설용)</option>
+                <option value="'Noto Sans KR', sans-serif" ${s.fontFamily.includes('Noto Sans') ? 'selected' : ''}>본고딕 (가독성)</option>
                 <option value="Georgia, serif" ${s.fontFamily.includes('Georgia') ? 'selected' : ''}>Georgia</option>
                 <option value="'Courier New', monospace" ${s.fontFamily.includes('Courier') ? 'selected' : ''}>Courier New</option>
               </select>
             </div>
             <div class="form-group">
-              <label class="form-label">폰트 크기 <span id="fontSizeValue">${s.fontSize}px</span></label>
+              <label class="form-label">원고 글자 크기 <span id="fontSizeValue">${s.fontSize}px</span></label>
               <input type="range" class="input-range" id="editorFontSize" min="12" max="48" value="${s.fontSize}">
             </div>
             <div class="form-group">
-              <label class="form-label">행간 (Line Height) <span id="lineHeightValue">${s.lineHeight}</span></label>
+              <label class="form-label">원고 줄 간격 (Line Height) <span id="lineHeightValue">${s.lineHeight}</span></label>
               <input type="range" class="input-range" id="editorLineHeight" min="1.0" max="3.0" step="0.1" value="${s.lineHeight}">
             </div>
           </div>
 
           <div class="settings-section">
-            <h3 class="settings-section-title">기능 및 하이라이트</h3>
+            <h3 class="settings-section-title">✨ 원고 강조색 및 집필 옵션</h3>
             <div class="form-group">
               <label class="form-label">대사/생각 강조색</label>
               <input type="color" class="input" id="highlightColor" value="${s.highlightColor || '#2563eb'}" style="height: 40px; padding: 4px;">
@@ -925,18 +920,6 @@ class ToolsPanel {
         getEl('autoCloseQuotes')?.addEventListener('change', (e) => updatePreview('autoCloseQuotes', e.target.checked));
         getEl('autoSaveToggle')?.addEventListener('change', (e) => updatePreview('autoSave', e.target.checked));
         getEl('autoIndentToggle')?.addEventListener('change', (e) => updatePreview('autoIndent', e.target.checked));
-
-        getEl('defaultWinWidth')?.addEventListener('input', (e) => {
-            const valEl = getEl('winWidthValue');
-            if (valEl) valEl.textContent = e.target.value + 'px';
-            updatePreview('defaultWinWidth', parseInt(e.target.value));
-        });
-
-        getEl('defaultWinHeight')?.addEventListener('input', (e) => {
-            const valEl = getEl('winHeightValue');
-            if (valEl) valEl.textContent = e.target.value + 'px';
-            updatePreview('defaultWinHeight', parseInt(e.target.value));
-        });
 
         // 프리셋 관련 이벤트
         getEl('savePresetBtn')?.addEventListener('click', async () => {
@@ -1021,9 +1004,7 @@ class ToolsPanel {
             highlightColor: '#2563eb',
             hyperlinkColor: '#58a6ff',
             autoCloseQuotes: true,
-            autoSave: true,
-            defaultWinWidth: 520,
-            defaultWinHeight: 400
+            autoSave: true
         };
         try {
             const saved = localStorage.getItem('editorSettings');

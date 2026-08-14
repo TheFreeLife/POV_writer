@@ -849,7 +849,7 @@
     background: transparent;
     z-index: 2;
     caret-color: var(--color-editor-text, #e6edf3); /* 커서 색상도 에디터 전용 색상 사용 */
-    resize: none;
+    resize: vertical;
     -webkit-text-fill-color: transparent; /* 웹킷 브라우저 대응 */
 }
 

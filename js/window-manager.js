@@ -640,10 +640,8 @@ class WindowManager {
         const canvasArea = document.getElementById('canvasArea');
         if (!container) return;
 
-        // 설정에서 기본 창 크기 불러오기
-        const settings = window.toolsPanel?.settings || window.toolsPanel?.loadSettingsSync() || {};
-        const defW = settings.defaultWinWidth || 520;
-        const defH = settings.defaultWinHeight || 400;
+        const defW = 520;
+        const defH = 400;
 
         let x, y, width = defW, height = defH;
 
@@ -2878,7 +2876,7 @@ class WindowManager {
         }
 
         container.innerHTML = `
-            <div class="custom-node-widgets-wrapper" style="padding: 10px; display: flex; flex-direction: column; gap: 8px; box-sizing: border-box;">
+            <div class="custom-node-widgets-wrapper" style="padding: 10px; display: flex; flex-direction: column; gap: 8px; box-sizing: border-box; width: 100%;">
                 ${widgetsHtml}
             </div>
         `;
