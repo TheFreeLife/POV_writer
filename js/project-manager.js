@@ -1,9 +1,12 @@
 /**
- * 프로젝트 관리자
+ * 프로젝트 관리자 (Project Manager)
+ * - 프리미엄 비주얼 카드 UI & 실시간 검색 / 정렬 / 메타데이터 기능 지원
  */
 class ProjectManager {
     constructor() {
         this.currentEditingProject = null;
+        this.searchQuery = '';
+        this.sortBy = 'updated'; // 'updated' | 'name' | 'created'
         this.init();
     }
 
@@ -14,11 +17,26 @@ class ProjectManager {
     setupEventListeners() {
         const getEl = id => document.getElementById(id);
 
+        // 생성 / 백업 모달 트리거
         getEl('newProjectBtn')?.addEventListener('click', () => this.showNewProjectModal());
+        getEl('backupProjectBtn')?.addEventListener('click', () => this.showBackupModal());
+
         getEl('closeNewProjectModal')?.addEventListener('click', () => this.hideNewProjectModal());
         getEl('cancelNewProjectBtn')?.addEventListener('click', () => this.hideNewProjectModal());
         getEl('createProjectBtn')?.addEventListener('click', () => this.createProject());
 
+        // 검색 및 정렬 필터
+        getEl('projectSearchInput')?.addEventListener('input', (e) => {
+            this.searchQuery = e.target.value.trim().toLowerCase();
+            this.renderProjectList();
+        });
+
+        getEl('projectSortSelect')?.addEventListener('change', (e) => {
+            this.sortBy = e.target.value;
+            this.renderProjectList();
+        });
+
+        // 썸네일 업로드 이벤트 (새 프로젝트)
         getEl('thumbnailUpload')?.addEventListener('click', () => getEl('thumbnailInput')?.click());
         
         const thumbnailUpload = getEl('thumbnailUpload');
@@ -48,6 +66,7 @@ class ProjectManager {
             this.handleThumbnailUpload(e.target.files[0], getEl('thumbnailPreview'), getEl('thumbnailPlaceholder'));
         });
 
+        // 편집 모달 관련
         getEl('closeEditProjectModal')?.addEventListener('click', () => this.hideEditProjectModal());
         getEl('cancelEditProjectBtn')?.addEventListener('click', () => this.hideEditProjectModal());
         getEl('saveEditProjectBtn')?.addEventListener('click', () => this.saveEditProject());
@@ -140,7 +159,6 @@ class ProjectManager {
     }
 
     async renderProjectList() {
-        console.log('프로젝트 목록 렌더링 시작');
         const projectList = document.getElementById('projectList');
         if (!projectList) return;
 
@@ -151,41 +169,200 @@ class ProjectManager {
             console.error('프로젝트 데이터 로드 실패:', e);
         }
 
-        projectList.innerHTML = '';
+        // 헤더 통계 업데이트
+        this.updateStatsBar(projects);
 
-        // 프로젝트 카드 렌더링
-        if (Array.isArray(projects) && projects.length > 0) {
-            projects.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
-            projects.forEach(project => {
-                projectList.appendChild(this.createProjectCard(project));
-            });
+        // 검색 필터링
+        let filteredProjects = projects;
+        if (this.searchQuery) {
+            filteredProjects = projects.filter(p => p.name.toLowerCase().includes(this.searchQuery));
         }
 
-        // 새 프로젝트 카드 (항상 마지막에 추가)
+        // 정렬
+        filteredProjects.sort((a, b) => {
+            if (this.sortBy === 'name') {
+                return a.name.localeCompare(b.name, 'ko');
+            } else if (this.sortBy === 'created') {
+                return (b.createdAt || 0) - (a.createdAt || 0);
+            } else {
+                // default: updated
+                return (b.updatedAt || 0) - (a.updatedAt || 0);
+            }
+        });
+
+        projectList.innerHTML = '';
+
+        // 최근 프로젝트 ID 파악 (가장 최근 수정된 프로젝트 1개)
+        const mostRecentId = (projects.length > 0)
+            ? [...projects].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))[0]?.id
+            : null;
+
+        // 프로젝트 카드 렌더링
+        if (filteredProjects.length > 0) {
+            for (const project of filteredProjects) {
+                const card = await this.createProjectCard(project, project.id === mostRecentId);
+                projectList.appendChild(card);
+            }
+        } else if (this.searchQuery) {
+            // 검색 결과 없음
+            const emptyEl = document.createElement('div');
+            emptyEl.className = 'project-empty-state';
+            emptyEl.innerHTML = `
+                <div class="project-empty-icon">🔍</div>
+                <div class="project-empty-title">검색 결과가 없습니다</div>
+                <div class="project-empty-desc">'${this.escapeHtml(this.searchQuery)}'에 해당하는 프로젝트를 찾지 못했습니다.</div>
+            `;
+            projectList.appendChild(emptyEl);
+        }
+
+        // 항상 마지막에 '새 프로젝트 생성' & '백업 및 복구' 인터랙티브 카드 추가
         const newCard = document.createElement('div');
-        newCard.className = 'project-card project-card-new';
+        newCard.className = 'project-card-interactive';
         newCard.innerHTML = `
-            <div class="project-card-new-content">
-                <div class="project-card-new-icon">+</div>
-                <div class="project-card-new-text">새 프로젝트</div>
+            <div class="project-interactive-icon-box">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                </svg>
             </div>
+            <div class="project-interactive-title">새 프로젝트 생성</div>
+            <div class="project-interactive-sub">새 소설 원고 및 스토리 노드 시작하기</div>
         `;
         newCard.onclick = () => this.showNewProjectModal();
         projectList.appendChild(newCard);
 
-        // 3. 백업/복구 통합 관리 카드
         const backupCard = document.createElement('div');
-        backupCard.className = 'project-card project-card-new';
+        backupCard.className = 'project-card-interactive backup-card';
         backupCard.innerHTML = `
-            <div class="project-card-new-content">
-                <div class="project-card-new-icon" style="color: var(--color-text-tertiary);">💾</div>
-                <div class="project-card-new-text">백업 및 복구</div>
+            <div class="project-interactive-icon-box">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+                    <polyline points="17 21 17 13 7 13 7 21"></polyline>
+                    <polyline points="7 3 7 8 15 8"></polyline>
+                </svg>
             </div>
+            <div class="project-interactive-title">백업 및 데이터 복구</div>
+            <div class="project-interactive-sub">POV 백업 파일 내보내기 / 불러오기</div>
         `;
         backupCard.onclick = () => this.showBackupModal();
         projectList.appendChild(backupCard);
+    }
 
-        console.log('프로젝트 목록 렌더링 완료');
+    updateStatsBar(projects) {
+        const countEl = document.getElementById('totalProjectCount');
+        const timeEl = document.getElementById('recentProjectTime');
+
+        if (countEl) countEl.textContent = `${projects.length}개`;
+
+        if (timeEl) {
+            if (projects.length > 0) {
+                const latest = [...projects].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))[0];
+                timeEl.textContent = this.formatRelativeTime(latest.updatedAt);
+            } else {
+                timeEl.textContent = '-';
+            }
+        }
+    }
+
+    async createProjectCard(project, isMostRecent = false) {
+        const card = document.createElement('div');
+        card.className = 'project-card';
+        const thumbnail = project.thumbnail || '';
+
+        // 노드(파일) 개수 비동기 로드
+        let nodeCount = 0;
+        try {
+            if (window.storage?.getProjectFiles) {
+                const files = await storage.getProjectFiles(project.id);
+                nodeCount = Array.isArray(files) ? files.length : 0;
+            }
+        } catch (e) {
+            console.warn('노드 개수 로드 실패:', e);
+        }
+
+        // 아트 플레이스홀더 그라데이션 및 엠블럼 텍스트
+        const artGradient = this.generateArtGradient(project.name);
+        const emblemChar = project.name ? project.name.trim().charAt(0).toUpperCase() : '📖';
+
+        card.innerHTML = `
+            <div class="project-card-thumbnail">
+                ${thumbnail 
+                    ? `<img src="${thumbnail}" class="project-card-thumbnail-img" alt="${this.escapeHtml(project.name)}">
+                       <div class="project-card-thumbnail-overlay"></div>`
+                    : `<div class="project-card-thumbnail-art" style="background: ${artGradient};">
+                         <div class="project-card-emblem">${this.escapeHtml(emblemChar)}</div>
+                       </div>`
+                }
+                ${isMostRecent ? `<div class="project-card-badge">✨ 최근 작업</div>` : ''}
+            </div>
+
+            <div class="project-card-actions">
+                <button class="project-card-action-btn" data-action="edit" title="프로젝트 설정 / 수정">✏️</button>
+                <button class="project-card-action-btn delete-btn" data-action="delete" title="프로젝트 삭제">🗑️</button>
+            </div>
+
+            <div class="project-card-body">
+                <h3 class="project-card-title">${this.escapeHtml(project.name)}</h3>
+                <div class="project-card-meta">
+                    <div class="project-card-meta-item">
+                        <span>🕒</span>
+                        <span>${this.formatRelativeTime(project.updatedAt)}</span>
+                    </div>
+                    <div class="project-card-node-count">
+                        <span>🧩</span>
+                        <span>노드 ${nodeCount}개</span>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        card.onclick = (e) => {
+            if (!e.target.closest('.project-card-action-btn')) {
+                this.openProject(project.id);
+            }
+        };
+
+        card.querySelector('[data-action="edit"]').onclick = (e) => {
+            e.stopPropagation();
+            this.showEditProjectModal(project);
+        };
+
+        card.querySelector('[data-action="delete"]').onclick = (e) => {
+            e.stopPropagation();
+            this.deleteProject(project.id, project.name);
+        };
+
+        return card;
+    }
+
+    generateArtGradient(nameStr) {
+        let hash = 0;
+        for (let i = 0; i < (nameStr || '').length; i++) {
+            hash = nameStr.charCodeAt(i) + ((hash << 5) - hash);
+        }
+        const h1 = Math.abs(hash) % 360;
+        const h2 = (h1 + 60) % 360;
+        return `linear-gradient(135deg, hsl(${h1}, 55%, 22%) 0%, hsl(${h2}, 65%, 12%) 100%)`;
+    }
+
+    formatRelativeTime(timestamp) {
+        if (!timestamp) return '알 수 없음';
+        const now = Date.now();
+        const diffSec = Math.floor((now - timestamp) / 1000);
+
+        if (diffSec < 60) return '방금 전';
+        const diffMin = Math.floor(diffSec / 60);
+        if (diffMin < 60) return `${diffMin}분 전`;
+        const diffHour = Math.floor(diffMin / 60);
+        if (diffHour < 24) return `${diffHour}시간 전`;
+        const diffDay = Math.floor(diffHour / 24);
+        if (diffDay < 30) return `${diffDay}일 전`;
+
+        return new Date(timestamp).toLocaleDateString('ko-KR', {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit'
+        });
     }
 
     // --- 백업 관리 모달 관련 메서드 ---
@@ -294,42 +471,6 @@ class ProjectManager {
         });
     }
 
-    createProjectCard(project) {
-        const card = document.createElement('div');
-        card.className = 'project-card';
-        const thumbnail = project.thumbnail || '';
-
-        card.innerHTML = `
-          <div class="project-card-thumbnail">
-            ${thumbnail ? `<img src="${thumbnail}" class="project-card-thumbnail-img">` : '<div class="project-card-thumbnail-placeholder"><span>📚</span></div>'}
-          </div>
-          <div class="project-card-actions">
-            <button class="project-card-action-btn" data-action="edit">✏️</button>
-            <button class="project-card-action-btn" data-action="delete">🗑️</button>
-          </div>
-          <div class="project-card-body">
-            <div class="project-card-title">${this.escapeHtml(project.name)}</div>
-            <div class="project-card-meta"><span>${this.formatDate(project.updatedAt)}</span></div>
-          </div>
-        `;
-
-        card.onclick = (e) => {
-            if (!e.target.closest('.project-card-action-btn')) this.openProject(project.id);
-        };
-
-        card.querySelector('[data-action="edit"]').onclick = (e) => {
-            e.stopPropagation();
-            this.showEditProjectModal(project);
-        };
-
-        card.querySelector('[data-action="delete"]').onclick = (e) => {
-            e.stopPropagation();
-            this.deleteProject(project.id, project.name);
-        };
-
-        return card;
-    }
-
     async openProject(projectId) {
         window.currentProjectId = projectId;
         const project = await storage.getProject(projectId);
@@ -341,7 +482,7 @@ class ProjectManager {
         document.getElementById('projectScreen')?.classList.add('hidden');
         document.getElementById('editorScreen')?.classList.remove('hidden');
 
-        // 🌟 단일 통합 초기화 오케스트레이터 호출 (한눈에 관리)
+        // 🌟 단일 통합 초기화 오케스트레이터 호출
         if (window.initProjectSession) {
             await window.initProjectSession(projectId);
         } else if (window.windowManager) {
@@ -403,7 +544,6 @@ class ProjectManager {
     }
 
     formatDate(t) { return new Date(t).toLocaleDateString(); }
-    escapeHtml(t) { const d = document.createElement('div'); d.textContent = t; return d.innerHTML; }
 }
 
 // 명시적으로 window에 할당하여 app.js에서 접근 가능하도록 함

@@ -16,18 +16,55 @@
 
   <!-- 프로젝트 선택 화면 -->
   <div id="projectScreen" class="project-screen">
-    <header class="project-header">
-      <div class="project-header-title">
-        <h1>📚 노드 기반 소설 작성 프로그램</h1>
-      </div>
-      <button class="btn btn-primary" id="newProjectBtn">
-        <span>➕</span>
-        <span>새 프로젝트</span>
-      </button>
-    </header>
+    <div class="project-container">
+      <!-- 히어로 헤더 섹션 -->
+      <header class="project-hero">
+        <h1 class="project-hero-title">
+          노드 기반 <span class="highlight">소설 창작 스튜디오</span>
+        </h1>
+        <p class="project-hero-subtitle">
+          서사 구조, 인물 관계, 스토리 플롯 노드를 자유롭게 연결하고 입체적인 소설을 집필하세요.
+        </p>
+        <div class="project-stats-bar" id="projectStatsBar">
+          <div class="project-stats-item">
+            <span>📚 총 프로젝트</span>
+            <strong id="totalProjectCount">0개</strong>
+          </div>
+          <div class="project-stats-divider"></div>
+          <div class="project-stats-item">
+            <span>🕒 최근 활동</span>
+            <strong id="recentProjectTime">-</strong>
+          </div>
+        </div>
+      </header>
 
-    <div id="projectList" class="project-grid">
-      <!-- 프로젝트 카드들이 여기에 동적으로 추가됩니다 -->
+      <!-- 컨트롤 바 (검색, 정렬, 주요 액션) -->
+      <div class="project-controls">
+        <div class="project-search-wrapper">
+          <span class="project-search-icon">🔍</span>
+          <input type="text" id="projectSearchInput" class="project-search-input" placeholder="프로젝트 이름으로 검색..." />
+        </div>
+        <div class="project-controls-right">
+          <select id="projectSortSelect" class="project-sort-select">
+            <option value="updated">최신 수정순</option>
+            <option value="name">이름순</option>
+            <option value="created">생성일순</option>
+          </select>
+          <button class="btn-glass" id="backupProjectBtn">
+            <span>💾</span>
+            <span>백업 및 복구</span>
+          </button>
+          <button class="btn-glow-primary" id="newProjectBtn">
+            <span>➕</span>
+            <span>새 프로젝트</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- 프로젝트 그리드 -->
+      <div id="projectList" class="project-grid">
+        <!-- 프로젝트 카드들이 여기에 동적으로 추가됩니다 -->
+      </div>
     </div>
   </div>
 
