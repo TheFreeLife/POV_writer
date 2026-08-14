@@ -239,10 +239,21 @@
     backdrop-filter: blur(8px);
 }
 
+.btn-glass svg {
+    display: block;
+    color: #8b949e;
+    transition: color 0.2s ease, transform 0.2s ease;
+}
+
 .btn-glass:hover {
     background: rgba(255, 255, 255, 0.1);
     border-color: rgba(255, 255, 255, 0.25);
     transform: translateY(-1px);
+}
+
+.btn-glass:hover svg {
+    color: #e6edf3;
+    transform: scale(1.1);
 }
 
 .btn-glow-primary {
@@ -261,10 +272,19 @@
     box-shadow: 0 4px 16px rgba(88, 166, 255, 0.35);
 }
 
+.btn-glow-primary svg {
+    display: block;
+    transition: transform 0.25s ease;
+}
+
 .btn-glow-primary:hover {
     transform: translateY(-2px);
     box-shadow: 0 6px 24px rgba(88, 166, 255, 0.5);
     background: linear-gradient(135deg, #79b8ff 0%, #2b7fff 100%);
+}
+
+.btn-glow-primary:hover svg {
+    transform: rotate(90deg) scale(1.1);
 }
 
 /* 프로젝트 그리드 */
@@ -301,7 +321,8 @@
     height: 170px;
     position: relative;
     overflow: hidden;
-    background: #121721;
+    background: rgba(22, 27, 34, 1);
+    transform: translateZ(0); /* GPU 하드웨어 가속 동기화 */
 }
 
 .project-card-thumbnail-img {
@@ -309,7 +330,10 @@
     height: 100%;
     object-fit: cover;
     display: block;
-    transition: transform 0.5s ease;
+    transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+    backface-visibility: hidden;
+    transform-origin: center;
+    will-change: transform;
 }
 
 .project-card:hover .project-card-thumbnail-img {
@@ -319,8 +343,9 @@
 .project-card-thumbnail-overlay {
     position: absolute;
     inset: 0;
-    background: linear-gradient(to top, rgba(22, 27, 34, 0.95) 0%, rgba(22, 27, 34, 0.2) 60%, rgba(0, 0, 0, 0.1) 100%);
+    background: linear-gradient(to top, rgba(22, 27, 34, 1) 0%, rgba(22, 27, 34, 0.45) 50%, rgba(0, 0, 0, 0.05) 100%);
     pointer-events: none;
+    z-index: 1;
 }
 
 /* 아트 플레이스홀더 패턴 */
@@ -431,11 +456,16 @@
 
 /* 카드 본문 */
 .project-card-body {
+    position: relative;
+    z-index: 2;
+    margin-top: -6px; /* 썸네일 하단을 불투명 카드 본문이 6px 덮어씌워 틈새 완전 차단 */
     padding: var(--spacing-md) var(--spacing-lg) var(--spacing-lg);
     display: flex;
     flex-direction: column;
     gap: var(--spacing-sm);
     flex: 1;
+    background: #161b22;
+    border-radius: 0 0 var(--radius-xl) var(--radius-xl);
 }
 
 .project-card-title {

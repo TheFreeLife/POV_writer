@@ -41,7 +41,12 @@
       <!-- 컨트롤 바 (검색, 정렬, 주요 액션) -->
       <div class="project-controls">
         <div class="project-search-wrapper">
-          <span class="project-search-icon">🔍</span>
+          <span class="project-search-icon">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+          </span>
           <input type="text" id="projectSearchInput" class="project-search-input" placeholder="프로젝트 이름으로 검색..." />
         </div>
         <div class="project-controls-right">
@@ -51,11 +56,18 @@
             <option value="created">생성일순</option>
           </select>
           <button class="btn-glass" id="backupProjectBtn">
-            <span>💾</span>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+              <polyline points="17 21 17 13 7 13 7 21"></polyline>
+              <polyline points="7 3 7 8 15 8"></polyline>
+            </svg>
             <span>백업 및 복구</span>
           </button>
           <button class="btn-glow-primary" id="newProjectBtn">
-            <span>➕</span>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="12" y1="5" x2="12" y2="19"></line>
+              <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
             <span>새 프로젝트</span>
           </button>
         </div>
