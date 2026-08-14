@@ -323,6 +323,49 @@
     </div>
   </div>
 
+  <!-- 5. 노드 스키마 v2.0 마이그레이션 확인 모달 (방식 B) -->
+  <div id="nodeSchemaUpgradeModal" class="modal-overlay hidden">
+    <div class="modal modal-md" style="max-width: 540px;">
+      <div class="modal-header" style="background: var(--color-surface-2); border-bottom: 1px solid var(--color-border);">
+        <h2 class="modal-title" style="color: var(--color-accent-primary); font-size: 15px;">⚙️ 노드 템플릿 스키마 v2.0 업그레이드 안내</h2>
+        <button class="modal-close" id="closeNodeSchemaUpgradeModal">✕</button>
+      </div>
+      <div class="modal-body" style="padding: 18px 22px;">
+        <div style="font-size: 13px; color: var(--color-text-primary); margin-bottom: 14px; line-height: 1.5; background: var(--color-bg-secondary); padding: 12px 14px; border-radius: 8px; border: 1px solid var(--color-border);">
+          구버전(v1.0)으로 생성된 노드 템플릿이 감지되었습니다.<br>
+          안정적인 캔버스 연산 및 향후 기능 호환을 위해 <strong>최신 v2.0 표준 규격</strong>으로 데이터 보정을 진행합니다.
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 8px; font-size: 12px; background: var(--color-surface-1); padding: 12px; border-radius: 8px; border: 1px solid var(--color-border); margin-bottom: 16px;">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <span style="color: var(--color-text-tertiary);">📌 스키마 버전</span>
+            <span style="font-weight: 700; color: #f1e05a;">v1.0 (레거시) ➔ <strong style="color: var(--color-accent-primary);">v2.0 (최신 규격)</strong></span>
+          </div>
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <span style="color: var(--color-text-tertiary);">🎨 보정 필드 항목</span>
+            <span><code>color</code>, <code>defaultWidth(520)</code>, <code>defaultHeight(650)</code></span>
+          </div>
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <span style="color: var(--color-text-tertiary);">🔒 기존 집필 데이터</span>
+            <span style="color: #2ecc71; font-weight: 700;">100% 안전 보존 (단 1글자도 변경 없음)</span>
+          </div>
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <span style="color: var(--color-text-tertiary);">🎯 적용 범위</span>
+            <span style="font-weight: 600;">노드 추가 창 DB 원본 & 캔버스 노드 전체</span>
+          </div>
+        </div>
+
+        <div id="legacyPresetsListPreview" style="font-size: 11px; color: var(--color-text-tertiary); max-height: 100px; overflow-y: auto; background: var(--color-bg-primary); padding: 8px 10px; border-radius: 6px; border: 1px dashed var(--color-border);">
+          <!-- 감지된 레거시 프리셋 목록이 표시됩니다 -->
+        </div>
+      </div>
+      <div class="modal-footer" style="display: flex; justify-content: space-between; align-items: center; gap: 10px;">
+        <button type="button" class="btn btn-secondary" id="cancelNodeSchemaUpgradeBtn">나중에 하기</button>
+        <button type="button" class="btn btn-primary" id="confirmNodeSchemaUpgradeBtn" style="font-weight: 700; padding: 8px 16px;">✨ 최신 v2.0으로 템플릿 DB & 노드 업그레이드</button>
+      </div>
+    </div>
+  </div>
+
   <!-- 노드 템플릿 선택 모달 (독립 모달) -->
   <div id="nodeTemplateSelectModal" class="modal-overlay hidden">
     <div class="modal modal-lg">

@@ -1,10 +1,16 @@
 [
   {
+    "schemaVersion": "2.0",
+    "createdAt": 1723642800000,
+    "updatedAt": 1723642800000,
     "id": "preset_sys_character",
     "name": "👤 캐릭터 설정 카드",
     "icon": "👤",
     "desc": "이름, 소속, 성격, 특이사항 입력란과 프로필 생성 코드가 포함된 기본 노드",
     "category": "character",
+    "color": "#7b68ee",
+    "defaultWidth": 520,
+    "defaultHeight": 650,
     "isDefault": true,
     "promptForName": true,
     "promptForDesc": false,
@@ -15,6 +21,7 @@
         "label": "캐릭터 이름",
         "key": "name",
         "rows": 1,
+        "defaultVal": "",
         "placeholder": "이름을 입력하세요 (예: 강현우)"
       },
       {
@@ -23,6 +30,7 @@
         "label": "소속 / 정체",
         "key": "role",
         "rows": 1,
+        "defaultVal": "",
         "placeholder": "소속 및 정체 (예: 중앙 아카데미 3학년)"
       },
       {
@@ -31,6 +39,7 @@
         "label": "성격 및 주요 특징",
         "key": "traits",
         "rows": 3,
+        "defaultVal": "",
         "placeholder": "캐릭터 성격, 외모, 배경 특징..."
       }
     ],

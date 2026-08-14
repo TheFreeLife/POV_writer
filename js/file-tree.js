@@ -27,6 +27,13 @@ class FileTreeManager {
         document.getElementById('closeNodeSelectModal')?.addEventListener('click', () => this.hideNodeSelectModal());
         document.getElementById('cancelNodeSelectBtn')?.addEventListener('click', () => this.hideNodeSelectModal());
 
+        // 노드 스키마 v2.0 업그레이드 마이그레이션 모달 (방식 B) 리스너
+        document.getElementById('closeNodeSchemaUpgradeModal')?.addEventListener('click', () => this.hideNodeSchemaUpgradeModal());
+        document.getElementById('cancelNodeSchemaUpgradeBtn')?.addEventListener('click', () => this.hideNodeSchemaUpgradeModal());
+        document.getElementById('confirmNodeSchemaUpgradeBtn')?.addEventListener('click', async () => {
+            await this.executeNodeSchemaUpgradeToV2();
+        });
+
         // 노드 카테고리 관리 모달 리스너
         const chipsBar = document.getElementById('nodeCategoryFilterChips');
         if (chipsBar) {
@@ -894,10 +901,95 @@ class FileTreeManager {
         document.getElementById('existingNodeOpenModal')?.classList.add('hidden');
     }
 
+    async checkAndPromptSchemaUpgrade() {
+        const userPresets = await window.storage?.getCustomNodePresets() || [];
+        const legacyPresets = userPresets.filter(p => !p.schemaVersion || p.schemaVersion !== '2.0');
+        if (legacyPresets.length === 0) return false;
+
+        const modal = document.getElementById('nodeSchemaUpgradeModal');
+        const previewList = document.getElementById('legacyPresetsListPreview');
+        if (!modal) return false;
+
+        if (previewList) {
+            previewList.innerHTML = `
+                <div style="font-weight: 700; margin-bottom: 6px; color: var(--color-text-secondary);">📋 업그레이드 보정 대상 레거시(v1.0) 템플릿 목록 (${legacyPresets.length}개):</div>
+                <div style="display: flex; flex-direction: column; gap: 4px;">
+                ${legacyPresets.map(p => `
+                    <div style="background: var(--color-surface-1); padding: 6px 10px; border-radius: 6px; border: 1px solid var(--color-border); display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <span style="font-size: 12px; font-weight: 700; color: var(--color-text-primary);">${p.icon || '📄'} ${this.escapeHtml(p.name)}</span>
+                            <span style="font-size: 10px; color: var(--color-text-tertiary); margin-left: 6px;">(ID: ${p.id})</span>
+                        </div>
+                        <span style="font-size: 10px; color: #f1e05a; background: var(--color-bg-secondary); padding: 2px 6px; border-radius: 4px; font-weight: 600;">
+                            보정: v2.0 스키마 + 기본 크기/색상 명시
+                        </span>
+                    </div>
+                `).join('')}
+                </div>
+            `;
+        }
+
+        modal.classList.remove('hidden');
+        return true;
+    }
+
+    hideNodeSchemaUpgradeModal() {
+        document.getElementById('nodeSchemaUpgradeModal')?.classList.add('hidden');
+    }
+
+    async executeNodeSchemaUpgradeToV2() {
+        const userPresets = await window.storage?.getCustomNodePresets() || [];
+        let upgradedCount = 0;
+
+        const now = Date.now();
+        userPresets.forEach(preset => {
+            if (!preset.schemaVersion || preset.schemaVersion !== '2.0') {
+                preset.schemaVersion = '2.0';
+                preset.updatedAt = now;
+                if (!preset.createdAt) preset.createdAt = now;
+                if (!preset.color) preset.color = '#4a6fa5';
+                if (!preset.defaultWidth) preset.defaultWidth = 520;
+                if (!preset.defaultHeight) preset.defaultHeight = 650;
+                if (Array.isArray(preset.widgets)) {
+                    preset.widgets.forEach(w => {
+                        if (w.defaultVal === undefined) w.defaultVal = '';
+                        if (w.placeholder === undefined) w.placeholder = '';
+                    });
+                }
+                upgradedCount++;
+            }
+        });
+
+        if (upgradedCount > 0) {
+            await window.storage?.saveGlobalSettings('custom_node_presets', userPresets);
+
+            // 캔버스 파일/노드 인스턴스 마이그레이션
+            if (Array.isArray(this.files)) {
+                for (const file of this.files) {
+                    if (file.type !== 'folder' && file.contentData) {
+                        if (!file.contentData.schemaVersion || file.contentData.schemaVersion !== '2.0') {
+                            file.contentData.schemaVersion = '2.0';
+                            if (!file.contentData.color) file.contentData.color = '#4a6fa5';
+                            if (!file.contentData.defaultWidth) file.contentData.defaultWidth = 520;
+                            if (!file.contentData.defaultHeight) file.contentData.defaultHeight = 650;
+                            await window.storage?.updateFile(file.id, { contentData: file.contentData });
+                        }
+                    }
+                }
+            }
+
+            window.showToast?.(`✨ ${upgradedCount}개의 템플릿 DB 및 캔버스 노드가 최신 v2.0 스키마로 업그레이드되었습니다.`);
+        }
+
+        this.hideNodeSchemaUpgradeModal();
+        await this.renderCustomNodePresets();
+    }
+
     async showNodeSelectModal() {
         const modal = document.getElementById('nodeSelectModal');
         if (!modal) return;
 
+        await this.checkAndPromptSchemaUpgrade();
         await this.renderCustomNodePresets();
         modal.classList.remove('hidden');
     }
@@ -1993,6 +2085,9 @@ class FileTreeManager {
         const presetId = this.editingCustomPresetId || ('preset_' + Date.now());
 
         const presetData = {
+            schemaVersion: '2.0',
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
             id: presetId,
             name,
             icon,
