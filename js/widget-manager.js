@@ -46,14 +46,15 @@ class WidgetManager {
             render: (w, contentData, fileId) => {
                 const key = w.key || 'editorVal';
                 const rows = w.rows || 5;
-                const val = contentData[key] !== undefined ? contentData[key] : (contentData.content || '');
+                const val = contentData[key] !== undefined ? contentData[key] : (w.defaultVal || contentData.content || '');
+                const ph = w.placeholder || '원고 본문을 작성하세요...';
                 const minHeight = `${Math.max(100, rows * 24)}px`;
                 return `
                     <div class="widget-item" style="display: flex; flex-direction: column; gap: 4px; width: 100%; box-sizing: border-box;">
                         <label style="font-size: 11px; font-weight: bold; color: var(--color-text-secondary);">
                             🖋️ ${this.escapeHtml(w.label || '소설 원고 작성 에디터')}
                         </label>
-                        <textarea class="widget-editor-textarea" data-widget-key="${this.escapeHtml(key)}" rows="${rows}" style="width: 100%; min-height: ${minHeight}; font-size: 14px; line-height: 1.8; padding: 12px; resize: vertical !important; border-radius: 8px; border: 1px solid var(--color-border); outline: none; box-sizing: border-box; background: var(--color-bg-primary); color: var(--color-text-primary);" placeholder="원고 본문을 작성하세요...">${this.escapeHtml(val)}</textarea>
+                        <textarea class="widget-editor-textarea" data-widget-key="${this.escapeHtml(key)}" rows="${rows}" style="width: 100%; min-height: ${minHeight}; font-size: 14px; line-height: 1.8; padding: 12px; resize: vertical !important; border-radius: 8px; border: 1px solid var(--color-border); outline: none; box-sizing: border-box; background: var(--color-bg-primary); color: var(--color-text-primary);" placeholder="${this.escapeHtml(ph)}">${this.escapeHtml(val)}</textarea>
                     </div>
                 `;
             },

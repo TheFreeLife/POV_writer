@@ -2653,119 +2653,7 @@ class WindowManager {
     /**
      * 사용자 승인 노드 (Approval Gate Node) UI 렌더링
      */
-    renderApprovalNode(fileId) {
-        const info = this.getWindowInfo(fileId);
-        if (!info) return;
 
-        const container = info.element.querySelector(`#approvalContainer_${fileId}`);
-        if (!container) return;
-
-        const inputVars = window.nodeEngine?.collectInputVars(fileId) ?? {};
-        const rawVal = inputVars['검수 데이터'] ?? Object.values(inputVars)[0] ?? null;
-
-        let contentData = {};
-        try { contentData = JSON.parse(info.file.content || '{}'); } catch(e){}
-
-        const isApproved = !!contentData.isApproved;
-        let displayStr = '';
-        if (rawVal !== null && rawVal !== undefined) {
-            displayStr = typeof rawVal === 'object' ? JSON.stringify(rawVal, null, 2) : String(rawVal);
-        } else {
-            displayStr = '(입력 연결을 기다리는 중입니다)';
-        }
-
-        container.innerHTML = `
-            <div style="padding: 12px; display: flex; flex-direction: column; gap: 10px; height: 100%; box-sizing: border-box;">
-                <div style="display: flex; justify-content: space-between; align-items: center; background: var(--color-surface-1); padding: 8px 12px; border-radius: 6px; border: 1px solid var(--color-border);">
-                    <span style="font-size: 11px; font-weight: 700; color: ${isApproved ? '#2ecc71' : '#f39c12'};">
-                        ${isApproved ? '✅ 검수 승인 완료' : '⏸️ 사용자 승인 대기 중'}
-                    </span>
-                    <button type="button" class="btn btn-xs reset-approval-btn" style="font-size: 10px; padding: 2px 6px;">🔄 상태 초기화</button>
-                </div>
-                <div style="flex: 1; min-height: 100px; background: rgba(0,0,0,0.2); border: 1px solid var(--color-border); border-radius: 6px; padding: 10px; font-family: monospace; font-size: 11px; overflow-y: auto; white-space: pre-wrap; word-break: break-all;">${this.escapeHtml(displayStr)}</div>
-                <div style="display: flex; gap: 8px;">
-                    <button type="button" class="btn btn-warning btn-xs retry-upstream-btn" style="flex: 1; padding: 8px; font-weight: bold; font-size: 11px;">🔄 마음에 안 듦 (재시도)</button>
-                    <button type="button" class="btn btn-success btn-xs approve-gate-btn" style="flex: 1; padding: 8px; font-weight: bold; font-size: 11px; background: ${isApproved ? '#27ae60' : '#2ecc71'};">
-                        ${isApproved ? '✅ 승인 상태' : '✅ 승인 및 진행'}
-                    </button>
-                </div>
-            </div>
-        `;
-
-        const checkExecutableState = () => {
-            if (rawVal === null || rawVal === undefined) {
-                window.showToast?.('⚠️ 그래프 실행 상태가 아닙니다. 먼저 상단 [▶️ 전체 그래프 실행]을 눌러주세요.', 'warning');
-                return false;
-            }
-            return true;
-        };
-
-        // 상위 연산 재시도 버튼 (직전 상위 노드 재실행)
-        container.querySelector('.retry-upstream-btn')?.addEventListener('click', async () => {
-            if (!checkExecutableState()) return;
-
-            const inConns = (window.nodeEngine?._getConnections() || []).filter(c => String(c.toId) === String(fileId));
-            if (inConns.length === 0) {
-                window.showToast?.('연결된 상위 노드가 없습니다.', 'warning');
-                return;
-            }
-            window.showToast?.('상위 노드 연산을 재시도합니다... 🔄');
-            for (const conn of inConns) {
-                window.nodeEngine?.clearNodeCache(conn.fromId);
-                await window.nodeEngine?.runNode(conn.fromId);
-                this.refreshNodeUI(conn.fromId);
-            }
-            contentData.isApproved = false;
-            info.file.content = JSON.stringify(contentData);
-            await storage.updateFile(fileId, { content: info.file.content });
-            this.notifyNodeChanged(fileId, 'outputChange');
-            window.showToast?.('상위 노드가 새로 연산되었습니다! ✨', 'success');
-        });
-
-        // 승인 버튼 (대기 중인 검수 결과를 승인 완료 처리 후 즉시 하위 노드로 전파 실행)
-        container.querySelector('.approve-gate-btn')?.addEventListener('click', async () => {
-            if (!checkExecutableState()) return;
-
-            // 🌟 승인 노드의 대기 하이라이트(node-paused) 즉시 해제 및 성공 순간 펄스 적용
-            if (info?.element) {
-                info.element.classList.remove('node-paused', 'node-executing');
-                info.element.classList.add('node-success-pulse');
-                setTimeout(() => info.element.classList.remove('node-success-pulse'), 800);
-            }
-
-            contentData.isApproved = true;
-            info.file.content = JSON.stringify(contentData);
-            await storage.updateFile(fileId, { content: info.file.content });
-
-            // 🌟 승인 노드의 outputCache에 상위 데이터 패킷 설정 후 하위 노드로 즉시 연산 전파!
-            if (window.nodeEngine) {
-                const inVal = rawVal;
-                const outputPins = info.file.portsConfig?.outputs ?? [];
-                const outPinName = outputPins[0]?.name || '승인 데이터';
-                const portId = outputPins[0]?.id || 'appr_out';
-                const packet = window.nodeEngine.createDataPacket(inVal, fileId, info.file.name, portId, outPinName);
-                window.nodeEngine.outputCache.set(String(fileId), { [outPinName]: packet });
-
-                const downstreamIds = window.nodeEngine.getDownstreamNodeIds(fileId);
-                for (const dId of downstreamIds) {
-                    await window.nodeEngine.runNode(dId);
-                }
-            }
-
-            // 승인 완료 상태(isApproved = true)로 UI 갱신 및 유지
-            this.refreshNodeUI(fileId);
-            window.showToast?.('결과물이 승인 완료되었습니다! 하위 노드로 연산 데이터가 전달되었습니다. ✅', 'success');
-        });
-
-        // 상태 초기화
-        container.querySelector('.reset-approval-btn')?.addEventListener('click', async () => {
-            contentData.isApproved = false;
-            info.file.content = JSON.stringify(contentData);
-            await storage.updateFile(fileId, { content: info.file.content });
-            this.refreshNodeUI(fileId);
-            this.notifyNodeChanged(fileId, 'outputChange');
-        });
-    }
 
 
 
@@ -3602,17 +3490,7 @@ class WindowManager {
             this.renderConnections();
             await this.saveConnections();
             
-            // 캔버스 내 남아있는 합산 노드/뷰어 노드 UI 갱신
-            this.windows.forEach((info, fId) => {
-                if (info.file.isAggregatorNode || info.file.template === 'aggregator' ||
-                    (info.file.content && typeof info.file.content === 'string' && info.file.content.includes('"isAggregatorNode"'))) {
-                    this.renderAggregatorNode(fId);
-                }
-                if (info.file.isDataViewerNode || info.file.template === 'viewer' ||
-                    (info.file.content && typeof info.file.content === 'string' && info.file.content.includes('"isDataViewerNode"'))) {
-                    this.renderDataViewerNode(fId);
-                }
-            });
+            this.refreshAllNodesUI();
         }
     }
 

@@ -88,10 +88,7 @@ class FileTreeManager {
 
 
 
-        // 텍스트 항목 추가 버튼
-        document.getElementById('wizardAddTextFieldBtn')?.addEventListener('click', () => {
-            this.addWizardTextFieldRow('', '');
-        });
+
 
         // 포트 항목 추가 버튼
         document.getElementById('wizardAddInputPortBtn')?.addEventListener('click', () => {
@@ -859,51 +856,94 @@ class FileTreeManager {
 
         if (section) section.style.display = 'block';
 
+        // 1) 카테고리 필터 칩 렌더링
+        const categoryLabels = {
+            'all': '✨ 전체',
+            'character': '👤 인물',
+            'world': '🌍 세계관',
+            'story': '📜 줄거리',
+            'logic': '⚡ AI연산',
+            'review': '📊 검수',
+            'general': '📁 기타'
+        };
+
+        const chipsContainer = document.getElementById('nodeCategoryFilterChips');
+        if (chipsContainer) {
+            chipsContainer.innerHTML = '';
+            const activeFilter = this.activeNodeCategoryFilter || 'all';
+            Object.keys(categoryLabels).forEach(catKey => {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = `btn btn-xs ${activeFilter === catKey ? 'btn-primary' : 'btn-secondary'}`;
+                btn.style.cssText = 'font-size: 11px; padding: 3px 10px; border-radius: 12px; font-weight: 600;';
+                btn.textContent = categoryLabels[catKey];
+                btn.addEventListener('click', () => {
+                    this.activeNodeCategoryFilter = catKey;
+                    this.renderCustomNodePresets();
+                });
+                chipsContainer.appendChild(btn);
+            });
+        }
+
+        const activeCat = this.activeNodeCategoryFilter || 'all';
+
+        // 2) 카테고리 필터링 적용 (기본 노드 & 커스텀 노드 각각)
+        const filteredDefaultPresets = activeCat === 'all'
+            ? defaultPresets
+            : defaultPresets.filter(p => (p.category || 'general') === activeCat);
+
+        const filteredUserPresets = activeCat === 'all'
+            ? userPresets
+            : userPresets.filter(p => (p.category || 'general') === activeCat);
+
         const wrapper = document.createElement('div');
         wrapper.style.cssText = 'display: flex; flex-direction: column; gap: 20px; width: 100%;';
 
-        // 📌 1. 시스템 기본 제공 노드 섹션
-        if (defaultPresets.length > 0) {
-            const sysSec = document.createElement('div');
-            sysSec.innerHTML = `
-                <div style="font-size: 12px; font-weight: 700; color: var(--color-accent-primary); margin-bottom: 10px; display: flex; align-items: center; gap: 6px;">
-                    <span>📌 시스템 기본 노드</span>
-                    <span style="font-size: 10px; font-weight: 400; color: var(--color-text-tertiary);">(정적 템플릿 / data/default-nodes.json)</span>
-                </div>
-            `;
-            const sysGrid = document.createElement('div');
-            sysGrid.className = 'node-type-grid';
-            defaultPresets.forEach(preset => {
-                sysGrid.appendChild(this._createNodePresetCard(preset, true));
-            });
-            sysSec.appendChild(sysGrid);
-            wrapper.appendChild(sysSec);
-        }
+        const totalCount = filteredDefaultPresets.length + filteredUserPresets.length;
 
-        // ✨ 2. 내가 만든 커스텀 노드 섹션
-        const customSec = document.createElement('div');
-        customSec.innerHTML = `
-            <div style="font-size: 12px; font-weight: 700; color: #f1e05a; margin-bottom: 10px; display: flex; align-items: center; gap: 6px;">
-                <span>✨ 내가 만든 커스텀 노드</span>
-                <span style="font-size: 10px; font-weight: 400; color: var(--color-text-tertiary);">(사용자 제작 / DB 보관)</span>
-            </div>
-        `;
-        const customGrid = document.createElement('div');
-        customGrid.className = 'node-type-grid';
-
-        if (userPresets.length === 0) {
-            customGrid.innerHTML = `
-                <div style="grid-column: 1 / -1; padding: 20px; text-align: center; color: var(--color-text-tertiary); background: var(--color-bg-secondary); border-radius: 10px; border: 1px dashed var(--color-border); font-size: 12px;">
-                    아직 추가한 커스텀 노드가 없습니다.<br>하단 <strong style="color: #f1e05a;">[✨ 나만의 커스텀 노드 정의하기]</strong>를 눌러 새로 제작해보세요!
+        if (totalCount === 0) {
+            wrapper.innerHTML = `
+                <div style="padding: 24px; text-align: center; color: var(--color-text-tertiary); background: var(--color-bg-secondary); border-radius: 10px; border: 1px dashed var(--color-border); font-size: 12px;">
+                    '${categoryLabels[activeCat]}' 카테고리에 속한 노드가 없습니다.<br>하단 <strong style="color: #f1e05a;">[✨ 나만의 커스텀 노드 정의하기]</strong>를 눌러 새로 만들어보세요!
                 </div>
             `;
         } else {
-            userPresets.forEach(preset => {
-                customGrid.appendChild(this._createNodePresetCard(preset, false));
-            });
+            // 📌 1. 시스템 기본 노드 섹션 (현재 카테고리에 속한 기본 노드가 있는 경우만 명확한 구별 소제목과 함께 표시)
+            if (filteredDefaultPresets.length > 0) {
+                const sysSec = document.createElement('div');
+                sysSec.innerHTML = `
+                    <div style="font-size: 12px; font-weight: 700; color: var(--color-accent-primary); margin-bottom: 10px; display: flex; align-items: center; gap: 6px;">
+                        <span>📌 시스템 기본 노드</span>
+                        <span style="font-size: 10px; font-weight: 400; color: var(--color-text-tertiary);">(기본 제공 템플릿)</span>
+                    </div>
+                `;
+                const sysGrid = document.createElement('div');
+                sysGrid.className = 'node-type-grid';
+                filteredDefaultPresets.forEach(preset => {
+                    sysGrid.appendChild(this._createNodePresetCard(preset, true));
+                });
+                sysSec.appendChild(sysGrid);
+                wrapper.appendChild(sysSec);
+            }
+
+            // ✨ 2. 내가 만든 커스텀 노드 섹션 (현재 카테고리에 속한 커스텀 노드가 있는 경우만 명확한 구별 소제목과 함께 표시)
+            if (filteredUserPresets.length > 0) {
+                const customSec = document.createElement('div');
+                customSec.innerHTML = `
+                    <div style="font-size: 12px; font-weight: 700; color: #f1e05a; margin-bottom: 10px; display: flex; align-items: center; gap: 6px;">
+                        <span>✨ 내가 만든 커스텀 노드</span>
+                        <span style="font-size: 10px; font-weight: 400; color: var(--color-text-tertiary);">(사용자 제작 / DB 보관)</span>
+                    </div>
+                `;
+                const customGrid = document.createElement('div');
+                customGrid.className = 'node-type-grid';
+                filteredUserPresets.forEach(preset => {
+                    customGrid.appendChild(this._createNodePresetCard(preset, false));
+                });
+                customSec.appendChild(customGrid);
+                wrapper.appendChild(customSec);
+            }
         }
-        customSec.appendChild(customGrid);
-        wrapper.appendChild(customSec);
 
         container.appendChild(wrapper);
     }
@@ -990,6 +1030,14 @@ class FileTreeManager {
                     contentObj.rawText = preset.content;
                 }
             }
+        }
+
+        if (Array.isArray(preset.widgets)) {
+            preset.widgets.forEach(w => {
+                if (w.key && w.defaultVal !== undefined && w.defaultVal !== '' && contentObj[w.key] === undefined) {
+                    contentObj[w.key] = w.defaultVal;
+                }
+            });
         }
 
         // 1) 이름 및 상세 설명 처리
@@ -1220,7 +1268,7 @@ class FileTreeManager {
         document.getElementById('wizardTabContentCode')?.classList.toggle('hidden', tabName !== 'code');
     }
 
-    addWizardWidgetRow(type, label = '', key = '', rows = 1) {
+    addWizardWidgetRow(type, label = '', key = '', rows = 1, defaultVal = '', placeholder = '') {
         const list = document.getElementById('wizardWidgetLayoutList');
         if (!list) return;
 
@@ -1247,6 +1295,7 @@ class FileTreeManager {
         const defaultKey = key || label || defaultLabel;
         const defaultRows = rows || (type === 'editor_canvas' ? 5 : 1);
         const showRowsOption = ['input_text', 'editor_canvas', 'text_viewer'].includes(type);
+        const hasInputs = ['input_text', 'editor_canvas'].includes(type);
 
         const row = document.createElement('div');
         row.className = 'stat-field-row mb-xs';
@@ -1255,18 +1304,20 @@ class FileTreeManager {
 
         row.innerHTML = `
             <span style="font-size: 13px; width: 18px; text-align: center; display: inline-block; flex-shrink: 0;" title="${this.escapeHtml(widgetNames[type] || '')}">${icon}</span>
-            <input type="text" class="input widget-label-input field-name" value="${this.escapeHtml(defaultLabel)}" placeholder="항목 제목 (예: 소속)" style="flex: 1; font-size: 12px; min-width: 0;">
+            <input type="text" class="input widget-label-input field-name" value="${this.escapeHtml(defaultLabel)}" placeholder="항목 제목 (예: 소속)" style="width: 140px; flex-shrink: 0; font-size: 12px;">
             ${showRowsOption ? `
-                <select class="input widget-rows-input" style="font-size: 11px; padding: 2px 4px; width: 58px; height: 26px; flex-shrink: 0;" title="입력창 기본 세로 높이 (줄 수)">
-                    <option value="1" ${defaultRows == 1 ? 'selected' : ''}>1줄</option>
-                    <option value="2" ${defaultRows == 2 ? 'selected' : ''}>2줄</option>
-                    <option value="3" ${defaultRows == 3 ? 'selected' : ''}>3줄</option>
-                    <option value="5" ${defaultRows == 5 ? 'selected' : ''}>5줄</option>
-                    <option value="8" ${defaultRows == 8 ? 'selected' : ''}>8줄</option>
-                    <option value="12" ${defaultRows == 12 ? 'selected' : ''}>12줄</option>
-                </select>
+                <div style="display: flex; align-items: center; gap: 2px; background: var(--color-bg-primary); padding: 2px 6px; border-radius: 6px; border: 1px solid var(--color-border); width: 58px; height: 26px; box-sizing: border-box; flex-shrink: 0;" title="입력창 기본 세로 높이 (줄 수 - 화살표 버튼 조절 또는 수치 직접 입력)">
+                    <input type="number" class="input widget-rows-input" value="${defaultRows}" min="1" max="50" step="1" style="width: 28px; font-size: 11px; padding: 0; text-align: right; border: none; background: transparent; font-family: monospace; color: var(--color-text-primary);">
+                    <span style="font-size: 10px; color: var(--color-text-tertiary); font-weight: bold;">줄</span>
+                </div>
             ` : `<div style="width: 58px; flex-shrink: 0;"></div>`}
-            <input type="text" class="input widget-key-input" value="${this.escapeHtml(defaultKey)}" placeholder="변수 Key" style="width: 110px; font-size: 11px; font-family: monospace; flex-shrink: 0;" title="코드 작성 시 사용될 변수 Key">
+            ${hasInputs ? `
+                <input type="text" class="input widget-default-input" value="${this.escapeHtml(defaultVal)}" placeholder="기본 내용" style="flex: 1; font-size: 11px; min-width: 0;" title="노드 처음 생성 시 입력창에 채워질 기본 내용">
+                <input type="text" class="input widget-placeholder-input" value="${this.escapeHtml(placeholder)}" placeholder="안내 힌트" style="flex: 1; font-size: 11px; min-width: 0;" title="입력창이 비어있을 때 연하게 표시될 안내 힌트 문구">
+            ` : `
+                <div style="flex: 2;"></div>
+            `}
+            <input type="text" class="input widget-key-input" value="${this.escapeHtml(defaultKey)}" placeholder="변수 Key" style="width: 100px; font-size: 11px; font-family: monospace; flex-shrink: 0;" title="코드 작성 시 사용될 변수 Key">
             <button type="button" class="btn btn-danger btn-xs remove-widget-row-btn" style="width: 22px; flex-shrink: 0; padding: 2px 0; text-align: center;">✕</button>
         `;
 
@@ -1338,31 +1389,14 @@ class FileTreeManager {
             else card.classList.remove('active');
         });
 
-        const list = document.getElementById('wizardStatList');
-        if (list) {
-            list.innerHTML = '';
-            if (Array.isArray(presetToEdit?.fields) && presetToEdit.fields.some(f => typeof f.val === 'number')) {
-                presetToEdit.fields.filter(f => typeof f.val === 'number').forEach(f => this.addWizardStatRow(f.name, f.val));
-            } else if (!presetToEdit) {
-                this.addWizardStatRow('', 0);
-            }
-        }
+        const categorySelect = document.getElementById('wizardCategory');
+        if (categorySelect) categorySelect.value = presetToEdit?.category || 'general';
 
         const widgetList = document.getElementById('wizardWidgetLayoutList');
         if (widgetList) {
             widgetList.innerHTML = '';
             if (Array.isArray(presetToEdit?.widgets) && presetToEdit.widgets.length > 0) {
-                presetToEdit.widgets.forEach(w => this.addWizardWidgetRow(w.type, w.label, w.key, w.rows));
-            }
-        }
-
-        const textList = document.getElementById('wizardTextFieldsList');
-        if (textList) {
-            textList.innerHTML = '';
-            if (Array.isArray(presetToEdit?.fields) && presetToEdit.fields.some(f => typeof f.val === 'string' || f.type === 'text')) {
-                presetToEdit.fields.filter(f => typeof f.val === 'string' || f.type === 'text').forEach(f => this.addWizardTextFieldRow(f.name, f.val, f.rows || 1));
-            } else if (!presetToEdit) {
-                this.addWizardTextFieldRow('', '', 1);
+                presetToEdit.widgets.forEach(w => this.addWizardWidgetRow(w.type, w.label, w.key, w.rows, w.defaultVal, w.placeholder));
             }
         }
 
@@ -1613,40 +1647,7 @@ class FileTreeManager {
     }
 
 
-    addWizardTextFieldRow(name = '', val = '', rows = 1) {
-        const list = document.getElementById('wizardTextFieldsList');
-        if (!list) return;
 
-        const row = document.createElement('div');
-        row.className = 'stat-field-row';
-        row.style.cssText = 'display: flex; gap: 6px; align-items: center;';
-        row.innerHTML = `
-            <input type="text" class="input field-name" placeholder="항목 이름 (예: 소속)" value="${this.escapeHtml(name)}" style="width: 130px;">
-            <input type="text" class="input field-val" placeholder="기본 텍스트 내용" value="${this.escapeHtml(val)}" style="flex: 1;">
-            <div style="display: flex; align-items: center; gap: 2px; font-size: 11px; color: var(--color-text-tertiary);" title="입력창 기본 줄 수 (높이)">
-                <span>📏</span>
-                <select class="input field-rows" style="font-size: 11px; padding: 2px 4px; width: 62px; height: 26px;">
-                    <option value="1" ${rows == 1 || !rows ? 'selected' : ''}>1줄</option>
-                    <option value="2" ${rows == 2 ? 'selected' : ''}>2줄</option>
-                    <option value="3" ${rows == 3 ? 'selected' : ''}>3줄</option>
-                    <option value="5" ${rows == 5 ? 'selected' : ''}>5줄</option>
-                    <option value="8" ${rows == 8 ? 'selected' : ''}>8줄</option>
-                    <option value="12" ${rows == 12 ? 'selected' : ''}>12줄</option>
-                </select>
-            </div>
-            <button type="button" class="btn btn-icon btn-secondary remove-field-btn" title="항목 삭제" style="color: var(--color-accent-danger); border: none; background: transparent;">✕</button>
-        `;
-
-
-        row.querySelector('.remove-field-btn')?.addEventListener('click', () => {
-            row.remove();
-        });
-
-        const nameInput = row.querySelector('.field-name');
-        if (nameInput) this.attachVarNameDuplicateCheck(nameInput);
-
-        list.appendChild(row);
-    }
 
 
 
@@ -1768,19 +1769,7 @@ class FileTreeManager {
         }
 
         const fields = [];
-        // 1) 수치형 항목 수집
-        document.querySelectorAll('#wizardStatList .stat-field-row').forEach(row => {
-            const fName = row.querySelector('.field-name')?.value.trim();
-            const fVal = parseFloat(row.querySelector('.field-val')?.value) || 0;
-            if (fName) fields.push({ name: fName, val: fVal, type: 'stat' });
-        });
-        // 2) 텍스트형 항목 수집
-        document.querySelectorAll('#wizardTextFieldsList .stat-field-row').forEach(row => {
-            const fName = row.querySelector('.field-name')?.value.trim();
-            const fVal = row.querySelector('.field-val')?.value.trim() || '';
-            const fRows = parseInt(row.querySelector('.field-rows')?.value) || 3;
-            if (fName) fields.push({ name: fName, val: fVal, type: 'text', rows: fRows });
-        });
+
 
 
         const widgets = [];
@@ -1789,8 +1778,10 @@ class FileTreeManager {
             const wLabel = row.querySelector('.widget-label-input')?.value.trim() || `위젯 ${idx + 1}`;
             const wKey = row.querySelector('.widget-key-input')?.value.trim() || wLabel || `var_${idx + 1}`;
             const wRows = parseInt(row.querySelector('.widget-rows-input')?.value) || (wType === 'editor_canvas' ? 5 : 1);
+            const defaultVal = row.querySelector('.widget-default-input')?.value || '';
+            const placeholder = row.querySelector('.widget-placeholder-input')?.value || '';
             if (wType) {
-                widgets.push({ id: `w_${idx + 1}`, type: wType, label: wLabel, key: wKey, rows: wRows });
+                widgets.push({ id: `w_${idx + 1}`, type: wType, label: wLabel, key: wKey, rows: wRows, defaultVal, placeholder });
             }
         });
 
@@ -1815,6 +1806,7 @@ class FileTreeManager {
         const promptForDesc = !!(document.getElementById('wizardPromptForDesc')?.checked);
         const defaultWidth = parseInt(document.getElementById('wizardDefaultWidth')?.value) || 520;
         const defaultHeight = parseInt(document.getElementById('wizardDefaultHeight')?.value) || 650;
+        const category = document.getElementById('wizardCategory')?.value || 'general';
         const isEditing = !!this.editingCustomPresetId;
         const presetId = this.editingCustomPresetId || ('preset_' + Date.now());
 
@@ -1823,6 +1815,7 @@ class FileTreeManager {
             name,
             icon,
             desc,
+            category,
             isCustomNode: true,
             wizardType: type,
             widgets,

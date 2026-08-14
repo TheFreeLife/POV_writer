@@ -270,7 +270,10 @@
       <div class="modal-body">
         <!-- 사용자 정의 커스텀 노드 형태 섹션 (구조 마법사) -->
         <div id="customPresetsSection" style="padding-top: 4px;">
-          <p class="node-select-subtitle" style="margin-bottom: 12px;">✨ 저장된 커스텀 노드 목록</p>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
+            <p class="node-select-subtitle" style="margin-bottom: 0;">✨ 노드 목록 선택</p>
+            <div id="nodeCategoryFilterChips" style="display: flex; gap: 6px; flex-wrap: wrap; align-items: center;"></div>
+          </div>
           <div id="customPresetsContainer" style="display: flex; flex-direction: column; gap: 20px; width: 100%;">
             <!-- 동적으로 저장된 커스텀 노드 구조 카드가 렌더링됩니다 -->
           </div>
@@ -343,9 +346,22 @@
                 <input type="text" class="input" id="wizardName" placeholder="노드 이름을 입력하세요 (예: 캐릭터 정보 설정)" style="width: 100%; font-size: 13px; font-weight: 600;">
               </div>
             </div>
-            <div>
-              <label style="font-size: 12px; font-weight: 700; color: var(--color-text-secondary); display: block; margin-bottom: 4px;">노드 설명 (선택)</label>
-              <input type="text" class="input" id="wizardDesc" placeholder="노드 카드에 표시될 간단한 설명이나 메모를 작성하세요" style="width: 100%;">
+            <div style="display: flex; gap: 10px; margin-top: 10px;">
+              <div style="flex: 1;">
+                <label style="font-size: 12px; font-weight: 700; color: var(--color-text-secondary); display: block; margin-bottom: 4px;">노드 설명 (선택)</label>
+                <input type="text" class="input" id="wizardDesc" placeholder="노드 카드에 표시될 간단한 설명이나 메모를 작성하세요" style="width: 100%;">
+              </div>
+              <div style="width: 180px;">
+                <label style="font-size: 12px; font-weight: 700; color: var(--color-text-secondary); display: block; margin-bottom: 4px;">📁 노드 카테고리</label>
+                <select class="input" id="wizardCategory" style="width: 100%; font-size: 12px; height: 36px;">
+                  <option value="general">📁 기타 (기본)</option>
+                  <option value="character">👤 인물 & 캐릭터</option>
+                  <option value="world">🌍 세계관 & 배경</option>
+                  <option value="story">📜 줄거리 & 구성</option>
+                  <option value="logic">⚡ AI 연산 & 기능</option>
+                  <option value="review">📊 검수 & 데이터</option>
+                </select>
+              </div>
             </div>
             <!-- 노드 생성 시 이름 입력 여부 토글 -->
             <div class="wizard-toggle-row" style="margin-top: 14px;">
@@ -413,9 +429,9 @@
 
             <div style="display: flex; gap: 6px; margin-bottom: 8px; padding: 0 10px; font-size: 11px; font-weight: 700; color: var(--color-text-tertiary); align-items: center;">
               <span style="width: 18px;"></span>
-              <span style="flex: 1;">입력 항목 제목 (화면 표시)</span>
-              <span style="width: 58px;"></span>
-              <span style="width: 110px;">변수 Key (코드용)</span>
+              <span style="width: 140px;">입력 항목 제목 (화면 표시)</span>
+              <span style="flex: 1;"></span>
+              <span style="width: 100px;">변수 Key (코드용)</span>
               <span style="width: 22px;"></span>
             </div>
             <!-- 조립된 위젯 목록 -->

@@ -4,6 +4,7 @@
     "name": "👤 캐릭터 설정 카드",
     "icon": "👤",
     "desc": "이름, 소속, 성격, 특이사항 입력란과 프로필 생성 코드가 포함된 기본 노드",
+    "category": "character",
     "isDefault": true,
     "promptForName": true,
     "promptForDesc": false,
