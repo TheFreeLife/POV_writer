@@ -207,11 +207,7 @@ class FileTreeManager {
 
         // 변수 칩 업데이트: input 변수가 바뀔 때마다 칩 업데이트
         const updateVarChips = () => this.updateWizardVarChips();
-        document.getElementById('wizardStatList')?.addEventListener('input', updateVarChips);
-        document.getElementById('wizardTextFieldsList')?.addEventListener('input', updateVarChips);
         document.getElementById('wizardInputPortList')?.addEventListener('input', updateVarChips);
-        document.getElementById('wizardStatList')?.addEventListener('click', () => setTimeout(updateVarChips, 50));
-        document.getElementById('wizardTextFieldsList')?.addEventListener('click', () => setTimeout(updateVarChips, 50));
         document.getElementById('wizardInputPortList')?.addEventListener('click', () => setTimeout(updateVarChips, 50));
 
         // 커스텀 마법사 이모지 피커 연동 (다중 행 Grid 스타일)
@@ -1507,12 +1503,7 @@ class FileTreeManager {
         });
     }
 
-    /**
-     * 구식 노드 이름 입력 모달 하위 호환
-     */
-    _promptNodeName(preset) {
-        return this._promptNodeDetails(preset).then(res => res.isCancelled ? null : res.name);
-    }
+
 
     switchWizardTab(tabName) {
         document.querySelectorAll('.wizard-tab-btn').forEach(btn => {

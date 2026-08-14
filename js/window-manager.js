@@ -1007,22 +1007,6 @@ class WindowManager {
                     </div>
                 </div>
             `;
-        } else if (nodeType === 'aggregator') {
-            bodyContent = `
-                <div class="stat-calculator-container" id="aggregatorContainer_${file.id}"></div>
-            `;
-        } else if (nodeType === 'viewer') {
-            bodyContent = `
-                <div class="stat-calculator-container" id="dataViewerContainer_${file.id}"></div>
-            `;
-        } else if (nodeType === 'approval') {
-            bodyContent = `
-                <div class="stat-calculator-container" id="approvalContainer_${file.id}"></div>
-            `;
-        } else if (nodeType === 'choice') {
-            bodyContent = `
-                <div class="stat-calculator-container" id="choiceContainer_${file.id}"></div>
-            `;
         } else if (nodeType === 'manuscript') {
             bodyContent = `
                 <div class="window-editor">
