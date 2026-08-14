@@ -961,6 +961,16 @@ class WindowManager {
      * 창 DOM 생성
      */
     createWindowDOM(file, x, y, width, height) {
+        let contentData = file.contentData;
+        if (!contentData && typeof file.content === 'string') {
+            try {
+                contentData = JSON.parse(file.content);
+            } catch(e) {
+                contentData = {};
+            }
+        }
+        contentData = contentData || {};
+
         const isCollapsed = file.windowState?.isCollapsed || false;
         const norm = window.nodeEngine?.normalizeNodeData(file);
         const nodeType = norm?.nodeType || 'manuscript';
@@ -1068,10 +1078,15 @@ class WindowManager {
         const calcMinHeight = Math.max(240, maxPortsCount * 80 + 50);
         win.style.minHeight = `${calcMinHeight}px`;
 
+        const accentColor = contentData.color || file.color || norm?.color;
+        if (accentColor) {
+            win.style.boxShadow = `0 4px 20px rgba(0,0,0,0.3), 0 0 12px ${accentColor}44`;
+        }
+
         win.innerHTML = `
             <div class="node-ports-wrapper-left">${inputsHtml}</div>
             <div class="node-ports-wrapper-right">${outputsHtml}</div>
-            <div class="window-titlebar" data-file-id="${file.id}">
+            <div class="window-titlebar" data-file-id="${file.id}" style="${accentColor ? `border-top: 4px solid ${accentColor}; background: linear-gradient(180deg, ${accentColor}25 0%, ${accentColor}08 80%, var(--color-surface-2) 100%);` : ''}">
                 <div class="window-titlebar-left">
                     ${iconHtml}
                     <span class="window-titlebar-name">${this.escapeHtml(parsed.cleanName)}</span>

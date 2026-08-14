@@ -1102,6 +1102,10 @@ class FileTreeManager {
         card.className = 'node-type-card';
         card.style.position = 'relative';
 
+        if (preset.color) {
+            card.style.borderLeft = `4px solid ${preset.color}`;
+        }
+
         let typeBadge = isDefault ? '기본 노드' : '커스텀 노드';
 
         let portsPreviewHtml = '';
@@ -1120,7 +1124,7 @@ class FileTreeManager {
 
         card.innerHTML = `
             <div class="node-type-icon">${preset.icon || '📄'}</div>
-            <div class="node-type-info" style="flex: 1; padding-right: 48px;">
+            <div class="node-type-info" style="flex: 1; padding-right: 68px;">
                 <div class="node-type-title" style="display: flex; align-items: center; justify-content: space-between;">
                     <span>${this.escapeHtml(preset.name)}</span>
                     <span style="font-size: 10px; color: ${isDefault ? 'var(--color-accent-primary)' : '#f1e05a'}; background: var(--color-bg-secondary); padding: 2px 6px; border-radius: 8px;">${typeBadge}</span>
@@ -1128,17 +1132,29 @@ class FileTreeManager {
                 <div class="node-type-desc">${this.escapeHtml(preset.desc || '노드 템플릿')}</div>
                 ${portsPreviewHtml}
             </div>
-            ${!isDefault ? `
             <div class="preset-card-actions" style="position: absolute; top: 6px; right: 6px; display: flex; gap: 2px;">
-                <button class="edit-preset-btn" title="템플릿 수정" style="background: transparent; border: none; color: var(--color-text-tertiary); cursor: pointer; font-size: 14px; padding: 2px 5px; border-radius: 4px;">✏️</button>
-                <button class="delete-preset-btn" title="템플릿 삭제" style="background: transparent; border: none; color: var(--color-text-tertiary); cursor: pointer; font-size: 14px; padding: 2px 5px; border-radius: 4px;">✕</button>
+                <button class="duplicate-preset-btn" title="템플릿 1-클릭 복제" style="background: transparent; border: none; color: var(--color-text-tertiary); cursor: pointer; font-size: 14px; padding: 2px 4px; border-radius: 4px;">📋</button>
+                ${!isDefault ? `
+                <button class="edit-preset-btn" title="템플릿 수정" style="background: transparent; border: none; color: var(--color-text-tertiary); cursor: pointer; font-size: 14px; padding: 2px 4px; border-radius: 4px;">✏️</button>
+                <button class="delete-preset-btn" title="템플릿 삭제" style="background: transparent; border: none; color: var(--color-text-tertiary); cursor: pointer; font-size: 14px; padding: 2px 4px; border-radius: 4px;">✕</button>
+                ` : ''}
             </div>
-            ` : ''}
         `;
+
+        card.querySelector('.duplicate-preset-btn')?.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const dupPreset = JSON.parse(JSON.stringify(preset));
+            dupPreset.id = null; // 신규 프리셋으로 등록되도록 초기화
+            dupPreset.name = `${preset.name} (복사본)`;
+            this.hideNodeSelectModal();
+            this.showCustomWizardModal(dupPreset);
+            window.showToast?.(`'${preset.name}' 템플릿 복사본 편집이 시작되었습니다. ✨`);
+        });
 
         if (!isDefault) {
             card.querySelector('.edit-preset-btn')?.addEventListener('click', (e) => {
                 e.stopPropagation();
+                this.hideNodeSelectModal();
                 this.showCustomWizardModal(preset);
             });
 
@@ -1228,6 +1244,7 @@ class FileTreeManager {
 
         if (preset.defaultWidth) contentObj.defaultWidth = preset.defaultWidth;
         if (preset.defaultHeight) contentObj.defaultHeight = preset.defaultHeight;
+        if (preset.color) contentObj.color = preset.color;
 
         const fileData = {
             name: nodeName,
@@ -1544,6 +1561,16 @@ class FileTreeManager {
                 categorySelect.innerHTML = categories.map(c => `<option value="${c.id}">${c.icon || '📁'} ${this.escapeHtml(c.name)}</option>`).join('');
                 categorySelect.value = presetToEdit?.category || 'general';
             }
+        });
+
+        const colorInput = document.getElementById('wizardColor');
+        if (colorInput) colorInput.value = presetToEdit?.color || '#4a6fa5';
+
+        document.querySelectorAll('#colorPresetChips .color-chip-btn').forEach(btn => {
+            btn.onclick = () => {
+                const c = btn.dataset.color;
+                if (colorInput) colorInput.value = c || '#4a6fa5';
+            };
         });
 
         const widgetList = document.getElementById('wizardWidgetLayoutList');
@@ -1961,6 +1988,7 @@ class FileTreeManager {
         const defaultWidth = parseInt(document.getElementById('wizardDefaultWidth')?.value) || 520;
         const defaultHeight = parseInt(document.getElementById('wizardDefaultHeight')?.value) || 650;
         const category = document.getElementById('wizardCategory')?.value || 'general';
+        const color = document.getElementById('wizardColor')?.value || '#7b68ee';
         const isEditing = !!this.editingCustomPresetId;
         const presetId = this.editingCustomPresetId || ('preset_' + Date.now());
 
@@ -1970,6 +1998,7 @@ class FileTreeManager {
             icon,
             desc,
             category,
+            color,
             isCustomNode: true,
             wizardType: type,
             widgets,

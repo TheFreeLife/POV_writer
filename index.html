@@ -400,6 +400,23 @@
                 </select>
               </div>
             </div>
+            
+            <!-- 🎨 노드 포인트 색상 피커 -->
+            <div style="margin-top: 12px; background: var(--color-bg-secondary); padding: 10px 12px; border-radius: 8px; border: 1px solid var(--color-border); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <label style="font-size: 12px; font-weight: 700; color: var(--color-text-secondary);">🎨 노드 창 테마 색상 (Point Color)</label>
+                <input type="color" id="wizardColor" value="#4a6fa5" style="width: 38px; height: 28px; padding: 1px; cursor: pointer; border-radius: 6px; border: 1px solid var(--color-border); background: transparent;">
+              </div>
+              <div id="colorPresetChips" style="display: flex; gap: 6px; align-items: center;">
+                <button type="button" class="color-chip-btn" data-color="" style="width: 20px; height: 20px; border-radius: 50%; background: var(--color-bg-primary); border: 2px solid var(--color-border); cursor: pointer; font-size: 10px; display: flex; align-items: center; justify-content: center; color: var(--color-text-tertiary);" title="기본 창 테마 색상 복원">⚪</button>
+                <button type="button" class="color-chip-btn" data-color="#7b68ee" style="width: 20px; height: 20px; border-radius: 50%; background: #7b68ee; border: 2px solid transparent; cursor: pointer;" title="보라/라벤더"></button>
+                <button type="button" class="color-chip-btn" data-color="#4a6fa5" style="width: 20px; height: 20px; border-radius: 50%; background: #4a6fa5; border: 2px solid transparent; cursor: pointer;" title="블루/네이비"></button>
+                <button type="button" class="color-chip-btn" data-color="#00b894" style="width: 20px; height: 20px; border-radius: 50%; background: #00b894; border: 2px solid transparent; cursor: pointer;" title="에메랄드/민트"></button>
+                <button type="button" class="color-chip-btn" data-color="#fdcb6e" style="width: 20px; height: 20px; border-radius: 50%; background: #fdcb6e; border: 2px solid transparent; cursor: pointer;" title="골드/옐로우"></button>
+                <button type="button" class="color-chip-btn" data-color="#e84393" style="width: 20px; height: 20px; border-radius: 50%; background: #e84393; border: 2px solid transparent; cursor: pointer;" title="핑크/매젠타"></button>
+                <button type="button" class="color-chip-btn" data-color="#e17055" style="width: 20px; height: 20px; border-radius: 50%; background: #e17055; border: 2px solid transparent; cursor: pointer;" title="오렌지/레드"></button>
+              </div>
+            </div>
             <!-- 노드 생성 시 이름 입력 여부 토글 -->
             <div class="wizard-toggle-row" style="margin-top: 14px;">
               <div class="wizard-toggle-info">
