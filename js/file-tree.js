@@ -27,6 +27,81 @@ class FileTreeManager {
         document.getElementById('closeNodeSelectModal')?.addEventListener('click', () => this.hideNodeSelectModal());
         document.getElementById('cancelNodeSelectBtn')?.addEventListener('click', () => this.hideNodeSelectModal());
 
+        // 노드 카테고리 관리 모달 리스너
+        const chipsBar = document.getElementById('nodeCategoryFilterChips');
+        if (chipsBar) {
+            let wheelTimer = null;
+
+            chipsBar.addEventListener('wheel', (e) => {
+                if (e.deltaY !== 0) {
+                    e.preventDefault();
+                    chipsBar.scrollLeft += e.deltaY;
+                    chipsBar.classList.add('is-scrolling');
+                    if (wheelTimer) clearTimeout(wheelTimer);
+                    wheelTimer = setTimeout(() => {
+                        chipsBar.classList.remove('is-scrolling');
+                    }, 300);
+                }
+            }, { passive: false });
+
+            // 오직 마우스 드래그 시작할 때만 생기고, 드래그 끝나면 즉시 제거
+            let isMouseDown = false;
+            let startX = 0;
+            let scrollLeftStart = 0;
+
+            chipsBar.addEventListener('mousedown', (e) => {
+                isMouseDown = true;
+                chipsBar.classList.add('is-scrolling');
+                startX = e.pageX - chipsBar.offsetLeft;
+                scrollLeftStart = chipsBar.scrollLeft;
+            });
+
+            const stopDrag = () => {
+                if (isMouseDown) {
+                    isMouseDown = false;
+                    chipsBar.classList.remove('is-scrolling');
+                }
+            };
+
+            chipsBar.addEventListener('mouseleave', stopDrag);
+            chipsBar.addEventListener('mouseup', stopDrag);
+            window.addEventListener('mouseup', stopDrag);
+
+            chipsBar.addEventListener('mousemove', (e) => {
+                if (!isMouseDown) return;
+                e.preventDefault();
+                chipsBar.classList.add('is-scrolling');
+                const x = e.pageX - chipsBar.offsetLeft;
+                const walk = (x - startX) * 1.5;
+                chipsBar.scrollLeft = scrollLeftStart - walk;
+            });
+        }
+
+        document.getElementById('openCategoryManageBtn')?.addEventListener('click', () => {
+            this.showNodeCategoryManageModal();
+        });
+        document.getElementById('closeNodeCategoryManageModal')?.addEventListener('click', () => this.hideNodeCategoryManageModal());
+        document.getElementById('cancelNodeCategoryManageBtn')?.addEventListener('click', () => this.hideNodeCategoryManageModal());
+
+        document.getElementById('addNewCategoryBtn')?.addEventListener('click', async () => {
+            const iconInput = document.getElementById('newCategoryIcon');
+            const nameInput = document.getElementById('newCategoryName');
+            const icon = iconInput?.value.trim() || '📁';
+            const name = nameInput?.value.trim();
+            if (!name) {
+                window.showToast?.('⚠️ 카테고리 이름을 입력해주세요.', 'warning');
+                return;
+            }
+            const cats = await window.storage?.getNodeCategories() || [];
+            const newCatId = 'cat_' + Date.now();
+            cats.push({ id: newCatId, icon, name });
+            await window.storage?.saveNodeCategories(cats);
+            if (nameInput) nameInput.value = '';
+            await this.renderCategoryManageList();
+            await this.renderCustomNodePresets();
+            window.showToast?.(`'${name}' 카테고리가 추가되었습니다. ✨`);
+        });
+
         // 하단 "나만의 커스텀 노드 정의하기" 버튼 -> 커스텀 마법사 모달로 전환
         document.getElementById('openCustomWizardBtn')?.addEventListener('click', () => {
             this.hideNodeSelectModal();
@@ -856,27 +931,23 @@ class FileTreeManager {
 
         if (section) section.style.display = 'block';
 
-        // 1) 카테고리 필터 칩 렌더링
-        const categoryLabels = {
-            'all': '✨ 전체',
-            'character': '👤 인물',
-            'world': '🌍 세계관',
-            'story': '📜 줄거리',
-            'logic': '⚡ AI연산',
-            'review': '📊 검수',
-            'general': '📁 기타'
-        };
+        // 1) 카테고리 필터 칩 동적 렌더링
+        const categories = await window.storage?.getNodeCategories() || [];
+        const categoryMap = { 'all': '✨ 전체' };
+        categories.forEach(c => {
+            categoryMap[c.id] = `${c.icon || '📁'} ${c.name}`;
+        });
 
         const chipsContainer = document.getElementById('nodeCategoryFilterChips');
         if (chipsContainer) {
             chipsContainer.innerHTML = '';
             const activeFilter = this.activeNodeCategoryFilter || 'all';
-            Object.keys(categoryLabels).forEach(catKey => {
+            Object.keys(categoryMap).forEach(catKey => {
                 const btn = document.createElement('button');
                 btn.type = 'button';
                 btn.className = `btn btn-xs ${activeFilter === catKey ? 'btn-primary' : 'btn-secondary'}`;
-                btn.style.cssText = 'font-size: 11px; padding: 3px 10px; border-radius: 12px; font-weight: 600;';
-                btn.textContent = categoryLabels[catKey];
+                btn.style.cssText = 'font-size: 11px; padding: 3px 10px; border-radius: 12px; font-weight: 600; white-space: nowrap; flex-shrink: 0;';
+                btn.textContent = categoryMap[catKey];
                 btn.addEventListener('click', () => {
                     this.activeNodeCategoryFilter = catKey;
                     this.renderCustomNodePresets();
@@ -902,9 +973,10 @@ class FileTreeManager {
         const totalCount = filteredDefaultPresets.length + filteredUserPresets.length;
 
         if (totalCount === 0) {
+            const currentCatName = categoryMap[activeCat] || '선택한';
             wrapper.innerHTML = `
                 <div style="padding: 24px; text-align: center; color: var(--color-text-tertiary); background: var(--color-bg-secondary); border-radius: 10px; border: 1px dashed var(--color-border); font-size: 12px;">
-                    '${categoryLabels[activeCat]}' 카테고리에 속한 노드가 없습니다.<br>하단 <strong style="color: #f1e05a;">[✨ 나만의 커스텀 노드 정의하기]</strong>를 눌러 새로 만들어보세요!
+                    '${this.escapeHtml(currentCatName)}' 카테고리에 속한 노드가 없습니다.<br>하단 <strong style="color: #f1e05a;">[✨ 나만의 커스텀 노드 정의하기]</strong>를 눌러 새로 만들어보세요!
                 </div>
             `;
         } else {
@@ -946,6 +1018,83 @@ class FileTreeManager {
         }
 
         container.appendChild(wrapper);
+    }
+
+    async showNodeCategoryManageModal() {
+        const modal = document.getElementById('nodeCategoryManageModal');
+        if (!modal) return;
+        modal.classList.remove('hidden');
+        await this.renderCategoryManageList();
+    }
+
+    hideNodeCategoryManageModal() {
+        document.getElementById('nodeCategoryManageModal')?.classList.add('hidden');
+    }
+
+    async renderCategoryManageList() {
+        const listEl = document.getElementById('categoryManageList');
+        if (!listEl) return;
+        const categories = await window.storage?.getNodeCategories() || [];
+
+        listEl.innerHTML = categories.map(c => `
+            <div class="category-manage-item" style="display: flex; gap: 8px; align-items: center; background: var(--color-surface-1); padding: 8px 10px; border-radius: 6px; border: 1px solid var(--color-border);">
+                <input type="text" class="input cat-icon-edit" data-id="${c.id}" value="${this.escapeHtml(c.icon || '📁')}" style="width: 44px; font-size: 13px; text-align: center;">
+                <input type="text" class="input cat-name-edit" data-id="${c.id}" value="${this.escapeHtml(c.name)}" style="flex: 1; font-size: 12px;">
+                <button type="button" class="btn btn-danger btn-xs delete-cat-btn" data-id="${c.id}" style="padding: 4px 8px; font-size: 11px;" ${c.id === 'general' ? 'disabled title="기타 기본 카테고리는 삭제할 수 없습니다"' : ''}>✕ 삭제</button>
+            </div>
+        `).join('');
+
+        // 아이콘/이름 변경 감지
+        listEl.querySelectorAll('.cat-icon-edit, .cat-name-edit').forEach(inp => {
+            inp.addEventListener('change', async () => {
+                const catId = inp.dataset.id;
+                const row = inp.closest('.category-manage-item');
+                const newIcon = row.querySelector('.cat-icon-edit')?.value.trim() || '📁';
+                const newName = row.querySelector('.cat-name-edit')?.value.trim();
+                if (!newName) return;
+
+                const cats = await window.storage?.getNodeCategories() || [];
+                const target = cats.find(c => c.id === catId);
+                if (target) {
+                    target.icon = newIcon;
+                    target.name = newName;
+                    await window.storage?.saveNodeCategories(cats);
+                    this.renderCustomNodePresets();
+                }
+            });
+        });
+
+        // 삭제 처리
+        listEl.querySelectorAll('.delete-cat-btn').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                const catId = btn.dataset.id;
+                if (catId === 'general') return;
+                if (confirm('이 카테고리를 삭제할까요? 이 카테고리에 속해있던 노드들은 [기타] 카테고리로 변경됩니다.')) {
+                    let cats = await window.storage?.getNodeCategories() || [];
+                    cats = cats.filter(c => c.id !== catId);
+                    await window.storage?.saveNodeCategories(cats);
+
+                    // 프리셋 카테고리 재할당
+                    const presets = await window.storage?.getCustomNodePresets() || [];
+                    let updated = false;
+                    presets.forEach(p => {
+                        if (p.category === catId) {
+                            p.category = 'general';
+                            updated = true;
+                        }
+                    });
+                    if (updated) await window.storage?.saveGlobalSettings('custom_node_presets', presets);
+
+                    if (this.activeNodeCategoryFilter === catId) {
+                        this.activeNodeCategoryFilter = 'all';
+                    }
+
+                    await this.renderCategoryManageList();
+                    await this.renderCustomNodePresets();
+                    window.showToast?.('카테고리가 삭제되었습니다.');
+                }
+            });
+        });
     }
 
     _createNodePresetCard(preset, isDefault = false) {
@@ -1389,8 +1538,13 @@ class FileTreeManager {
             else card.classList.remove('active');
         });
 
-        const categorySelect = document.getElementById('wizardCategory');
-        if (categorySelect) categorySelect.value = presetToEdit?.category || 'general';
+        window.storage?.getNodeCategories().then(categories => {
+            const categorySelect = document.getElementById('wizardCategory');
+            if (categorySelect && Array.isArray(categories)) {
+                categorySelect.innerHTML = categories.map(c => `<option value="${c.id}">${c.icon || '📁'} ${this.escapeHtml(c.name)}</option>`).join('');
+                categorySelect.value = presetToEdit?.category || 'general';
+            }
+        });
 
         const widgetList = document.getElementById('wizardWidgetLayoutList');
         if (widgetList) {

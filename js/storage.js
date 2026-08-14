@@ -873,6 +873,30 @@ class StorageManager {
     await this.saveGlobalSettings('custom_node_presets', filtered);
     return filtered;
   }
+
+  async getNodeCategories() {
+    const defaults = [
+      { id: 'character', icon: '👤', name: '인물 & 캐릭터' },
+      { id: 'world', icon: '🌍', name: '세계관 & 배경' },
+      { id: 'story', icon: '📜', name: '줄거리 & 구성' },
+      { id: 'logic', icon: '⚡', name: 'AI 연산 & 기능' },
+      { id: 'review', icon: '📊', name: '검수 & 데이터' },
+      { id: 'general', icon: '📁', name: '기타 (기본)' }
+    ];
+    const saved = await this.getGlobalSettings('node_categories');
+    const categories = (Array.isArray(saved) && saved.length > 0) ? saved : defaults;
+    const nonGeneral = categories.filter(c => c.id !== 'general');
+    const generalCat = categories.find(c => c.id === 'general') || { id: 'general', icon: '📁', name: '기타 (기본)' };
+    return [...nonGeneral, generalCat];
+  }
+
+  async saveNodeCategories(categories) {
+    const nonGeneral = categories.filter(c => c.id !== 'general');
+    const generalCat = categories.find(c => c.id === 'general') || { id: 'general', icon: '📁', name: '기타 (기본)' };
+    const sorted = [...nonGeneral, generalCat];
+    await this.saveGlobalSettings('node_categories', sorted);
+    return sorted;
+  }
 }
 
 // 싱글톤 인스턴스 생성

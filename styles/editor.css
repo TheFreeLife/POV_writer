@@ -1798,6 +1798,40 @@
     transform: translateX(3px);
 }
 
+/* 노드 카테고리 필터 칩 스크롤바: 평소 및 호버 시 100% 투명 -> 오직 드래그/스크롤 중일 때만 노출 */
+#nodeCategoryFilterChips {
+    scrollbar-width: thin;
+    scrollbar-color: transparent transparent;
+    transition: scrollbar-color 0.2s ease;
+}
+
+#nodeCategoryFilterChips.is-scrolling {
+    scrollbar-color: rgba(255, 255, 255, 0.3) transparent;
+}
+
+#nodeCategoryFilterChips::-webkit-scrollbar {
+    height: 3px;
+}
+
+#nodeCategoryFilterChips::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+#nodeCategoryFilterChips::-webkit-scrollbar-thumb {
+    background: transparent;
+    border-radius: 4px;
+    transition: background-color 0.2s ease;
+}
+
+/* 오직 .is-scrolling 클래스(드래그 진행 중)일 때만 스크롤바 생성 */
+#nodeCategoryFilterChips.is-scrolling::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.3);
+}
+
+#nodeCategoryFilterChips.is-scrolling::-webkit-scrollbar-thumb:hover {
+    background: var(--color-accent-primary);
+}
+
 .existing-node-item-info {
     display: flex;
     align-items: center;
