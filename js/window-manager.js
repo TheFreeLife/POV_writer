@@ -86,25 +86,17 @@ class WindowManager {
 
         document.getElementById('runAllGraphBtn')?.addEventListener('click', async () => {
             execPopmenu?.classList.add('hidden');
-            window.showToast?.('전체 노드 그래프를 순차 실행합니다... 🚀');
-            await window.nodeEngine?.runGraph();
+            window.nodeEngine?.notifyPreparing();
         });
 
         document.getElementById('runTargetNodeBtn')?.addEventListener('click', async () => {
             execPopmenu?.classList.add('hidden');
-            const targetId = this.targetEndNodeId || this.activeWindowId;
-            if (targetId) {
-                const targetFile = this.getWindowInfo(targetId)?.file;
-                window.showToast?.(`'${targetFile?.name || '목표 노드'}'를 목표(End)로 실행합니다... 🎯`);
-                await window.nodeEngine?.runGraph(targetId);
-            } else {
-                window.showToast?.('지정된 목표 노드가 없습니다. 노드를 우클릭하여 목표(End)로 지정해 주세요.', 'warning');
-            }
+            window.nodeEngine?.notifyPreparing();
         });
 
         document.getElementById('stopGraphExecBtn')?.addEventListener('click', () => {
             execPopmenu?.classList.add('hidden');
-            window.nodeEngine?.stopExecution();
+            window.nodeEngine?.notifyPreparing();
         });
 
         // 단축키 (Ctrl + Enter로 전체 그래프 실행)

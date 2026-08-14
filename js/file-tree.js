@@ -2439,12 +2439,9 @@ class FileTreeManager {
         menu.classList.remove('hidden');
 
         // 이벤트 리스너 바인딩
-        document.getElementById('ctx-target-run')?.addEventListener('click', async () => {
+        document.getElementById('ctx-target-run')?.addEventListener('click', () => {
             menu.classList.add('hidden');
-            window.showToast?.(`'${file.name}' 노드를 목표(End)로 역방향 추적 실행합니다... 🎯`);
-            if (window.nodeEngine) {
-                await window.nodeEngine.runGraph(file.id);
-            }
+            window.nodeEngine?.notifyPreparing();
         });
         document.getElementById('ctx-new-file-text')?.addEventListener('click', () => this.showNewItemModal('file', file.id));
         document.getElementById('ctx-new-file-image')?.addEventListener('click', () => this.showNewImageModal());
