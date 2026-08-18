@@ -48,6 +48,60 @@ class WidgetManager {
             }
         });
 
+        // 1-2) 드롭다운 선택 위젯
+        this.register('dropdown_select', {
+            render: (w, contentData, fileId) => {
+                const key = w.key || w.label || 'selectVal';
+                let options = [];
+                if (Array.isArray(w.options) && w.options.length > 0) {
+                    options = w.options;
+                } else if (typeof w.optionsStr === 'string' && w.optionsStr.trim()) {
+                    options = w.optionsStr.split(',').map(s => s.trim()).filter(Boolean);
+                } else if (typeof w.defaultVal === 'string' && w.defaultVal.includes(',')) {
+                    options = w.defaultVal.split(',').map(s => s.trim()).filter(Boolean);
+                } else {
+                    options = ['옵션 1', '옵션 2', '옵션 3'];
+                }
+
+                const currentVal = contentData[w.key] !== undefined ? contentData[w.key] :
+                                  (w.label && contentData[w.label] !== undefined ? contentData[w.label] :
+                                  (contentData[key] !== undefined ? contentData[key] :
+                                  (contentData.selectVal !== undefined ? contentData.selectVal : (w.defaultVal || options[0] || ''))));
+
+                const optsHtml = options.map(opt => {
+                    const optVal = typeof opt === 'object' ? opt.value || opt.name : String(opt);
+                    const optLabel = typeof opt === 'object' ? opt.label || opt.name : String(opt);
+                    const isSelected = String(optVal) === String(currentVal) || String(optLabel) === String(currentVal);
+                    return `<option value="${this.escapeHtml(optVal)}" ${isSelected ? 'selected' : ''}>${this.escapeHtml(optLabel)}</option>`;
+                }).join('');
+
+                return `
+                    <div class="widget-item" style="display: flex; flex-direction: column; gap: 4px;">
+                        <label style="font-size: 11px; font-weight: bold; color: var(--color-text-secondary);">
+                            🔽 ${this.escapeHtml(w.label || '드롭다운 선택')}
+                        </label>
+                        <select class="input widget-dropdown-select" data-widget-key="${this.escapeHtml(key)}" style="width: 100%; height: 32px; font-size: 12px; padding: 4px 8px; background: var(--color-bg-primary); border: 1px solid var(--color-border); border-radius: 6px; color: var(--color-text-primary); cursor: pointer; outline: none;">
+                            ${optsHtml}
+                        </select>
+                    </div>
+                `;
+            },
+            bindEvents: (container, w, contentData, onUpdate) => {
+                const key = w.key || w.label || 'selectVal';
+                const selectEl = container.querySelector(`.widget-dropdown-select[data-widget-key="${key}"]`) || container.querySelector('.widget-dropdown-select');
+                if (selectEl) {
+                    selectEl.addEventListener('change', () => {
+                        const val = selectEl.value;
+                        contentData[key] = val;
+                        if (w.key) contentData[w.key] = val;
+                        if (w.label) contentData[w.label] = val;
+                        contentData.selectVal = val;
+                        onUpdate(contentData);
+                    });
+                }
+            }
+        });
+
         // 2) 소설/원고 작성 에디터 위젯
         this.register('editor_canvas', {
             render: (w, contentData, fileId) => {
@@ -579,6 +633,19 @@ class WidgetManager {
                             container.querySelector('.widget-input-field');
             if (inputEl && document.activeElement !== inputEl && inputEl.value !== val) {
                 inputEl.value = val;
+            }
+        } else if (widget.type === 'dropdown_select') {
+            const k = widget.key || widget.label || 'selectVal';
+            const val = contentData[widget.key] !== undefined ? contentData[widget.key] :
+                        (widget.label && contentData[widget.label] !== undefined ? contentData[widget.label] :
+                        (contentData[k] !== undefined ? contentData[k] :
+                        (contentData.selectVal !== undefined ? contentData.selectVal : (widget.defaultVal || ''))));
+            const selectEl = container.querySelector(`.widget-dropdown-select[data-widget-key="${k}"]`) ||
+                             container.querySelector(`.widget-dropdown-select[data-widget-key="${widget.key}"]`) ||
+                             container.querySelector(`.widget-dropdown-select[data-widget-key="${widget.label}"]`) ||
+                             container.querySelector('.widget-dropdown-select');
+            if (selectEl && String(selectEl.value) !== String(val)) {
+                selectEl.value = val;
             }
         } else if (widget.type === 'editor_canvas') {
             const k = widget.key || widget.label || 'editorVal';

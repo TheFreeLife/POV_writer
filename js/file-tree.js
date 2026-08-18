@@ -1517,12 +1517,13 @@ class FileTreeManager {
         document.getElementById('wizardTabContentCode')?.classList.toggle('hidden', tabName !== 'code');
     }
 
-    addWizardWidgetRow(type, label = '', key = '', rows = 1, defaultVal = '', placeholder = '') {
+    addWizardWidgetRow(type, label = '', key = '', rows = 1, defaultVal = '', placeholder = '', options = null) {
         const list = document.getElementById('wizardWidgetLayoutList');
         if (!list) return;
 
         const widgetIcons = {
             'input_text': '📝',
+            'dropdown_select': '🔽',
             'text_viewer': '👁️',
             'approval_gate': '✅',
             'continue_gate': '▶️',
@@ -1536,6 +1537,7 @@ class FileTreeManager {
 
         const widgetNames = {
             'input_text': '텍스트 입력창',
+            'dropdown_select': '드롭다운',
             'text_viewer': '텍스트 뷰어 (출력)',
             'approval_gate': '검수 승인 게이트',
             'continue_gate': '진행 확인 게이트',
@@ -1553,6 +1555,8 @@ class FileTreeManager {
         const defaultRows = rows || (type === 'editor_canvas' ? 5 : 1);
         const showRowsOption = ['input_text', 'editor_canvas', 'text_viewer'].includes(type);
         const hasInputs = ['input_text', 'editor_canvas', 'toggle_switch'].includes(type);
+        const isDropdown = type === 'dropdown_select';
+        const optionsStr = Array.isArray(options) ? options.join(', ') : (options || defaultVal || '옵션 1, 옵션 2, 옵션 3');
 
         const row = document.createElement('div');
         row.className = 'stat-field-row mb-xs';
@@ -1561,19 +1565,21 @@ class FileTreeManager {
 
         row.innerHTML = `
             <span style="font-size: 13px; width: 18px; text-align: center; display: inline-block; flex-shrink: 0;" title="${this.escapeHtml(widgetNames[type] || '')}">${icon}</span>
-            <input type="text" class="input widget-label-input field-name" value="${this.escapeHtml(defaultLabel)}" placeholder="항목 제목 (예: 소속)" style="width: 140px; flex-shrink: 0; font-size: 12px;">
+            <input type="text" class="input widget-label-input field-name" value="${this.escapeHtml(defaultLabel)}" placeholder="항목 제목 (예: 직업/등급)" style="width: 140px; flex-shrink: 0; font-size: 12px;">
             ${showRowsOption ? `
                 <div style="display: flex; align-items: center; gap: 2px; background: var(--color-bg-primary); padding: 2px 6px; border-radius: 6px; border: 1px solid var(--color-border); width: 58px; height: 26px; box-sizing: border-box; flex-shrink: 0;" title="입력창 기본 세로 높이 (줄 수 - 화살표 버튼 조절 또는 수치 직접 입력)">
                     <input type="number" class="input widget-rows-input" value="${defaultRows}" min="1" max="50" step="1" style="width: 28px; font-size: 11px; padding: 0; text-align: right; border: none; background: transparent; font-family: monospace; color: var(--color-text-primary);">
                     <span style="font-size: 10px; color: var(--color-text-tertiary); font-weight: bold;">줄</span>
                 </div>
             ` : `<div style="width: 58px; flex-shrink: 0;"></div>`}
-            ${hasInputs ? `
+            ${isDropdown ? `
+                <input type="text" class="input widget-options-input" value="${this.escapeHtml(optionsStr)}" placeholder="옵션 목록 (쉼표 구분: A, B, C)" style="flex: 2; font-size: 11px; min-width: 0;" title="드롭다운에 표시될 옵션 목록을 쉼표(,)로 구분하여 입력하세요">
+            ` : (hasInputs ? `
                 <input type="text" class="input widget-default-input" value="${this.escapeHtml(defaultVal)}" placeholder="기본 내용" style="flex: 1; font-size: 11px; min-width: 0;" title="노드 처음 생성 시 입력창에 채워질 기본 내용">
                 <input type="text" class="input widget-placeholder-input" value="${this.escapeHtml(placeholder)}" placeholder="안내 힌트" style="flex: 1; font-size: 11px; min-width: 0;" title="입력창이 비어있을 때 연하게 표시될 안내 힌트 문구">
             ` : `
                 <div style="flex: 2;"></div>
-            `}
+            `)}
             <input type="text" class="input widget-key-input" value="${this.escapeHtml(defaultKey)}" placeholder="변수 Key" style="width: 100px; font-size: 11px; font-family: monospace; flex-shrink: 0;" title="코드 작성 시 사용될 변수 Key">
             <button type="button" class="btn btn-danger btn-xs remove-widget-row-btn" style="width: 22px; flex-shrink: 0; padding: 2px 0; text-align: center;">✕</button>
         `;
@@ -1666,7 +1672,7 @@ class FileTreeManager {
         if (widgetList) {
             widgetList.innerHTML = '';
             if (Array.isArray(presetToEdit?.widgets) && presetToEdit.widgets.length > 0) {
-                presetToEdit.widgets.forEach(w => this.addWizardWidgetRow(w.type, w.label, w.key, w.rows, w.defaultVal, w.placeholder));
+                presetToEdit.widgets.forEach(w => this.addWizardWidgetRow(w.type, w.label, w.key, w.rows, w.defaultVal, w.placeholder, w.options));
             }
         }
 
@@ -2046,8 +2052,12 @@ class FileTreeManager {
             const wRows = parseInt(row.querySelector('.widget-rows-input')?.value) || (wType === 'editor_canvas' ? 5 : 1);
             const defaultVal = row.querySelector('.widget-default-input')?.value || '';
             const placeholder = row.querySelector('.widget-placeholder-input')?.value || '';
+            const optionsInput = row.querySelector('.widget-options-input')?.value || '';
+            const options = optionsInput ? optionsInput.split(',').map(s => s.trim()).filter(Boolean) : null;
             if (wType) {
-                widgets.push({ id: `w_${idx + 1}`, type: wType, label: wLabel, key: wKey, rows: wRows, defaultVal, placeholder });
+                const widgetObj = { id: `w_${idx + 1}`, type: wType, label: wLabel, key: wKey, rows: wRows, defaultVal, placeholder };
+                if (options && options.length > 0) widgetObj.options = options;
+                widgets.push(widgetObj);
             }
         });
 

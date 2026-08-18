@@ -263,6 +263,12 @@ class NodeEngine {
                 const wKey = chk.dataset.widgetKey || 'isEnabled';
                 contentData[wKey] = chk.checked;
             });
+            const selectDropdowns = winEl.querySelectorAll('.widget-dropdown-select');
+            selectDropdowns.forEach(sel => {
+                const wKey = sel.dataset.widgetKey || 'selectVal';
+                contentData[wKey] = sel.value;
+                contentData.selectVal = sel.value;
+            });
             const parentToggles = winEl.querySelectorAll('.parent-node-toggle-input');
             if (parentToggles.length > 0) {
                 if (!contentData.inputToggles) contentData.inputToggles = {};
