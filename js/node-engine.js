@@ -175,8 +175,8 @@ class NodeEngine {
     }
 
     /**
-     * 실행 시작 전 세션 초기화:
-     * 참여 노드들의 이전 승인 여부(isApproved), 상태, UI를 초기화합니다.
+     * 실행 시작 전 및 실행 완료 후 노드 상태 초기화:
+     * 참여 노드들의 승인 여부(isApproved = false) 및 UI를 '승인 대기 중' 상태로 복귀시킵니다.
      */
     async _resetNodesForExecution(nodeIds) {
         for (const id of nodeIds) {
@@ -194,6 +194,12 @@ class NodeEngine {
                 }
 
                 file.content = contentData;
+
+                const winInfo = window.windowManager?.getWindowInfo?.(id);
+                if (winInfo && winInfo.file) {
+                    winInfo.file.content = contentData;
+                }
+
                 await window.storage?.saveFile?.(file);
                 window.windowManager?.refreshNodeUI?.(id);
             }
@@ -548,8 +554,8 @@ class NodeEngine {
             this.clearAllHighlights();
             this.currentSession = null;
 
-            // 최종 세션 완료 후 UI 전체 리프레시
-            graph.nodes.forEach(id => window.windowManager?.refreshNodeUI?.(id));
+            // 🌟 최종 세션 완료 후 참여 노드들의 승인 상태를 '승인 대기 중'으로 복귀 및 UI 갱신
+            await this._resetNodesForExecution(graph.nodes);
         }
     }
 

@@ -133,5 +133,51 @@
       ]
     },
     "code": "return { '원고 본문': input.editorVal || '' };"
+  },
+  {
+    "schemaVersion": "2.0",
+    "createdAt": 1723642800000,
+    "updatedAt": 1723642800000,
+    "id": "preset_sys_human_approval",
+    "name": "✋ 사용자 승인/검수 노드",
+    "icon": "✋",
+    "desc": "상위 노드의 결과를 텍스트 뷰어로 확인하고, 사용자가 승인해야 다음으로 전달하며 반려 시 상위 노드를 재실행하는 검수 노드",
+    "category": "general",
+    "color": "#f59e0b",
+    "defaultWidth": 460,
+    "defaultHeight": 440,
+    "isDefault": true,
+    "promptForName": true,
+    "promptForDesc": false,
+    "widgets": [
+      {
+        "id": "w_viewer",
+        "type": "text_viewer",
+        "label": "검수 대상 데이터",
+        "key": "displayVal"
+      },
+      {
+        "id": "w_gate",
+        "type": "approval_gate",
+        "label": "승인 / 반려 게이트"
+      }
+    ],
+    "portsConfig": {
+      "inputs": [
+        {
+          "id": "in_1",
+          "name": "검수 대상",
+          "color": "#f59e0b"
+        }
+      ],
+      "outputs": [
+        {
+          "id": "out_1",
+          "name": "승인된 데이터",
+          "color": "#f59e0b"
+        }
+      ]
+    },
+    "code": "return { '승인된 데이터': input };"
   }
 ]

@@ -119,7 +119,7 @@ class WidgetManager {
                 return `
                     <div class="widget-item" style="display: flex; flex-direction: column; gap: 8px; background: var(--color-surface-1); border: 1px solid var(--color-border); border-radius: 8px; padding: 10px;">
                         <div style="display: flex; justify-content: space-between; align-items: center;">
-                            <span style="font-size: 11px; font-weight: bold; color: ${isApproved ? '#2ecc71' : '#f39c12'};">
+                            <span class="approval-gate-status-label" style="font-size: 11px; font-weight: bold; color: ${isApproved ? '#2ecc71' : '#f39c12'};">
                                 ${isApproved ? '✅ 검수 승인 완료' : '⏸️ 승인 대기 중'}
                             </span>
                             <button type="button" class="btn btn-xs reset-appr-btn" style="font-size: 10px; padding: 2px 6px;">🔄 초기화</button>
@@ -283,7 +283,7 @@ class WidgetManager {
             }
         } else if (widget.type === 'approval_gate') {
             const isApproved = !!contentData.isApproved;
-            const statusLabel = container.querySelector('.widget-item span[style*="font-weight: bold"]');
+            const statusLabel = container.querySelector('.approval-gate-status-label') || container.querySelector('.widget-item span[style*="font-weight: bold"]');
             const apprBtn = container.querySelector('.approve-gate-btn');
             if (statusLabel) {
                 statusLabel.style.color = isApproved ? '#2ecc71' : '#f39c12';

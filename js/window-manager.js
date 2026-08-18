@@ -437,10 +437,12 @@ class WindowManager {
 
         const nodeCenterX = nodeX + w / 2;
         const nodeCenterY = nodeY + h / 2;
+        const scale = this.scale || 1;
 
-        this.canvasState.panX = areaRect.width / 2 - nodeCenterX * this.canvasState.zoom;
-        this.canvasState.panY = areaRect.height / 2 - nodeCenterY * this.canvasState.zoom;
-        this.applyCanvasTransform();
+        this.panX = areaRect.width / 2 - (nodeCenterX * scale);
+        this.panY = areaRect.height / 2 - (nodeCenterY * scale);
+
+        this.applyTransform();
         this.saveProjectCanvasState();
         this.focusWindow(fileId);
     }
@@ -449,7 +451,11 @@ class WindowManager {
      * 노드 실행 시 시야 포커스 유틸리티
      */
     scrollIntoViewIfNeeded(fileId) {
-        this.panToWindow(fileId);
+        try {
+            this.panToWindow(fileId);
+        } catch (e) {
+            console.warn('[WindowManager] scrollIntoViewIfNeeded 실패:', e);
+        }
     }
 
     /**
