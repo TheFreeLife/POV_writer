@@ -394,12 +394,25 @@ class NodeEngine {
                     }
                 });
 
-                // 연산 스크립트 함수 실행
-                const scriptRunner = new Function('input', 'inputs', `
-                    "use strict";
-                    ${userCode}
-                `);
-                const scriptResult = scriptRunner(scriptInput, inputs);
+                // 비동기 연산 스크립트 함수 실행 지원
+                const AsyncFunction = Object.getPrototypeOf(async function(){}).constructor;
+                let scriptResult;
+                try {
+                    const asyncScriptRunner = new AsyncFunction('input', 'inputs', `
+                        "use strict";
+                        ${userCode}
+                    `);
+                    scriptResult = await asyncScriptRunner(scriptInput, inputs);
+                } catch (fnErr) {
+                    const scriptRunner = new Function('input', 'inputs', `
+                        "use strict";
+                        ${userCode}
+                    `);
+                    scriptResult = scriptRunner(scriptInput, inputs);
+                    if (scriptResult instanceof Promise) {
+                        scriptResult = await scriptResult;
+                    }
+                }
 
                 rawOutput = scriptResult;
                 if (scriptResult !== undefined && scriptResult !== null) {
@@ -417,6 +430,19 @@ class NodeEngine {
                         outputText = String(scriptResult);
                     }
                 }
+
+                // 스크립트 실행 후 text_viewer 위젯이 있으면 최종 outputText로 동기화
+                widgets.forEach(w => {
+                    if (w.type === 'text_viewer') {
+                        contentData[w.key || 'displayVal'] = outputText;
+                        contentData.output = outputText;
+                        if (winEl) {
+                            const preEl = winEl.querySelector('.widget-text-viewer-pre') || winEl.querySelector('pre');
+                            if (preEl) preEl.textContent = outputText;
+                        }
+                    }
+                });
+
                 console.log(`[NodeEngine] ⚡ 노드 [${file.name || nodeId}] 연산 스크립트 실행 완료:`, outputText);
             } catch (scriptErr) {
                 console.error(`[NodeEngine] ⚠️ 노드 [${file.name || nodeId}] 연산 스크립트 실행 오류:`, scriptErr);

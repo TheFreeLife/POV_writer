@@ -364,16 +364,35 @@
         "type": "dropdown_select",
         "label": "AI 플랫폼",
         "key": "provider",
-        "options": ["OpenAI (ChatGPT)", "Anthropic (Claude)", "Google (Gemini)", "Custom (사용자 정의)"],
-        "defaultVal": "OpenAI (ChatGPT)"
+        "options": ["Google (Gemini)", "OpenAI (ChatGPT)", "Anthropic (Claude)", "Ollama (로컬 AI)", "Custom (사용자 정의)"],
+        "defaultVal": "Google (Gemini)"
       },
       {
         "id": "w_model",
         "type": "dropdown_select",
         "label": "AI 모델",
         "key": "model",
-        "options": ["gpt-4o", "gpt-4o-mini", "claude-3-5-sonnet", "claude-3-5-haiku", "gemini-1.5-pro", "gemini-1.5-flash"],
-        "defaultVal": "gpt-4o"
+        "options": [
+          "gemini-3.5-flash",
+          "gemini-3-flash",
+          "gemini-3.1-pro",
+          "gemini-3-pro",
+          "gemini-2.5-flash",
+          "gemini-2.5-flash-lite",
+          "gemini-2.5-pro",
+          "gemini-2.0-flash",
+          "gemini-1.5-flash",
+          "gemini-1.5-pro",
+          "gpt-4o-mini",
+          "gpt-4o",
+          "o3-mini",
+          "o1",
+          "claude-3-5-haiku",
+          "claude-3-5-sonnet",
+          "llama3",
+          "qwen2.5"
+        ],
+        "defaultVal": "gemini-3.5-flash"
       },
       {
         "id": "w_apikey",
@@ -381,7 +400,7 @@
         "label": "API Key",
         "key": "apiKey",
         "rows": 1,
-        "placeholder": "sk-... (API Key를 입력하세요)"
+        "placeholder": "sk-... 또는 AI Studio Key를 입력하세요"
       },
       {
         "id": "w_temp",
@@ -442,5 +461,51 @@
       ]
     },
     "code": "const raw = input.rawInputs || input['원형 입력 데이터'] || input['in_1'] || input;\nreturn { '바이패스 출력': raw };"
+  },
+  {
+    "schemaVersion": "2.0",
+    "createdAt": 1723642800000,
+    "updatedAt": 1723642800000,
+    "id": "preset_sys_ai_generator",
+    "name": "AI 텍스트 생성기",
+    "icon": "✨",
+    "desc": "AI 설정 노드와 프롬프트/원고 노드를 입력받아, OpenAI, Claude, Gemini, Ollama 등의 AI 모델을 호출하여 텍스트를 생성하는 실행 노드",
+    "category": "general",
+    "color": "#8b5cf6",
+    "defaultWidth": 480,
+    "defaultHeight": 460,
+    "isDefault": true,
+    "promptForName": true,
+    "promptForDesc": false,
+    "widgets": [
+      {
+        "id": "w_viewer",
+        "type": "text_viewer",
+        "label": "생성된 AI 결과",
+        "key": "displayVal"
+      }
+    ],
+    "portsConfig": {
+      "inputs": [
+        {
+          "id": "in_1",
+          "name": "AI 설정",
+          "color": "#38bdf8"
+        },
+        {
+          "id": "in_2",
+          "name": "프롬프트 / 본문",
+          "color": "#ec4899"
+        }
+      ],
+      "outputs": [
+        {
+          "id": "out_1",
+          "name": "생성 결과",
+          "color": "#8b5cf6"
+        }
+      ]
+    },
+    "code": "const config = input['AI 설정'] || input['AI 설정 데이터'] || input['in_1'] || {};\nconst prompt = input['프롬프트 / 본문'] || input['프롬프트 텍스트'] || input['in_2'] || input.input || '';\n\nif (!prompt || !String(prompt).trim()) {\n    return { '생성 결과': '(입력된 프롬프트 또는 텍스트가 없습니다)' };\n}\n\nconst provider = (typeof config === 'object' ? (config.provider || '') : '').toLowerCase();\nconst model = (typeof config === 'object' ? config.model : '') || 'gemini-1.5-flash';\nconst apiKey = (typeof config === 'object' ? (config.rawApiKey || config.apiKey) : '') || '';\nconst temperature = (typeof config === 'object' && config.temperature !== undefined) ? Number(config.temperature) : 0.7;\n\nlet generatedText = '';\n\ntry {\n    if (provider.includes('google') || provider.includes('gemini') || model.startsWith('gemini')) {\n        if (!apiKey || apiKey === '(API Key 미설정)') throw new Error('Gemini API Key가 설정되지 않았습니다.');\n        const targetModel = model || 'gemini-1.5-flash';\n        const url = `https://generativelanguage.googleapis.com/v1beta/models/${targetModel}:generateContent?key=${apiKey}`;\n        const res = await fetch(url, {\n            method: 'POST',\n            headers: { 'Content-Type': 'application/json' },\n            body: JSON.stringify({\n                contents: [{ parts: [{ text: String(prompt) }] }],\n                generationConfig: { temperature: isNaN(temperature) ? 0.7 : temperature }\n            })\n        });\n        const data = await res.json();\n        if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));\n        generatedText = data.candidates?.[0]?.content?.parts?.[0]?.text || '(응답 내용 없음)';\n    } else if (provider.includes('anthropic') || provider.includes('claude') || model.startsWith('claude')) {\n        if (!apiKey || apiKey === '(API Key 미설정)') throw new Error('Claude API Key가 설정되지 않았습니다.');\n        const res = await fetch('https://api.anthropic.com/v1/messages', {\n            method: 'POST',\n            headers: {\n                'Content-Type': 'application/json',\n                'x-api-key': apiKey,\n                'anthropic-version': '2023-06-01',\n                'dangerously-allow-browser': 'true'\n            },\n            body: JSON.stringify({\n                model: model || 'claude-3-5-haiku-20241022',\n                max_tokens: 4096,\n                temperature: isNaN(temperature) ? 0.7 : temperature,\n                messages: [{ role: 'user', content: String(prompt) }]\n            })\n        });\n        const data = await res.json();\n        if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));\n        generatedText = data.content?.[0]?.text || '(응답 내용 없음)';\n    } else if (provider.includes('ollama') || provider.includes('local') || model.includes('llama') || model.includes('qwen') || (!apiKey && provider.includes('custom'))) {\n        const targetModel = model || 'llama3';\n        const res = await fetch('http://localhost:11434/api/generate', {\n            method: 'POST',\n            headers: { 'Content-Type': 'application/json' },\n            body: JSON.stringify({\n                model: targetModel,\n                prompt: String(prompt),\n                stream: false,\n                options: { temperature: isNaN(temperature) ? 0.7 : temperature }\n            })\n        });\n        const data = await res.json();\n        if (data.error) throw new Error(data.error);\n        generatedText = data.response || '(응답 내용 없음)';\n    } else {\n        if (!apiKey || apiKey === '(API Key 미설정)') throw new Error('OpenAI API Key가 설정되지 않았습니다.');\n        const res = await fetch('https://api.openai.com/v1/chat/completions', {\n            method: 'POST',\n            headers: {\n                'Content-Type': 'application/json',\n                'Authorization': `Bearer ${apiKey}`\n            },\n            body: JSON.stringify({\n                model: model || 'gpt-4o-mini',\n                temperature: isNaN(temperature) ? 0.7 : temperature,\n                messages: [{ role: 'user', content: String(prompt) }]\n            })\n        });\n        const data = await res.json();\n        if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));\n        generatedText = data.choices?.[0]?.message?.content || '(응답 내용 없음)';\n    }\n} catch (err) {\n    generatedText = `[AI 생성 오류: ${err.message}]`;\n}\n\nreturn { '생성 결과': generatedText };"
   }
 ]
