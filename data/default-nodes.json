@@ -404,5 +404,43 @@
       ]
     },
     "code": "const provider = input['AI 플랫폼'] || input.provider || 'OpenAI (ChatGPT)';\nconst model = input['AI 모델'] || input.model || 'gpt-4o';\nconst apiKey = input['API Key'] || input.apiKey || '';\nconst temperature = parseFloat(input['창의성 (Temperature)'] || input.temperature || '0.7');\nreturn {\n  'AI 설정 데이터': {\n    provider,\n    model,\n    apiKey: apiKey ? (apiKey.slice(0, 7) + '...' + apiKey.slice(-4)) : '(API Key 미설정)',\n    rawApiKey: apiKey,\n    temperature: isNaN(temperature) ? 0.7 : temperature\n  }\n};"
+  },
+  {
+    "id": "preset_sys_raw_inspector",
+    "name": "데이터 구조 인스펙터",
+    "icon": "🧬",
+    "desc": "상위 노드에서 넘어온 원본 데이터(객체, JSON, 리스트 등)의 타입과 내부 구조를 풀지 않고 원형 그대로 검사하고 모니터링하는 디버깅 노드",
+    "category": "general",
+    "color": "#10b981",
+    "defaultWidth": 460,
+    "defaultHeight": 380,
+    "isDefault": true,
+    "promptForName": true,
+    "promptForDesc": false,
+    "widgets": [
+      {
+        "id": "w_raw_inspect",
+        "type": "raw_data_viewer",
+        "label": "원형 데이터 구조 검사",
+        "key": "rawVal"
+      }
+    ],
+    "portsConfig": {
+      "inputs": [
+        {
+          "id": "in_1",
+          "name": "원형 입력 데이터",
+          "color": "#a855f7"
+        }
+      ],
+      "outputs": [
+        {
+          "id": "out_1",
+          "name": "바이패스 출력",
+          "color": "#10b981"
+        }
+      ]
+    },
+    "code": "const raw = input.rawInputs || input['원형 입력 데이터'] || input['in_1'] || input;\nreturn { '바이패스 출력': raw };"
   }
 ]

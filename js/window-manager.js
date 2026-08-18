@@ -1964,19 +1964,33 @@ class WindowManager {
         const statsEl = root.querySelector(`[data-stats="${fileId}"]`);
         if (!statsEl) return;
 
-        const total = content.length;
-        const noSpace = content.replace(/\s/g, '').length;
+        let textStr = '';
+        if (typeof content === 'string') {
+            textStr = content;
+        } else if (typeof content === 'object' && content !== null) {
+            textStr = content.editorVal || content.content || content.text || content.val || '';
+        } else {
+            textStr = String(content || '');
+        }
+
+        const total = textStr.length;
+        const noSpace = textStr.replace(/\s/g, '').length;
 
         // 문장: . ! ? 기준으로 분리 (다중 구두점 고려)
-        const sentences = content.split(/[.!?]+/).filter(s => s.trim().length > 0).length;
+        const sentences = textStr.split(/[.!?]+/).filter(s => s.trim().length > 0).length;
 
         // 단락: 줄바꿈 기준
-        const paragraphs = content.split(/\n+/).filter(p => p.trim().length > 0).length;
+        const paragraphs = textStr.split(/\n+/).filter(p => p.trim().length > 0).length;
 
-        statsEl.querySelector('.total').textContent = `${total.toLocaleString()}자`;
-        statsEl.querySelector('.nospace').textContent = `(공백제외 ${noSpace.toLocaleString()})`;
-        statsEl.querySelector('.sentences').textContent = `${sentences.toLocaleString()}문장`;
-        statsEl.querySelector('.paragraphs').textContent = `${paragraphs.toLocaleString()}단락`;
+        const totalEl = statsEl.querySelector('.total');
+        const noSpaceEl = statsEl.querySelector('.nospace');
+        const sentencesEl = statsEl.querySelector('.sentences');
+        const paragraphsEl = statsEl.querySelector('.paragraphs');
+
+        if (totalEl) totalEl.textContent = `${total.toLocaleString()}자`;
+        if (noSpaceEl) noSpaceEl.textContent = `(공백제외 ${noSpace.toLocaleString()})`;
+        if (sentencesEl) sentencesEl.textContent = `${sentences.toLocaleString()}문장`;
+        if (paragraphsEl) paragraphsEl.textContent = `${paragraphs.toLocaleString()}단락`;
     }
 
     /**

@@ -1337,8 +1337,11 @@ class FileTreeManager {
         const fileData = {
             name: nodeName,
             type: 'file',
-            template: 'custom_node',
-            isCustomNode: true,
+            template: preset.category || 'custom_node',
+            nodeType: preset.category || preset.nodeType || 'general',
+            category: preset.category || 'general',
+            presetId: preset.id || null,
+            isCustomNode: !preset.isDefault,
             description: nodeDesc,
             code: preset.code || '',
             content: JSON.stringify(contentObj, null, 2),
@@ -1525,6 +1528,7 @@ class FileTreeManager {
             'input_text': '📝',
             'dropdown_select': '🔽',
             'text_viewer': '👁️',
+            'raw_data_viewer': '🧬',
             'approval_gate': '✅',
             'continue_gate': '▶️',
             'toggle_switch': '🔘',
@@ -1539,6 +1543,7 @@ class FileTreeManager {
             'input_text': '텍스트 입력창',
             'dropdown_select': '드롭다운',
             'text_viewer': '텍스트 뷰어 (출력)',
+            'raw_data_viewer': '원형 데이터 뷰어',
             'approval_gate': '검수 승인 게이트',
             'continue_gate': '진행 확인 게이트',
             'toggle_switch': '스위치 토글',
@@ -1552,8 +1557,8 @@ class FileTreeManager {
         const icon = widgetIcons[type] || '🧩';
         const defaultLabel = label || widgetNames[type] || 'UI 위젯';
         const defaultKey = key || label || defaultLabel;
-        const defaultRows = rows || (type === 'editor_canvas' ? 5 : 1);
-        const showRowsOption = ['input_text', 'editor_canvas', 'text_viewer'].includes(type);
+        const defaultRows = rows || (type === 'editor_canvas' ? 5 : (type === 'raw_data_viewer' ? 10 : 1));
+        const showRowsOption = ['input_text', 'editor_canvas', 'text_viewer', 'raw_data_viewer'].includes(type);
         const hasInputs = ['input_text', 'editor_canvas', 'toggle_switch'].includes(type);
         const isDropdown = type === 'dropdown_select';
         const optionsStr = Array.isArray(options) ? options.join(', ') : (options || defaultVal || '옵션 1, 옵션 2, 옵션 3');

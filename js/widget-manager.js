@@ -182,6 +182,76 @@ class WidgetManager {
             bindEvents: (container, w, contentData, onUpdate) => {}
         });
 
+        // 4-2) 원형 데이터 구조 인스펙터 위젯 (Raw Data Inspector - 객체/JSON 구조 그대로 출력)
+        this.register('raw_data_viewer', {
+            render: (w, contentData, fileId) => {
+                const key = w.key || w.label || 'rawVal';
+                const val = contentData[w.key] !== undefined ? contentData[w.key] :
+                            (w.label && contentData[w.label] !== undefined ? contentData[w.label] :
+                            (contentData[key] !== undefined ? contentData[key] :
+                            (contentData.rawVal !== undefined ? contentData.rawVal :
+                            (contentData.rawInputs !== undefined ? contentData.rawInputs :
+                            (contentData.output !== undefined ? contentData.output : null)))));
+
+                let typeName = 'null';
+                let formattedJson = 'null';
+
+                if (val !== null && val !== undefined) {
+                    if (Array.isArray(val)) {
+                        typeName = `Array(${val.length})`;
+                        formattedJson = JSON.stringify(val, null, 2);
+                    } else if (typeof val === 'object') {
+                        typeName = `Object {${Object.keys(val).length}}`;
+                        formattedJson = JSON.stringify(val, null, 2);
+                    } else {
+                        typeName = typeof val;
+                        formattedJson = String(val);
+                    }
+                } else {
+                    formattedJson = '(입력된 원형 데이터 없음)';
+                }
+
+                const rows = parseInt(w.rows || 10, 10) || 10;
+                const minHeight = `${Math.max(120, rows * 22)}px`;
+
+                return `
+                    <div class="widget-item raw-data-inspector-widget" style="display: flex; flex-direction: column; gap: 6px; width: 100%; box-sizing: border-box;">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <label style="font-size: 11px; font-weight: bold; color: var(--color-text-secondary); display: flex; align-items: center; gap: 6px;">
+                                🧬 ${this.escapeHtml(w.label || '원형 데이터 인스펙터')}
+                                <span class="raw-data-type-badge" style="font-size: 10px; font-weight: 700; background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 4px; padding: 1px 6px;">${this.escapeHtml(typeName)}</span>
+                            </label>
+                            <button type="button" class="btn btn-secondary btn-xs copy-raw-json-btn" data-file-id="${fileId}" style="font-size: 10px; padding: 2px 8px; display: flex; align-items: center; gap: 4px; background: var(--color-surface-2); border: 1px solid var(--color-border); border-radius: 4px; cursor: pointer; color: var(--color-text-secondary);">
+                                📋 복사
+                            </button>
+                        </div>
+                        <pre class="widget-raw-data-pre" data-widget-key="${this.escapeHtml(key)}" style="font-family: var(--font-family-mono, Consolas, monospace); font-size: 11px; line-height: 1.5; background: #0d1117; color: #7ee787; border: 1px solid var(--color-border); border-radius: 6px; padding: 10px; white-space: pre-wrap; word-break: break-all; margin: 0; min-height: ${minHeight}; height: ${minHeight}; resize: vertical !important; overflow: auto; tab-size: 2; box-sizing: border-box;">${this.escapeHtml(formattedJson)}</pre>
+                    </div>
+                `;
+            },
+            bindEvents: (container, w, contentData, onUpdate, fileId) => {
+                const copyBtn = container.querySelector('.copy-raw-json-btn');
+                const preEl = container.querySelector('.widget-raw-data-pre');
+                if (copyBtn && preEl) {
+                    copyBtn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        const textToCopy = preEl.textContent;
+                        navigator.clipboard?.writeText(textToCopy).then(() => {
+                            const originalText = copyBtn.innerHTML;
+                            copyBtn.innerHTML = '✅ 복사됨!';
+                            copyBtn.style.color = '#10b981';
+                            setTimeout(() => {
+                                copyBtn.innerHTML = originalText;
+                                copyBtn.style.color = 'var(--color-text-secondary)';
+                            }, 1500);
+                        }).catch(() => {
+                            window.showToast?.('클립보드 복사 실패', 'error');
+                        });
+                    });
+                }
+            }
+        });
+
         // 5) 사용자 검수 승인 위젯
         this.register('approval_gate', {
             render: (w, contentData, fileId) => {
@@ -620,6 +690,43 @@ class WidgetManager {
                           container.querySelector('pre');
             if (preEl && preEl.textContent !== displayStr) {
                 preEl.textContent = displayStr;
+            }
+        } else if (widget.type === 'raw_data_viewer') {
+            const k = widget.key || widget.label || 'rawVal';
+            const val = contentData[widget.key] !== undefined ? contentData[widget.key] :
+                        (widget.label && contentData[widget.label] !== undefined ? contentData[widget.label] :
+                        (contentData[k] !== undefined ? contentData[k] :
+                        (contentData.rawVal !== undefined ? contentData.rawVal :
+                        (contentData.rawInputs !== undefined ? contentData.rawInputs :
+                        (contentData.output !== undefined ? contentData.output : null)))));
+
+            let typeName = 'null';
+            let formattedJson = 'null';
+            if (val !== null && val !== undefined) {
+                if (Array.isArray(val)) {
+                    typeName = `Array(${val.length})`;
+                    formattedJson = JSON.stringify(val, null, 2);
+                } else if (typeof val === 'object') {
+                    typeName = `Object {${Object.keys(val).length}}`;
+                    formattedJson = JSON.stringify(val, null, 2);
+                } else {
+                    typeName = typeof val;
+                    formattedJson = String(val);
+                }
+            } else {
+                formattedJson = '(입력된 원형 데이터 없음)';
+            }
+
+            const preEl = container.querySelector(`.widget-raw-data-pre[data-widget-key="${k}"]`) ||
+                          container.querySelector(`.widget-raw-data-pre[data-widget-key="${widget.key}"]`) ||
+                          container.querySelector('.widget-raw-data-pre');
+            const badgeEl = container.querySelector('.raw-data-type-badge');
+
+            if (badgeEl && badgeEl.textContent !== typeName) {
+                badgeEl.textContent = typeName;
+            }
+            if (preEl && preEl.textContent !== formattedJson) {
+                preEl.textContent = formattedJson;
             }
         } else if (widget.type === 'input_text') {
             const k = widget.key || widget.label || 'val';

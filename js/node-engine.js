@@ -53,7 +53,7 @@ class NodeEngine {
             contentData = { ...file.content };
         }
 
-        const nodeType = file.nodeType || file.template || (file.isCustomNode ? 'custom' : 'manuscript');
+        const nodeType = file.nodeType || file.category || (file.template && file.template !== 'custom_node' ? file.template : null) || (file.isCustomNode ? 'custom' : 'general');
         let widgets = Array.isArray(contentData.widgets) ? contentData.widgets : [];
 
         if (widgets.length === 0) {
@@ -375,6 +375,7 @@ class NodeEngine {
         // 🌟 4. 노드 동작 코드(연산 스크립트) 실행
         const userCode = file.code || contentData.code || '';
         let outputText = contentData.editorVal || contentData.val || contentData.content || contentData.text || aggregatedInput || '';
+        let rawOutput = outputText;
 
         if (userCode) {
             try {
@@ -400,11 +401,19 @@ class NodeEngine {
                 `);
                 const scriptResult = scriptRunner(scriptInput, inputs);
 
+                rawOutput = scriptResult;
                 if (scriptResult !== undefined && scriptResult !== null) {
-                    if (typeof scriptResult === 'object') {
+                    if (typeof scriptResult === 'object' && !Array.isArray(scriptResult)) {
+                        // return { '출력핀이름': data } 형태인 경우 내부 데이터 추출
+                        const keys = Object.keys(scriptResult);
                         const firstVal = Object.values(scriptResult)[0];
-                        outputText = typeof firstVal === 'string' ? firstVal : JSON.stringify(scriptResult, null, 2);
+                        rawOutput = firstVal !== undefined ? firstVal : scriptResult;
+                        outputText = typeof rawOutput === 'object' ? JSON.stringify(rawOutput, null, 2) : String(rawOutput);
+                    } else if (Array.isArray(scriptResult)) {
+                        rawOutput = scriptResult;
+                        outputText = JSON.stringify(scriptResult, null, 2);
                     } else {
+                        rawOutput = scriptResult;
                         outputText = String(scriptResult);
                     }
                 }
@@ -414,16 +423,46 @@ class NodeEngine {
                 window.showToast?.(`노드 [${file.name || nodeId}] 스크립트 오류: ${scriptErr.message}`, 'error');
             }
         } else {
-            // 텍스트 뷰어 위젯(모니터링/디버깅 노드)의 경우 상위에서 들어온 인풋을 그대로 바이패스 전달
             if (widgets.some(w => w.type === 'text_viewer') && aggregatedInput) {
                 outputText = aggregatedInput;
             }
         }
 
+        // 🌟 5. raw_data_viewer 위젯이 있는 노드의 경우, 상위 노드의 정형화된 데이터 구조(노드명, 타입, 출력값, 위젯 데이터)를 JSON으로 바인딩
+        if (widgets.some(w => w.type === 'raw_data_viewer')) {
+            const rawNodeMap = {};
+            const parents = session?.graph?.parentsMap?.get(String(nodeId)) || [];
+            parents.forEach(pId => {
+                const pFile = this._getFile(pId);
+                const pNorm = pFile ? this.normalizeNodeData(pFile) : null;
+                const pOut = session?.nodeOutputs?.get(pId);
+                rawNodeMap[pFile?.name || pId] = {
+                    nodeName: pFile?.name || '노드',
+                    nodeType: pNorm?.nodeType || 'general',
+                    output: pOut !== undefined ? pOut : (pNorm?.contentData?.output || ''),
+                    data: pNorm?.contentData || {}
+                };
+            });
+
+            const rawSource = parents.length === 1 ? Object.values(rawNodeMap)[0] : (Object.keys(rawNodeMap).length > 0 ? rawNodeMap : (inputs && Object.keys(inputs).length > 0 ? inputs : (contentData.output || outputText)));
+            contentData.rawVal = rawSource;
+            contentData.rawInputs = rawNodeMap;
+        }
+
+        // 실행 결과 최종 저장 및 화면 즉시 차분 갱신 (1회 실행 즉시 반영!)
+        file.content = contentData;
+        const winInfoFinal = window.windowManager?.getWindowInfo?.(nodeId);
+        if (winInfoFinal && winInfoFinal.file) {
+            winInfoFinal.file.content = contentData;
+        }
+        await window.storage?.saveFile?.(file);
+        window.windowManager?.refreshNodeUI?.(nodeId);
+
         console.log(`[NodeEngine] 📤 노드 [${file.name || nodeId}] 최종 출력값:`, outputText);
 
         return {
             output: outputText,
+            rawOutput: rawOutput !== undefined ? rawOutput : outputText,
             contentData
         };
     }
@@ -480,8 +519,9 @@ class NodeEngine {
             const result = await this._processNodeComputation(nodeId, session, collectedInputs);
             if (session.isAborted) return;
 
-            // 실행 완료 처리
-            session.nodeOutputs.set(nodeId, result.output);
+            // 실행 완료 처리 (하위 노드로 순수 JSON/객체 원형 그대로 무손실 전달!)
+            const finalOutputToPass = result.rawOutput !== undefined ? result.rawOutput : result.output;
+            session.nodeOutputs.set(nodeId, finalOutputToPass);
             session.nodeStates.set(nodeId, 'completed');
             this.setNodeState(nodeId, 'completed');
 
