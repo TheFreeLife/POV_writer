@@ -449,6 +449,38 @@
     }
 }
 
+/* 노드 실행 상태 하이라이트 */
+.editor-window.exec-running {
+    border-color: #10b981 !important;
+    box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.6), 0 0 24px rgba(16, 185, 129, 0.45) !important;
+    transition: border-color 0.25s ease, box-shadow 0.25s ease;
+}
+
+.editor-window.exec-waiting {
+    border-color: #f59e0b !important;
+    box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.7), 0 0 24px rgba(245, 158, 11, 0.5) !important;
+    animation: node-waiting-pulse 1.6s infinite alternate ease-in-out;
+}
+
+@keyframes node-waiting-pulse {
+    0% {
+        box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.6), 0 0 16px rgba(245, 158, 11, 0.35);
+        border-color: #f59e0b;
+    }
+    100% {
+        box-shadow: 0 0 0 4px rgba(245, 158, 11, 0.9), 0 0 32px rgba(245, 158, 11, 0.7);
+        border-color: #fbbf24;
+    }
+}
+
+.node-connection-line.exec-active {
+    stroke: #10b981 !important;
+    stroke-width: 5px !important;
+    stroke-dasharray: 8 6 !important;
+    animation: node-dash-animation 0.8s linear infinite !important;
+    filter: drop-shadow(0 0 10px rgba(16, 185, 129, 0.8)) !important;
+}
+
 .node-connection-draft {
     fill: none !important;
     stroke-width: 4px !important;

@@ -86,17 +86,24 @@ class WindowManager {
 
         document.getElementById('runAllGraphBtn')?.addEventListener('click', async () => {
             execPopmenu?.classList.add('hidden');
-            window.nodeEngine?.notifyPreparing();
+            if (window.nodeEngine) {
+                await window.nodeEngine.evaluateAllNodes();
+            }
         });
 
         document.getElementById('runTargetNodeBtn')?.addEventListener('click', async () => {
             execPopmenu?.classList.add('hidden');
-            window.nodeEngine?.notifyPreparing();
+            if (window.nodeEngine) {
+                const targetId = this.targetEndNodeId || this.activeWindowId;
+                await window.nodeEngine.runTargetNode(targetId);
+            }
         });
 
         document.getElementById('stopGraphExecBtn')?.addEventListener('click', () => {
             execPopmenu?.classList.add('hidden');
-            window.nodeEngine?.notifyPreparing();
+            if (window.nodeEngine) {
+                window.nodeEngine.stopExecution();
+            }
         });
 
         // 단축키 (Ctrl + Enter로 전체 그래프 실행)
@@ -431,12 +438,18 @@ class WindowManager {
         const nodeCenterX = nodeX + w / 2;
         const nodeCenterY = nodeY + h / 2;
 
-        this.panX = areaRect.width / 2 - nodeCenterX * this.scale;
-        this.panY = areaRect.height / 2 - nodeCenterY * this.scale;
-
-        this.applyTransform();
+        this.canvasState.panX = areaRect.width / 2 - nodeCenterX * this.canvasState.zoom;
+        this.canvasState.panY = areaRect.height / 2 - nodeCenterY * this.canvasState.zoom;
+        this.applyCanvasTransform();
         this.saveProjectCanvasState();
         this.focusWindow(fileId);
+    }
+
+    /**
+     * 노드 실행 시 시야 포커스 유틸리티
+     */
+    scrollIntoViewIfNeeded(fileId) {
+        this.panToWindow(fileId);
     }
 
     /**
@@ -2142,7 +2155,7 @@ class WindowManager {
             this.hideContextMenu();
             this.setTargetEndNode(fileId);
             if (window.nodeEngine) {
-                await window.nodeEngine.runGraph(fileId);
+                await window.nodeEngine.runTargetNode(fileId);
             }
         });
         const deleteBtn = menu.querySelector('[data-action="delete"]');

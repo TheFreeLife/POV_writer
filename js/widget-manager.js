@@ -143,19 +143,18 @@ class WidgetManager {
                 // 승인 및 하위 전파 실행
                 if (apprBtn) {
                     apprBtn.addEventListener('click', async () => {
+                        const isWaitingInEngine = window.nodeEngine?.currentSession?.waitingResolvers?.has(String(fileId));
+                        if (!window.nodeEngine?.isRunning || !isWaitingInEngine) {
+                            window.showToast?.('⚠️ 노드 그래프 실행 중 승인 대기(주황색) 상태일 때만 승인이 가능합니다.', 'warning');
+                            return;
+                        }
+
                         contentData.isApproved = true;
                         onUpdate(contentData);
 
                         if (fileId && window.nodeEngine) {
-                            const downstreamIds = window.nodeEngine.getDownstreamNodeIds(fileId);
-                            if (downstreamIds.length > 0) {
-                                window.showToast?.('승인 완료! 하위 노드 연산을 진행합니다... 🚀', 'success');
-                                for (const dId of downstreamIds) {
-                                    await window.nodeEngine.runNode(dId);
-                                }
-                            } else {
-                                window.showToast?.('검수가 승인 완료되었습니다! ✅', 'success');
-                            }
+                            window.nodeEngine.resumeWaitingNode(fileId);
+                            window.showToast?.('승인 완료! 하위 노드 연산을 진행합니다... 🚀', 'success');
                         }
                     });
                 }
@@ -163,33 +162,25 @@ class WidgetManager {
                 // 반려 및 상위 노드 연산 재시도
                 if (rejectBtn) {
                     rejectBtn.addEventListener('click', async () => {
-                        if (!fileId || !window.nodeEngine) return;
-
-                        const connections = window.nodeEngine._getConnections() || [];
-                        const inConns = connections.filter(c => String(c.toId) === String(fileId));
-
-                        if (inConns.length === 0) {
-                            window.showToast?.('⚠️ 연결된 상위 노드가 없습니다.', 'warning');
+                        const isWaitingInEngine = window.nodeEngine?.currentSession?.waitingResolvers?.has(String(fileId));
+                        if (!window.nodeEngine?.isRunning || !isWaitingInEngine) {
+                            window.showToast?.('⚠️ 노드 그래프 실행 중 승인 대기(주황색) 상태일 때만 반려/재시도가 가능합니다.', 'warning');
                             return;
                         }
 
-                        window.showToast?.('🔄 상위 작업 연산을 재시도합니다...');
-                        contentData.isApproved = false;
-                        onUpdate(contentData);
-
-                        for (const conn of inConns) {
-                            window.nodeEngine.clearNodeCache(conn.fromId);
-                            await window.nodeEngine.runNode(conn.fromId);
-                            window.windowManager?.refreshNodeUI(conn.fromId);
+                        if (fileId && window.nodeEngine) {
+                            await window.nodeEngine.rejectAndRetry(fileId);
                         }
-
-                        window.showToast?.('✨ 상위 작업이 새로 연산되었습니다!', 'success');
                     });
                 }
 
                 // 초기화
                 if (resetBtn) {
                     resetBtn.addEventListener('click', () => {
+                        if (window.nodeEngine?.isRunning) {
+                            window.showToast?.('⚠️ 실행 중에는 수동 초기화할 수 없습니다. 상단 실행 중지를 이용해주세요.', 'warning');
+                            return;
+                        }
                         contentData.isApproved = false;
                         onUpdate(contentData);
                         window.showToast?.('승인 상태가 초기화되었습니다. 🔄');
