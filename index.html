@@ -319,18 +319,8 @@
       <div class="modal-body">
         <!-- 사용자 정의 커스텀 노드 형태 섹션 (구조 마법사) -->
         <div id="customPresetsSection" style="padding-top: 4px;">
-          <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px;">
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-              <p class="node-select-subtitle" style="margin-bottom: 0;">✨ 노드 카테고리 선택</p>
-            </div>
-            <div style="display: flex; gap: 10px; align-items: center; background: var(--color-bg-secondary); padding: 8px 12px; border-radius: 8px; border: 1px solid var(--color-border); width: 100%; box-sizing: border-box;">
-              <div id="nodeCategoryFilterChips" style="display: flex; gap: 6px; align-items: center; flex-wrap: nowrap; overflow-x: auto; flex: 1; padding: 2px 0; scrollbar-width: thin; box-sizing: border-box;"></div>
-              <div style="height: 16px; width: 1px; background: var(--color-border); flex-shrink: 0;"></div>
-              <button type="button" class="btn btn-secondary btn-xs" id="openCategoryManageBtn" title="노드 카테고리 목록 수정/추가 관리" style="font-size: 11px; padding: 4px 10px; border-radius: 12px; background: var(--color-surface-2); border: 1px solid var(--color-border); flex-shrink: 0; font-weight: 700; color: var(--color-text-secondary);">⚙️ 카테고리 관리</button>
-            </div>
-          </div>
-          <div id="customPresetsContainer" style="display: flex; flex-direction: column; gap: 20px; width: 100%;">
-            <!-- 동적으로 저장된 커스텀 노드 구조 카드가 렌더링됩니다 -->
+          <div id="customPresetsContainer" style="display: flex; flex-direction: column; gap: 24px; width: 100%;">
+            <!-- 시스템 기본 노드 및 커스텀 노드 섹션이 각각의 전용 카테고리 칩 바와 함께 동적으로 렌더링됩니다 -->
           </div>
         </div>
       </div>
@@ -345,13 +335,13 @@
   <div id="nodeCategoryManageModal" class="modal-overlay hidden">
     <div class="modal modal-md" style="max-width: 520px;">
       <div class="modal-header">
-        <h2 class="modal-title">📁 노드 카테고리 목록 관리</h2>
+        <h2 class="modal-title">📁 커스텀 노드 카테고리 관리</h2>
         <button class="modal-close" id="closeNodeCategoryManageModal">✕</button>
       </div>
       <div class="modal-body" style="padding: 16px 20px;">
         <p style="font-size: 12px; color: var(--color-text-tertiary); margin-bottom: 14px; line-height: 1.4;">
-          노드를 분류할 카테고리를 새롭게 추가하거나 수정할 수 있습니다.<br>
-          삭제된 카테고리에 속했던 노드들은 자동으로 <code>📁 기타</code> 카테고리로 안전하게 변경됩니다.
+          나만의 커스텀 노드를 분류할 카테고리를 추가하거나 이름을 변경할 수 있습니다.<br>
+          (시스템 기본 카테고리는 표준 규격으로 보호되어 고정 유지됩니다.)
         </p>
         
         <!-- 새 카테고리 추가 입력창 -->

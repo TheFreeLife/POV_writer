@@ -63,7 +63,7 @@
     "name": "텍스트 모니터링 노드",
     "icon": "👁️",
     "desc": "상위 노드의 출력을 받아 텍스트 뷰어에 표시하고, 다음 노드로 그대로 전달하는 중간 모니터링/디버깅 노드",
-    "category": "general",
+    "category": "review",
     "color": "#38bdf8",
     "defaultWidth": 440,
     "defaultHeight": 320,
@@ -104,7 +104,7 @@
     "name": "소설 원고 노드",
     "icon": "📝",
     "desc": "소설 원고 본문을 직접 작성하고 다음 노드로 전달하는 원고 노드",
-    "category": "writing",
+    "category": "story",
     "color": "#10b981",
     "defaultWidth": 520,
     "defaultHeight": 550,
@@ -142,7 +142,7 @@
     "name": "사용자 승인/검수 노드",
     "icon": "✋",
     "desc": "상위 노드의 결과를 텍스트 뷰어로 확인하고, 사용자가 승인해야 다음으로 전달하며 반려 시 상위 노드를 재실행하는 검수 노드",
-    "category": "general",
+    "category": "review",
     "color": "#f59e0b",
     "defaultWidth": 460,
     "defaultHeight": 440,
@@ -188,7 +188,7 @@
     "name": "실행 흐름 제어 노드",
     "icon": "▶️",
     "desc": "상위 노드의 출력을 확인하고 사용자가 확인 버튼을 눌러야 다음 노드로 실행 흐름을 넘기는 일시 정지/진행 제어 노드",
-    "category": "general",
+    "category": "review",
     "color": "#0ea5e9",
     "defaultWidth": 460,
     "defaultHeight": 380,
@@ -234,7 +234,7 @@
     "name": "다중 입력 필터 노드",
     "icon": "🎛️",
     "desc": "여러 상위 노드를 연결하면 각 노드별 선택 스위치가 자동 생성되어, 원하는 데이터만 골라서 다음 노드로 전달하는 범용 필터 노드",
-    "category": "general",
+    "category": "logic",
     "color": "#6366f1",
     "defaultWidth": 460,
     "defaultHeight": 360,
@@ -274,7 +274,7 @@
     "name": "A/B 선택 분기 노드",
     "icon": "🔀",
     "desc": "2개의 서로 다른 상위 노드(선택지 A/B)를 입력받아, 사용자가 선택한 하나의 데이터만 다음 노드로 전달하는 분기 노드",
-    "category": "general",
+    "category": "logic",
     "color": "#ec4899",
     "defaultWidth": 460,
     "defaultHeight": 380,
@@ -317,7 +317,7 @@
     "name": "프롬프트 노드",
     "icon": "💡",
     "desc": "AI에게 전달할 지시사항이나 프롬프트 본문을 작성하여 다음 노드로 전달하는 프롬프트 전용 노드",
-    "category": "general",
+    "category": "story",
     "color": "#8b5cf6",
     "defaultWidth": 420,
     "defaultHeight": 320,
@@ -350,8 +350,8 @@
     "id": "preset_sys_ai_config",
     "name": "AI 설정 노드",
     "icon": "🤖",
-    "desc": "AI 플랫폼(OpenAI/Claude/Gemini), 모델명, API Key, 창의성(Temperature) 등 AI 생성 환경 설정을 구성하여 전달하는 노드",
-    "category": "general",
+    "desc": "AI 플랫폼(Google/OpenAI/Claude/Ollama), 모델명, API Key, 창의성(Temperature) 등 AI 생성 환경 설정을 구성하여 전달하는 노드",
+    "category": "logic",
     "color": "#38bdf8",
     "defaultWidth": 440,
     "defaultHeight": 360,
@@ -422,7 +422,7 @@
         }
       ]
     },
-    "code": "const provider = input['AI 플랫폼'] || input.provider || 'OpenAI (ChatGPT)';\nconst model = input['AI 모델'] || input.model || 'gpt-4o';\nconst apiKey = input['API Key'] || input.apiKey || '';\nconst temperature = parseFloat(input['창의성 (Temperature)'] || input.temperature || '0.7');\nreturn {\n  'AI 설정 데이터': {\n    provider,\n    model,\n    apiKey: apiKey ? (apiKey.slice(0, 7) + '...' + apiKey.slice(-4)) : '(API Key 미설정)',\n    rawApiKey: apiKey,\n    temperature: isNaN(temperature) ? 0.7 : temperature\n  }\n};"
+    "code": "const provider = input['AI 플랫폼'] || input.provider || 'Google (Gemini)';\nconst model = input['AI 모델'] || input.model || 'gemini-3.5-flash';\nconst apiKey = input['API Key'] || input.apiKey || '';\nconst temperature = parseFloat(input['창의성 (Temperature)'] || input.temperature || '0.7');\nreturn {\n  'AI 설정 데이터': {\n    provider,\n    model,\n    apiKey: apiKey ? (apiKey.slice(0, 7) + '...' + apiKey.slice(-4)) : '(API Key 미설정)',\n    rawApiKey: apiKey,\n    temperature: isNaN(temperature) ? 0.7 : temperature\n  }\n};"
   },
   {
     "id": "preset_sys_raw_inspector",
@@ -470,7 +470,7 @@
     "name": "AI 텍스트 생성기",
     "icon": "✨",
     "desc": "AI 설정 노드와 프롬프트/원고 노드를 입력받아, OpenAI, Claude, Gemini, Ollama 등의 AI 모델을 호출하여 텍스트를 생성하는 실행 노드",
-    "category": "general",
+    "category": "logic",
     "color": "#8b5cf6",
     "defaultWidth": 480,
     "defaultHeight": 460,
@@ -507,5 +507,360 @@
       ]
     },
     "code": "const config = input['AI 설정'] || input['AI 설정 데이터'] || input['in_1'] || {};\nconst prompt = input['프롬프트 / 본문'] || input['프롬프트 텍스트'] || input['in_2'] || input.input || '';\n\nif (!prompt || !String(prompt).trim()) {\n    return { '생성 결과': '(입력된 프롬프트 또는 텍스트가 없습니다)' };\n}\n\nconst provider = (typeof config === 'object' ? (config.provider || '') : '').toLowerCase();\nconst model = (typeof config === 'object' ? config.model : '') || 'gemini-1.5-flash';\nconst apiKey = (typeof config === 'object' ? (config.rawApiKey || config.apiKey) : '') || '';\nconst temperature = (typeof config === 'object' && config.temperature !== undefined) ? Number(config.temperature) : 0.7;\n\nlet generatedText = '';\n\ntry {\n    if (provider.includes('google') || provider.includes('gemini') || model.startsWith('gemini')) {\n        if (!apiKey || apiKey === '(API Key 미설정)') throw new Error('Gemini API Key가 설정되지 않았습니다.');\n        const targetModel = model || 'gemini-1.5-flash';\n        const url = `https://generativelanguage.googleapis.com/v1beta/models/${targetModel}:generateContent?key=${apiKey}`;\n        const res = await fetch(url, {\n            method: 'POST',\n            headers: { 'Content-Type': 'application/json' },\n            body: JSON.stringify({\n                contents: [{ parts: [{ text: String(prompt) }] }],\n                generationConfig: { temperature: isNaN(temperature) ? 0.7 : temperature }\n            })\n        });\n        const data = await res.json();\n        if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));\n        generatedText = data.candidates?.[0]?.content?.parts?.[0]?.text || '(응답 내용 없음)';\n    } else if (provider.includes('anthropic') || provider.includes('claude') || model.startsWith('claude')) {\n        if (!apiKey || apiKey === '(API Key 미설정)') throw new Error('Claude API Key가 설정되지 않았습니다.');\n        const res = await fetch('https://api.anthropic.com/v1/messages', {\n            method: 'POST',\n            headers: {\n                'Content-Type': 'application/json',\n                'x-api-key': apiKey,\n                'anthropic-version': '2023-06-01',\n                'dangerously-allow-browser': 'true'\n            },\n            body: JSON.stringify({\n                model: model || 'claude-3-5-haiku-20241022',\n                max_tokens: 4096,\n                temperature: isNaN(temperature) ? 0.7 : temperature,\n                messages: [{ role: 'user', content: String(prompt) }]\n            })\n        });\n        const data = await res.json();\n        if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));\n        generatedText = data.content?.[0]?.text || '(응답 내용 없음)';\n    } else if (provider.includes('ollama') || provider.includes('local') || model.includes('llama') || model.includes('qwen') || (!apiKey && provider.includes('custom'))) {\n        const targetModel = model || 'llama3';\n        const res = await fetch('http://localhost:11434/api/generate', {\n            method: 'POST',\n            headers: { 'Content-Type': 'application/json' },\n            body: JSON.stringify({\n                model: targetModel,\n                prompt: String(prompt),\n                stream: false,\n                options: { temperature: isNaN(temperature) ? 0.7 : temperature }\n            })\n        });\n        const data = await res.json();\n        if (data.error) throw new Error(data.error);\n        generatedText = data.response || '(응답 내용 없음)';\n    } else {\n        if (!apiKey || apiKey === '(API Key 미설정)') throw new Error('OpenAI API Key가 설정되지 않았습니다.');\n        const res = await fetch('https://api.openai.com/v1/chat/completions', {\n            method: 'POST',\n            headers: {\n                'Content-Type': 'application/json',\n                'Authorization': `Bearer ${apiKey}`\n            },\n            body: JSON.stringify({\n                model: model || 'gpt-4o-mini',\n                temperature: isNaN(temperature) ? 0.7 : temperature,\n                messages: [{ role: 'user', content: String(prompt) }]\n            })\n        });\n        const data = await res.json();\n        if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));\n        generatedText = data.choices?.[0]?.message?.content || '(응답 내용 없음)';\n    }\n} catch (err) {\n    generatedText = `[AI 생성 오류: ${err.message}]`;\n}\n\nreturn { '생성 결과': generatedText };"
+  },
+  {
+    "schemaVersion": "2.0",
+    "createdAt": 1723642800000,
+    "updatedAt": 1723642800000,
+    "id": "preset_sys_world_settings",
+    "name": "세계관 설정 노드",
+    "icon": "🌍",
+    "desc": "소설의 제목, 장르 및 한줄 소개, 배경 로어(시대/마법/사회 체계) 등 작품의 거시적 대전제를 정의하는 노드",
+    "category": "world",
+    "color": "#3b82f6",
+    "defaultWidth": 480,
+    "defaultHeight": 440,
+    "isDefault": true,
+    "promptForName": true,
+    "promptForDesc": false,
+    "widgets": [
+      {
+        "id": "w_title",
+        "type": "input_text",
+        "label": "소설 제목",
+        "key": "title",
+        "rows": 1,
+        "placeholder": "예: 던전 속 떠돌이 상인이 되었다."
+      },
+      {
+        "id": "w_genre",
+        "type": "input_text",
+        "label": "장르 & 로그라인 (한줄 소개)",
+        "key": "genre",
+        "rows": 2,
+        "placeholder": "예: 판타지. 위기에 빠진 모험가들에게 치유 물약을 파는 기회주의 상인 이야기"
+      },
+      {
+        "id": "w_lore",
+        "type": "input_text",
+        "label": "배경 로어 & 대전제",
+        "key": "background_lore",
+        "rows": 4,
+        "placeholder": "예: 중세 판타지. 엘프와 용이 실존하며, 각지에 던전이 불규칙하게 생성되는 세계."
+      }
+    ],
+    "portsConfig": {
+      "inputs": [],
+      "outputs": [
+        {
+          "id": "out_1",
+          "name": "세계관 데이터",
+          "color": "#3b82f6"
+        }
+      ]
+    },
+    "code": "return {\n  '세계관 데이터': {\n    title: input.title || '',\n    genre: input.genre || '',\n    background_lore: input.background_lore || ''\n  }\n};"
+  },
+  {
+    "schemaVersion": "2.0",
+    "createdAt": 1723642800000,
+    "updatedAt": 1723642800000,
+    "id": "preset_sys_proper_nouns",
+    "name": "고유명사 사전 노드",
+    "icon": "📖",
+    "desc": "장소, 세계관 특수 현상, 길드/세력, 마도구/아이템 등 작품 내 고유명사와 용어 정의를 관리하는 사전 노드",
+    "category": "world",
+    "color": "#14b8a6",
+    "defaultWidth": 500,
+    "defaultHeight": 560,
+    "isDefault": true,
+    "promptForName": true,
+    "promptForDesc": false,
+    "widgets": [
+      {
+        "id": "w_places",
+        "type": "input_text",
+        "label": "주요 장소 (명칭: 설명)",
+        "key": "places",
+        "rows": 3,
+        "placeholder": "던전: 불규칙적으로 생성되는 몬스터 서식 공간\n제국 수도: 황실과 귀족들이 밀집한 대도시"
+      },
+      {
+        "id": "w_phenomena",
+        "type": "input_text",
+        "label": "특수 현상 / 마법 법칙",
+        "key": "phenomena",
+        "rows": 2,
+        "placeholder": "던전 브레이크: 기간 내 미공략 시 몬스터가 밖으로 쏟아져 나오는 재해 현상"
+      },
+      {
+        "id": "w_orgs",
+        "type": "input_text",
+        "label": "세력 / 길드 / 조직",
+        "key": "organizations",
+        "rows": 3,
+        "placeholder": "아스트라 기사단: 황실 직속 비밀 마도기사단 (25명 최정예)\n상인 연합: 제국 전역의 물류를 쥐고 있는 조직"
+      },
+      {
+        "id": "w_items",
+        "type": "input_text",
+        "label": "주요 마도구 / 아이템",
+        "key": "items",
+        "rows": 2,
+        "placeholder": "치유 물약: 즉시 상처를 봉합하는 고농축 포션"
+      }
+    ],
+    "portsConfig": {
+      "inputs": [],
+      "outputs": [
+        {
+          "id": "out_1",
+          "name": "고유명사 사전",
+          "color": "#14b8a6"
+        }
+      ]
+    },
+    "code": "const parseList = (text) => {\n  if (!text || !text.trim()) return [];\n  return text.split('\\n\\n').filter(Boolean).map(block => {\n    const lines = block.trim().split('\\n');\n    const first = lines[0] || '';\n    const termMatch = first.match(/^([^:]+):?(.*)$/);\n    const term = termMatch ? termMatch[1].trim() : first;\n    const inlineDesc = termMatch ? termMatch[2].trim() : '';\n    const restDesc = lines.slice(1).join('\\n').trim();\n    const desc = (inlineDesc ? inlineDesc + (restDesc ? '\\n' + restDesc : '') : restDesc) || term;\n    return { term, desc };\n  });\n};\n\nreturn {\n  '고유명사 사전': {\n    '장소': parseList(input.places),\n    '현상': parseList(input.phenomena),\n    '길드': parseList(input.organizations),\n    '아이템': parseList(input.items)\n  }\n};"
+  },
+  {
+    "schemaVersion": "2.0",
+    "createdAt": 1723642800000,
+    "updatedAt": 1723642800000,
+    "id": "preset_sys_style_guide",
+    "name": "작가 스타일 & 페르소나 노드",
+    "icon": "📐",
+    "desc": "작가 페르소나(역할), 핵심 재미/감정 목표(도파민/카타르시스), 서술 시점 및 씬 대사 연출 서식 규칙을 정의하는 노드",
+    "category": "story",
+    "color": "#a855f7",
+    "defaultWidth": 520,
+    "defaultHeight": 560,
+    "isDefault": true,
+    "promptForName": true,
+    "promptForDesc": false,
+    "widgets": [
+      {
+        "id": "w_role",
+        "type": "input_text",
+        "label": "작가 페르소나 & 역할",
+        "key": "role",
+        "rows": 2,
+        "placeholder": "AI에게 부여할 작가 페르소나 (예: 대박을 친 한국의 웹소설 작가 스타일)"
+      },
+      {
+        "id": "w_exp",
+        "type": "input_text",
+        "label": "핵심 재미 & 감정 목표",
+        "key": "experience_goal",
+        "rows": 2,
+        "placeholder": "독자에게 줄 핵심 감정 (예: 짜릿함, 카타르시스, 도파민, 사이다, 시원한 해결)"
+      },
+      {
+        "id": "w_pov",
+        "type": "dropdown_select",
+        "label": "서술 시점",
+        "key": "narrative_perspective",
+        "options": ["3인칭 전지적 작가 시점", "1인칭 주인공 시점", "3인칭 제한적 시점"],
+        "defaultVal": "3인칭 전지적 작가 시점"
+      },
+      {
+        "id": "w_format",
+        "type": "input_text",
+        "label": "씬 연출 & 대사 포맷팅 규칙",
+        "key": "formatting_rules",
+        "rows": 4,
+        "placeholder": "1. 대사 위주로 작성하며 대사 앞에 인물명 표기 (ex. 카일: \"손님...\")\n2. 대사 우측 괄호에 인물의 감정과 행동 묘사 삽입\n3. 장면 구분 시 '#Scene 1. 장소' 표기"
+      }
+    ],
+    "portsConfig": {
+      "inputs": [],
+      "outputs": [
+        {
+          "id": "out_1",
+          "name": "스타일 가이드",
+          "color": "#a855f7"
+        }
+      ]
+    },
+    "code": "return {\n  '스타일 가이드': {\n    project_meta: {\n      role: input.role || '',\n      task: '소설 본문 및 씬 설계도 작성'\n    },\n    core_experience_goal: {\n      primary_emotion: input.experience_goal || '',\n      narrative_focus: '주인공의 능력과 문제 해결, 히로인과의 상호작용'\n    },\n    writing_style_guide: {\n      narrative_perspective: input.narrative_perspective || '3인칭 전지적 작가 시점',\n      formatting_rules: (input.formatting_rules || '').split('\\n').filter(Boolean)\n    }\n  }\n};"
+  },
+  {
+    "schemaVersion": "2.0",
+    "createdAt": 1723642800000,
+    "updatedAt": 1723642800000,
+    "id": "preset_sys_chapter_scope",
+    "name": "챕터 스코프 & 씬 기획 노드",
+    "icon": "🎬",
+    "desc": "현재 작성할 회차 표기, 씬 목표, 필수 포함 사건(플롯 줄거리)을 기획하여 전달하는 회차 전용 노드",
+    "category": "story",
+    "color": "#f97316",
+    "defaultWidth": 520,
+    "defaultHeight": 520,
+    "isDefault": true,
+    "promptForName": true,
+    "promptForDesc": false,
+    "widgets": [
+      {
+        "id": "w_ep",
+        "type": "input_text",
+        "label": "회차 표기 (에피소드)",
+        "key": "episode_notation",
+        "rows": 1,
+        "placeholder": "예: 프롤로그, 제 1 화, 제 2 화..."
+      },
+      {
+        "id": "w_sgoal",
+        "type": "input_text",
+        "label": "이번 씬의 감정 목표",
+        "key": "scene_goal",
+        "rows": 1,
+        "placeholder": "예: 기대감, 위기 고조, 통쾌한 반격..."
+      },
+      {
+        "id": "w_events",
+        "type": "input_text",
+        "label": "필수 포함 사건 리스트 (줄거리 플롯)",
+        "key": "must_include_events",
+        "rows": 6,
+        "placeholder": "- 위기에 빠진 모험가 파티 앞에 주인공이 나타남\n- 치유 물약을 제시하여 결국 구매하게 만듦\n- 위기를 넘긴 후 유유히 사라지는 주인공"
+      }
+    ],
+    "portsConfig": {
+      "inputs": [],
+      "outputs": [
+        {
+          "id": "out_1",
+          "name": "챕터 스코프",
+          "color": "#f97316"
+        }
+      ]
+    },
+    "code": "const events = (input.must_include_events || '').split('\\n').filter(Boolean);\nreturn {\n  '챕터 스코프': {\n    episode_notation: input.episode_notation || '',\n    scene_goal: input.scene_goal || '',\n    must_include_events: events.length > 0 ? events : [(input.must_include_events || '')]\n  }\n};"
+  },
+  {
+    "schemaVersion": "2.0",
+    "createdAt": 1723642800000,
+    "updatedAt": 1723642800000,
+    "id": "preset_sys_foreshadowing",
+    "name": "복선 & 떡밥 레지스트리 노드",
+    "icon": "🪝",
+    "desc": "숨겨진 진실(스포 방지)과 이번 회차에 은밀히 뿌려야 할 단서를 관리하는 복선 노드",
+    "category": "story",
+    "color": "#ec4899",
+    "defaultWidth": 480,
+    "defaultHeight": 480,
+    "isDefault": true,
+    "promptForName": true,
+    "promptForDesc": false,
+    "widgets": [
+      {
+        "id": "w_hid",
+        "type": "input_text",
+        "label": "복선 / 떡밥 명칭",
+        "key": "hook_id",
+        "rows": 1,
+        "placeholder": "예: 주인공의 숨겨진 과거"
+      },
+      {
+        "id": "w_truth",
+        "type": "input_text",
+        "label": "숨겨진 진실 (절대 조기 누설 금지)",
+        "key": "hidden_truth",
+        "rows": 2,
+        "placeholder": "예: 주인공이 사실 제국 최강의 마도기사단장이었다는 사실"
+      },
+      {
+        "id": "w_clue",
+        "type": "input_text",
+        "label": "이번 화에 노출할 관찰 단서",
+        "key": "observable_clue",
+        "rows": 2,
+        "placeholder": "예: 평범한 상인답지 않게 고위 마법의 급소를 꿰뚫어 보는 모습"
+      },
+      {
+        "id": "w_stage",
+        "type": "dropdown_select",
+        "label": "공개 예정 시점",
+        "key": "reveal_stage",
+        "options": ["초반부", "중반부", "후반부", "완결부", "미정"],
+        "defaultVal": "후반부"
+      }
+    ],
+    "portsConfig": {
+      "inputs": [],
+      "outputs": [
+        {
+          "id": "out_1",
+          "name": "복선 데이터",
+          "color": "#ec4899"
+        }
+      ]
+    },
+    "code": "return {\n  '복선 데이터': {\n    active_hooks: [\n      {\n        id: input.hook_id || '복선',\n        hidden_truth: input.hidden_truth || '',\n        observable_clue: input.observable_clue || '',\n        reveal_stage: input.reveal_stage || '후반부'\n      }\n    ]\n  }\n};"
+  },
+  {
+    "schemaVersion": "2.0",
+    "createdAt": 1723642800000,
+    "updatedAt": 1723642800000,
+    "id": "preset_sys_prompt_builder",
+    "name": "소설 프롬프트 JSON 빌더",
+    "icon": "🧩",
+    "desc": "세계관, 고유명사 사전, 캐릭터, 스타일, 챕터 스코프, 복선 노드를 모두 취합하여 완벽한 소설 JSON 프롬프트로 조립하는 마스터 노드",
+    "category": "logic",
+    "color": "#06b6d4",
+    "defaultWidth": 520,
+    "defaultHeight": 480,
+    "isDefault": true,
+    "promptForName": true,
+    "promptForDesc": false,
+    "widgets": [
+      {
+        "id": "w_preview",
+        "type": "text_viewer",
+        "label": "조립된 JSON 프롬프트 미리보기",
+        "key": "displayVal"
+      }
+    ],
+    "portsConfig": {
+      "inputs": [
+        {
+          "id": "in_world",
+          "name": "세계관 설정",
+          "color": "#3b82f6"
+        },
+        {
+          "id": "in_dict",
+          "name": "고유명사 사전",
+          "color": "#14b8a6"
+        },
+        {
+          "id": "in_style",
+          "name": "스타일 가이드",
+          "color": "#a855f7"
+        },
+        {
+          "id": "in_chars",
+          "name": "등장인물 (다중)",
+          "color": "#7b68ee"
+        },
+        {
+          "id": "in_chapter",
+          "name": "챕터 스코프",
+          "color": "#f97316"
+        },
+        {
+          "id": "in_hooks",
+          "name": "복선 데이터",
+          "color": "#ec4899"
+        }
+      ],
+      "outputs": [
+        {
+          "id": "out_1",
+          "name": "완성된 프롬프트",
+          "color": "#06b6d4"
+        }
+      ]
+    },
+    "code": "const raw = input.rawInputs || {};\nlet world = input['세계관 설정'] || input['세계관 데이터'] || {};\nlet properNouns = input['고유명사 사전'] || {};\nlet style = input['스타일 가이드'] || {};\nlet chapter = input['챕터 스코프'] || input['현재 챕터 스코프'] || {};\nlet foreshadowing = input['복선 데이터'] || {};\nlet characters = [];\n\nObject.values(raw).forEach(n => {\n  const d = n.output || n.data || {};\n  if (typeof d === 'object' && d !== null) {\n    if (d.title || d.background_lore) world = { ...world, ...d };\n    if (d['장소'] || d['길드'] || d['현상'] || d['아이템']) properNouns = { ...properNouns, ...d };\n    if (d.project_meta || d.writing_style_guide) style = { ...style, ...d };\n    if (d.episode_notation || d.must_include_events) chapter = { ...chapter, ...d };\n    if (d.active_hooks) foreshadowing = { ...foreshadowing, ...d };\n    if (d.name && (d.role || d.traits || d.personality || d.speech_style)) characters.push(d);\n  } else if (typeof d === 'string' && d.includes('《') && d.includes('소속:')) {\n    characters.push({ description: d });\n  }\n});\n\nconst charInput = input['등장인물'] || input['등장인물 (다중)'] || input['프로필 데이터'];\nif (charInput && typeof charInput === 'object' && !characters.includes(charInput)) {\n  characters.push(charInput);\n}\n\nconst finalJson = {\n  request: {\n    command: 'WRITE_CHAPTER',\n    instruction: '아래의 [설정값]과 [지금까지의 줄거리]를 완벽히 분석하여, [현재 챕터 범위]에 해당하는 소설 본문을 즉시 작성하시오.',\n    output_requirements: '사족이나 설명 없이 오직 소설 본문 텍스트(대사 및 지문)만을 출력할 것.'\n  },\n  project_meta: style.project_meta || { role: '인기 웹소설 작가', task: '소설 본문 작성' },\n  core_experience_goal: style.core_experience_goal || { primary_emotion: '카타르시스, 도파민' },\n  world_settings: world,\n  characters: characters,\n  proper_nouns_dict: properNouns,\n  foreshadowing_registry: foreshadowing,\n  current_chapter_scope: chapter,\n  writing_style_guide: style.writing_style_guide || { narrative_perspective: '3인칭 전지적 작가 시점' }\n};\n\nconst jsonText = JSON.stringify(finalJson, null, 2);\nreturn { '완성된 프롬프트': jsonText };"
   }
 ]

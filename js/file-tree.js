@@ -99,14 +99,14 @@ class FileTreeManager {
                 window.showToast?.('⚠️ 카테고리 이름을 입력해주세요.', 'warning');
                 return;
             }
-            const cats = await window.storage?.getNodeCategories() || [];
+            const cats = await window.storage?.getCustomNodeCategories() || [];
             const newCatId = 'cat_' + Date.now();
             cats.push({ id: newCatId, icon, name });
-            await window.storage?.saveNodeCategories(cats);
+            await window.storage?.saveCustomNodeCategories(cats);
             if (nameInput) nameInput.value = '';
             await this.renderCategoryManageList();
             await this.renderCustomNodePresets();
-            window.showToast?.(`'${name}' 카테고리가 추가되었습니다. ✨`);
+            window.showToast?.(`'${name}' 커스텀 카테고리가 추가되었습니다. ✨`);
         });
 
         // 하단 "나만의 커스텀 노드 정의하기" 버튼 -> 커스텀 마법사 모달로 전환
@@ -1019,93 +1019,186 @@ class FileTreeManager {
 
         if (section) section.style.display = 'block';
 
-        // 1) 카테고리 필터 칩 동적 렌더링
-        const categories = await window.storage?.getNodeCategories() || [];
-        const categoryMap = { 'all': '✨ 전체' };
-        categories.forEach(c => {
-            categoryMap[c.id] = `${c.icon || '📁'} ${c.name}`;
+        const sysCategories = window.storage?.getSystemNodeCategories() || [];
+        const customCategories = await window.storage?.getCustomNodeCategories() || [];
+
+        const sysCatMap = { 'all': '✨ 전체' };
+        sysCategories.forEach(c => {
+            sysCatMap[c.id] = `${c.icon || '📁'} ${c.name}`;
         });
 
-        const chipsContainer = document.getElementById('nodeCategoryFilterChips');
-        if (chipsContainer) {
-            chipsContainer.innerHTML = '';
-            const activeFilter = this.activeNodeCategoryFilter || 'all';
-            Object.keys(categoryMap).forEach(catKey => {
-                const btn = document.createElement('button');
-                btn.type = 'button';
-                btn.className = `btn btn-xs ${activeFilter === catKey ? 'btn-primary' : 'btn-secondary'}`;
-                btn.style.cssText = 'font-size: 11px; padding: 3px 10px; border-radius: 12px; font-weight: 600; white-space: nowrap; flex-shrink: 0;';
-                btn.textContent = categoryMap[catKey];
-                btn.addEventListener('click', () => {
-                    this.activeNodeCategoryFilter = catKey;
-                    this.renderCustomNodePresets();
-                });
-                chipsContainer.appendChild(btn);
-            });
-        }
+        const customCatMap = { 'all': '✨ 전체' };
+        customCategories.forEach(c => {
+            customCatMap[c.id] = `${c.icon || '📁'} ${c.name}`;
+        });
 
-        const activeCat = this.activeNodeCategoryFilter || 'all';
-
-        // 2) 카테고리 필터링 적용 (기본 노드 & 커스텀 노드 각각)
-        const filteredDefaultPresets = activeCat === 'all'
-            ? defaultPresets
-            : defaultPresets.filter(p => (p.category || 'general') === activeCat);
-
-        const filteredUserPresets = activeCat === 'all'
-            ? userPresets
-            : userPresets.filter(p => (p.category || 'general') === activeCat);
+        if (!this.activeSysCategoryFilter) this.activeSysCategoryFilter = 'all';
+        if (!this.activeCustomCategoryFilter) this.activeCustomCategoryFilter = 'all';
 
         const wrapper = document.createElement('div');
-        wrapper.style.cssText = 'display: flex; flex-direction: column; gap: 20px; width: 100%;';
+        wrapper.style.cssText = 'display: flex; flex-direction: column; gap: 28px; width: 100%;';
 
-        const totalCount = filteredDefaultPresets.length + filteredUserPresets.length;
+        // 📌 1. 시스템 기본 노드 섹션
+        const sysSec = document.createElement('div');
+        sysSec.style.cssText = 'display: flex; flex-direction: column; gap: 12px;';
 
-        if (totalCount === 0) {
-            const currentCatName = categoryMap[activeCat] || '선택한';
-            wrapper.innerHTML = `
-                <div style="padding: 24px; text-align: center; color: var(--color-text-tertiary); background: var(--color-bg-secondary); border-radius: 10px; border: 1px dashed var(--color-border); font-size: 12px;">
-                    '${this.escapeHtml(currentCatName)}' 카테고리에 속한 노드가 없습니다.<br>하단 <strong style="color: #f1e05a;">[✨ 나만의 커스텀 노드 정의하기]</strong>를 눌러 새로 만들어보세요!
-                </div>
-            `;
-        } else {
-            // 📌 1. 시스템 기본 노드 섹션 (현재 카테고리에 속한 기본 노드가 있는 경우만 명확한 구별 소제목과 함께 표시)
-            if (filteredDefaultPresets.length > 0) {
-                const sysSec = document.createElement('div');
-                sysSec.innerHTML = `
-                    <div style="font-size: 12px; font-weight: 700; color: var(--color-accent-primary); margin-bottom: 10px; display: flex; align-items: center; gap: 6px;">
-                        <span>📌 시스템 기본 노드</span>
-                        <span style="font-size: 10px; font-weight: 400; color: var(--color-text-tertiary);">(기본 제공 템플릿)</span>
-                    </div>
-                `;
+        const sysHeader = document.createElement('div');
+        sysHeader.style.cssText = 'display: flex; justify-content: space-between; align-items: center;';
+        sysHeader.innerHTML = `
+            <div style="font-size: 13px; font-weight: 700; color: var(--color-accent-primary); display: flex; align-items: center; gap: 6px;">
+                <span>📌 시스템 기본 노드</span>
+                <span style="font-size: 11px; font-weight: 400; color: var(--color-text-tertiary);">(기본 제공 템플릿)</span>
+            </div>
+            <span id="sysPresetCountLabel" style="font-size: 11px; color: var(--color-text-tertiary);">총 ${defaultPresets.length}개</span>
+        `;
+        sysSec.appendChild(sysHeader);
+
+        // 1-1) 시스템 칩 바
+        const sysChipsBar = document.createElement('div');
+        sysChipsBar.id = 'sysCategoryChipsBar';
+        sysChipsBar.style.cssText = 'display: flex; gap: 6px; align-items: center; overflow-x: auto; background: var(--color-bg-secondary); padding: 8px 12px; border-radius: 8px; border: 1px solid var(--color-border); scrollbar-width: thin; box-sizing: border-box;';
+
+        const sysGridContainer = document.createElement('div');
+        sysGridContainer.id = 'sysGridContainer';
+
+        const updateSysGrid = (catKey) => {
+            this.activeSysCategoryFilter = catKey;
+            // 칩 버튼 활성화 상태 즉시 갱신
+            sysChipsBar.querySelectorAll('button').forEach(btn => {
+                const isActive = btn.dataset.cat === catKey;
+                btn.className = `btn btn-xs ${isActive ? 'btn-primary' : 'btn-secondary'}`;
+            });
+
+            // 그리드만 깜빡임 없이 교체
+            const filtered = catKey === 'all'
+                ? defaultPresets
+                : defaultPresets.filter(p => (p.category || 'general') === catKey);
+
+            const countEl = document.getElementById('sysPresetCountLabel');
+            if (countEl) countEl.textContent = `총 ${filtered.length}개`;
+
+            sysGridContainer.innerHTML = '';
+            if (filtered.length > 0) {
                 const sysGrid = document.createElement('div');
                 sysGrid.className = 'node-type-grid';
-                filteredDefaultPresets.forEach(preset => {
+                filtered.forEach(preset => {
                     sysGrid.appendChild(this._createNodePresetCard(preset, true));
                 });
-                sysSec.appendChild(sysGrid);
-                wrapper.appendChild(sysSec);
+                sysGridContainer.appendChild(sysGrid);
+            } else {
+                const emptySys = document.createElement('div');
+                emptySys.style.cssText = 'padding: 20px; text-align: center; color: var(--color-text-tertiary); background: var(--color-bg-secondary); border-radius: 8px; border: 1px dashed var(--color-border); font-size: 12px;';
+                emptySys.textContent = `'${sysCatMap[catKey] || '선택한'}' 카테고리에 해당하는 기본 노드가 없습니다.`;
+                sysGridContainer.appendChild(emptySys);
             }
+        };
 
-            // ✨ 2. 내가 만든 커스텀 노드 섹션 (현재 카테고리에 속한 커스텀 노드가 있는 경우만 명확한 구별 소제목과 함께 표시)
-            if (filteredUserPresets.length > 0) {
-                const customSec = document.createElement('div');
-                customSec.innerHTML = `
-                    <div style="font-size: 12px; font-weight: 700; color: #f1e05a; margin-bottom: 10px; display: flex; align-items: center; gap: 6px;">
-                        <span>✨ 내가 만든 커스텀 노드</span>
-                        <span style="font-size: 10px; font-weight: 400; color: var(--color-text-tertiary);">(사용자 제작 / DB 보관)</span>
-                    </div>
-                `;
+        Object.keys(sysCatMap).forEach(catKey => {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.dataset.cat = catKey;
+            btn.className = `btn btn-xs ${this.activeSysCategoryFilter === catKey ? 'btn-primary' : 'btn-secondary'}`;
+            btn.style.cssText = 'font-size: 11px; padding: 3px 10px; border-radius: 12px; font-weight: 600; white-space: nowrap; flex-shrink: 0; cursor: pointer;';
+            btn.textContent = sysCatMap[catKey];
+            btn.addEventListener('click', () => updateSysGrid(catKey));
+            sysChipsBar.appendChild(btn);
+        });
+        sysSec.appendChild(sysChipsBar);
+        sysSec.appendChild(sysGridContainer);
+        wrapper.appendChild(sysSec);
+
+        // ✨ 2. 커스텀 노드 섹션
+        const customSec = document.createElement('div');
+        customSec.style.cssText = 'display: flex; flex-direction: column; gap: 12px;';
+
+        const customHeader = document.createElement('div');
+        customHeader.style.cssText = 'display: flex; justify-content: space-between; align-items: center;';
+        customHeader.innerHTML = `
+            <div style="font-size: 13px; font-weight: 700; color: #f1e05a; display: flex; align-items: center; gap: 6px;">
+                <span>✨ 내가 만든 커스텀 노드</span>
+                <span style="font-size: 11px; font-weight: 400; color: var(--color-text-tertiary);">(사용자 제작 / DB 보관)</span>
+            </div>
+            <span id="customPresetCountLabel" style="font-size: 11px; color: var(--color-text-tertiary);">총 ${userPresets.length}개</span>
+        `;
+        customSec.appendChild(customHeader);
+
+        // 2-1) 커스텀 칩 바
+        const customChipsBarContainer = document.createElement('div');
+        customChipsBarContainer.style.cssText = 'display: flex; gap: 10px; align-items: center; background: var(--color-bg-secondary); padding: 8px 12px; border-radius: 8px; border: 1px solid var(--color-border); width: 100%; box-sizing: border-box;';
+
+        const customChipsBar = document.createElement('div');
+        customChipsBar.id = 'customCategoryChipsBar';
+        customChipsBar.style.cssText = 'display: flex; gap: 6px; align-items: center; flex-wrap: nowrap; overflow-x: auto; flex: 1; padding: 2px 0; scrollbar-width: thin; box-sizing: border-box;';
+
+        const customGridContainer = document.createElement('div');
+        customGridContainer.id = 'customGridContainer';
+
+        const updateCustomGrid = (catKey) => {
+            this.activeCustomCategoryFilter = catKey;
+            // 칩 버튼 활성화 상태 즉시 갱신
+            customChipsBar.querySelectorAll('button').forEach(btn => {
+                const isActive = btn.dataset.cat === catKey;
+                btn.className = `btn btn-xs ${isActive ? 'btn-primary' : 'btn-secondary'}`;
+            });
+
+            // 그리드만 깜빡임 없이 교체
+            const filtered = catKey === 'all'
+                ? userPresets
+                : userPresets.filter(p => (p.category || 'custom_general') === catKey);
+
+            const countEl = document.getElementById('customPresetCountLabel');
+            if (countEl) countEl.textContent = `총 ${filtered.length}개`;
+
+            customGridContainer.innerHTML = '';
+            if (filtered.length > 0) {
                 const customGrid = document.createElement('div');
                 customGrid.className = 'node-type-grid';
-                filteredUserPresets.forEach(preset => {
+                filtered.forEach(preset => {
                     customGrid.appendChild(this._createNodePresetCard(preset, false));
                 });
-                customSec.appendChild(customGrid);
-                wrapper.appendChild(customSec);
+                customGridContainer.appendChild(customGrid);
+            } else {
+                const emptyCustom = document.createElement('div');
+                emptyCustom.style.cssText = 'padding: 24px; text-align: center; color: var(--color-text-tertiary); background: var(--color-bg-secondary); border-radius: 10px; border: 1px dashed var(--color-border); font-size: 12px;';
+                emptyCustom.innerHTML = `
+                    '${this.escapeHtml(customCatMap[catKey] || '선택한')}' 카테고리에 속한 커스텀 노드가 없습니다.<br>
+                    하단 <strong style="color: #f1e05a;">[✨ 나만의 커스텀 노드 정의하기]</strong>를 눌러 새로 만들어보세요!
+                `;
+                customGridContainer.appendChild(emptyCustom);
             }
-        }
+        };
+
+        Object.keys(customCatMap).forEach(catKey => {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.dataset.cat = catKey;
+            btn.className = `btn btn-xs ${this.activeCustomCategoryFilter === catKey ? 'btn-primary' : 'btn-secondary'}`;
+            btn.style.cssText = 'font-size: 11px; padding: 3px 10px; border-radius: 12px; font-weight: 600; white-space: nowrap; flex-shrink: 0; cursor: pointer;';
+            btn.textContent = customCatMap[catKey];
+            btn.addEventListener('click', () => updateCustomGrid(catKey));
+            customChipsBar.appendChild(btn);
+        });
+
+        const manageBtn = document.createElement('button');
+        manageBtn.type = 'button';
+        manageBtn.className = 'btn btn-secondary btn-xs';
+        manageBtn.style.cssText = 'font-size: 11px; padding: 4px 10px; border-radius: 12px; background: var(--color-surface-2); border: 1px solid var(--color-border); flex-shrink: 0; font-weight: 700; color: var(--color-text-secondary); cursor: pointer;';
+        manageBtn.textContent = '⚙️ 커스텀 카테고리 관리';
+        manageBtn.addEventListener('click', () => {
+            this.showNodeCategoryManageModal();
+        });
+
+        customChipsBarContainer.appendChild(customChipsBar);
+        customChipsBarContainer.appendChild(manageBtn);
+        customSec.appendChild(customChipsBarContainer);
+        customSec.appendChild(customGridContainer);
+        wrapper.appendChild(customSec);
 
         container.appendChild(wrapper);
+
+        // 초기 그리드 내용 렌더링
+        updateSysGrid(this.activeSysCategoryFilter);
+        updateCustomGrid(this.activeCustomCategoryFilter);
     }
 
     async showNodeCategoryManageModal() {
@@ -1122,13 +1215,13 @@ class FileTreeManager {
     async renderCategoryManageList() {
         const listEl = document.getElementById('categoryManageList');
         if (!listEl) return;
-        const categories = await window.storage?.getNodeCategories() || [];
+        const categories = await window.storage?.getCustomNodeCategories() || [];
 
         listEl.innerHTML = categories.map(c => `
             <div class="category-manage-item" style="display: flex; gap: 8px; align-items: center; background: var(--color-surface-1); padding: 8px 10px; border-radius: 6px; border: 1px solid var(--color-border);">
                 <input type="text" class="input cat-icon-edit" data-id="${c.id}" value="${this.escapeHtml(c.icon || '📁')}" style="width: 44px; font-size: 13px; text-align: center;">
                 <input type="text" class="input cat-name-edit" data-id="${c.id}" value="${this.escapeHtml(c.name)}" style="flex: 1; font-size: 12px;">
-                <button type="button" class="btn btn-danger btn-xs delete-cat-btn" data-id="${c.id}" style="padding: 4px 8px; font-size: 11px;" ${c.id === 'general' ? 'disabled title="기타 기본 카테고리는 삭제할 수 없습니다"' : ''}>✕ 삭제</button>
+                <button type="button" class="btn btn-danger btn-xs delete-cat-btn" data-id="${c.id}" style="padding: 4px 8px; font-size: 11px;" ${c.id === 'custom_general' ? 'disabled title="기본 커스텀 카테고리는 삭제할 수 없습니다"' : ''}>✕ 삭제</button>
             </div>
         `).join('');
 
@@ -1141,12 +1234,12 @@ class FileTreeManager {
                 const newName = row.querySelector('.cat-name-edit')?.value.trim();
                 if (!newName) return;
 
-                const cats = await window.storage?.getNodeCategories() || [];
+                const cats = await window.storage?.getCustomNodeCategories() || [];
                 const target = cats.find(c => c.id === catId);
                 if (target) {
                     target.icon = newIcon;
                     target.name = newName;
-                    await window.storage?.saveNodeCategories(cats);
+                    await window.storage?.saveCustomNodeCategories(cats);
                     this.renderCustomNodePresets();
                 }
             });
@@ -1156,30 +1249,30 @@ class FileTreeManager {
         listEl.querySelectorAll('.delete-cat-btn').forEach(btn => {
             btn.addEventListener('click', async () => {
                 const catId = btn.dataset.id;
-                if (catId === 'general') return;
-                if (confirm('이 카테고리를 삭제할까요? 이 카테고리에 속해있던 노드들은 [기타] 카테고리로 변경됩니다.')) {
-                    let cats = await window.storage?.getNodeCategories() || [];
+                if (catId === 'custom_general') return;
+                if (confirm('이 커스텀 카테고리를 삭제할까요? 이 카테고리에 속해있던 커스텀 노드들은 [기타] 카테고리로 변경됩니다.')) {
+                    let cats = await window.storage?.getCustomNodeCategories() || [];
                     cats = cats.filter(c => c.id !== catId);
-                    await window.storage?.saveNodeCategories(cats);
+                    await window.storage?.saveCustomNodeCategories(cats);
 
                     // 프리셋 카테고리 재할당
                     const presets = await window.storage?.getCustomNodePresets() || [];
                     let updated = false;
                     presets.forEach(p => {
                         if (p.category === catId) {
-                            p.category = 'general';
+                            p.category = 'custom_general';
                             updated = true;
                         }
                     });
                     if (updated) await window.storage?.saveGlobalSettings('custom_node_presets', presets);
 
-                    if (this.activeNodeCategoryFilter === catId) {
-                        this.activeNodeCategoryFilter = 'all';
+                    if (this.activeCustomCategoryFilter === catId) {
+                        this.activeCustomCategoryFilter = 'all';
                     }
 
                     await this.renderCategoryManageList();
                     await this.renderCustomNodePresets();
-                    window.showToast?.('카테고리가 삭제되었습니다.');
+                    window.showToast?.('커스텀 카테고리가 삭제되었습니다.');
                 }
             });
         });
@@ -1655,11 +1748,11 @@ class FileTreeManager {
             else card.classList.remove('active');
         });
 
-        window.storage?.getNodeCategories().then(categories => {
+        window.storage?.getCustomNodeCategories().then(categories => {
             const categorySelect = document.getElementById('wizardCategory');
             if (categorySelect && Array.isArray(categories)) {
                 categorySelect.innerHTML = categories.map(c => `<option value="${c.id}">${c.icon || '📁'} ${this.escapeHtml(c.name)}</option>`).join('');
-                categorySelect.value = presetToEdit?.category || 'general';
+                categorySelect.value = presetToEdit?.category || 'custom_general';
             }
         });
 
@@ -2087,7 +2180,7 @@ class FileTreeManager {
         const promptForDesc = !!(document.getElementById('wizardPromptForDesc')?.checked);
         const defaultWidth = parseInt(document.getElementById('wizardDefaultWidth')?.value) || 520;
         const defaultHeight = parseInt(document.getElementById('wizardDefaultHeight')?.value) || 650;
-        const category = document.getElementById('wizardCategory')?.value || 'general';
+        const category = document.getElementById('wizardCategory')?.value || 'custom_general';
         const color = document.getElementById('wizardColor')?.value || '#7b68ee';
         const isEditing = !!this.editingCustomPresetId;
         const presetId = this.editingCustomPresetId || ('preset_' + Date.now());

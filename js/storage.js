@@ -852,7 +852,13 @@ class StorageManager {
   }
 
   async getCustomNodePresets() {
-    return (await this.getGlobalSettings('custom_node_presets')) || [];
+    const raw = (await this.getGlobalSettings('custom_node_presets')) || [];
+    return raw.map(p => {
+      if (!p.category || p.category === 'general') {
+        return { ...p, category: 'custom_general' };
+      }
+      return p;
+    });
   }
 
   async saveCustomNodePreset(preset) {
@@ -874,28 +880,45 @@ class StorageManager {
     return filtered;
   }
 
-  async getNodeCategories() {
-    const defaults = [
-      { id: 'character', icon: '👤', name: '인물 & 캐릭터' },
-      { id: 'world', icon: '🌍', name: '세계관 & 배경' },
-      { id: 'story', icon: '📜', name: '줄거리 & 구성' },
-      { id: 'logic', icon: '⚡', name: 'AI 연산 & 기능' },
-      { id: 'review', icon: '📊', name: '검수 & 데이터' },
-      { id: 'general', icon: '📁', name: '기타 (기본)' }
+  getSystemNodeCategories() {
+    return [
+      { id: 'world', icon: '🌍', name: '세계관 & 배경', isSystem: true },
+      { id: 'character', icon: '👤', name: '인물 & 캐릭터', isSystem: true },
+      { id: 'story', icon: '📜', name: '줄거리 & 구성', isSystem: true },
+      { id: 'logic', icon: '⚡', name: 'AI 연산 & 기능', isSystem: true },
+      { id: 'review', icon: '📊', name: '검수 & 데이터', isSystem: true }
     ];
-    const saved = await this.getGlobalSettings('node_categories');
-    const categories = (Array.isArray(saved) && saved.length > 0) ? saved : defaults;
-    const nonGeneral = categories.filter(c => c.id !== 'general');
-    const generalCat = categories.find(c => c.id === 'general') || { id: 'general', icon: '📁', name: '기타 (기본)' };
+  }
+
+  async getCustomNodeCategories() {
+    const defaultGeneral = { id: 'custom_general', icon: '📁', name: '기타' };
+    const saved = await this.getGlobalSettings('custom_node_categories');
+    const categories = (Array.isArray(saved) && saved.length > 0) ? saved : [defaultGeneral];
+    const nonGeneral = categories.filter(c => c.id !== 'custom_general');
+    const generalCat = categories.find(c => c.id === 'custom_general') || defaultGeneral;
     return [...nonGeneral, generalCat];
   }
 
-  async saveNodeCategories(categories) {
-    const nonGeneral = categories.filter(c => c.id !== 'general');
-    const generalCat = categories.find(c => c.id === 'general') || { id: 'general', icon: '📁', name: '기타 (기본)' };
+  async saveCustomNodeCategories(categories) {
+    const defaultGeneral = { id: 'custom_general', icon: '📁', name: '기타' };
+    const nonGeneral = categories.filter(c => c.id !== 'custom_general');
+    const generalCat = categories.find(c => c.id === 'custom_general') || defaultGeneral;
     const sorted = [...nonGeneral, generalCat];
-    await this.saveGlobalSettings('node_categories', sorted);
+    await this.saveGlobalSettings('custom_node_categories', sorted);
     return sorted;
+  }
+
+  async getNodeCategories() {
+    const sysCats = this.getSystemNodeCategories();
+    const customCats = await this.getCustomNodeCategories();
+    return [...sysCats, ...customCats];
+  }
+
+  async saveNodeCategories(categories) {
+    // 커스텀 카테고리만 필터링하여 저장
+    const customOnly = categories.filter(c => !c.isSystem && c.id !== 'general');
+    await this.saveCustomNodeCategories(customOnly);
+    return this.getNodeCategories();
   }
 }
 
