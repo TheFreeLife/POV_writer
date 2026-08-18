@@ -1668,8 +1668,13 @@
 
 /* 새 노드 선택 모달 (Grid 카드 스타일) */
 .modal.modal-lg {
-    max-width: 680px;
-    width: 90%;
+    max-width: 980px;
+    width: 92%;
+}
+
+#nodeSelectModal .modal.modal-lg {
+    max-width: 1040px;
+    width: 92%;
 }
 
 .node-select-subtitle {
@@ -1680,8 +1685,14 @@
 
 .node-type-grid {
     display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 16px;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 14px;
+}
+
+@media (max-width: 960px) {
+    .node-type-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
 }
 
 @media (max-width: 640px) {
@@ -1693,14 +1704,17 @@
 .node-type-card {
     display: flex;
     align-items: flex-start;
-    gap: 14px;
-    padding: 18px;
+    gap: 12px;
+    padding: 14px 16px;
     background: var(--color-bg-primary);
     border: 1px solid var(--color-border);
-    border-radius: 14px;
+    border-radius: 12px;
     cursor: pointer;
     transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+    min-height: 80px;
+    box-sizing: border-box;
+    position: relative;
 }
 
 .node-type-card:hover {

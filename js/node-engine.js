@@ -39,9 +39,18 @@ class NodeEngine {
 
         let contentData = {};
         if (typeof file.content === 'string') {
-            try { contentData = JSON.parse(file.content || '{}'); } catch (e) { contentData = { text: file.content || '' }; }
+            try {
+                contentData = JSON.parse(file.content || '{}');
+            } catch (e) {
+                contentData = {
+                    editorVal: file.content || '',
+                    content: file.content || '',
+                    text: file.content || '',
+                    val: file.content || ''
+                };
+            }
         } else if (typeof file.content === 'object' && file.content) {
-            contentData = file.content;
+            contentData = { ...file.content };
         }
 
         const nodeType = file.nodeType || file.template || (file.isCustomNode ? 'custom' : 'manuscript');
@@ -176,21 +185,36 @@ class NodeEngine {
 
     /**
      * 실행 시작 전 및 실행 완료 후 노드 상태 초기화:
-     * 참여 노드들의 승인 여부(isApproved = false) 및 UI를 '승인 대기 중' 상태로 복귀시킵니다.
+     * 참여 노드들의 승인 여부(isApproved = false) 및 흐름 제어 상태를 기본으로 복귀시킵니다.
      */
     async _resetNodesForExecution(nodeIds) {
         for (const id of nodeIds) {
             const file = this._getFile(id);
             if (file) {
                 let contentData = {};
-                try {
-                    contentData = typeof file.content === 'string' ? JSON.parse(file.content || '{}') : (file.content || {});
-                } catch (e) {
-                    contentData = { text: file.content || '' };
+                if (typeof file.content === 'string') {
+                    try {
+                        contentData = JSON.parse(file.content || '{}');
+                    } catch (e) {
+                        contentData = {
+                            editorVal: file.content || '',
+                            content: file.content || '',
+                            text: file.content || '',
+                            val: file.content || ''
+                        };
+                    }
+                } else if (typeof file.content === 'object' && file.content) {
+                    contentData = { ...file.content };
                 }
 
-                if (contentData.isApproved !== undefined) {
+                let isStateChanged = false;
+                if (contentData.isApproved !== undefined && contentData.isApproved !== false) {
                     contentData.isApproved = false;
+                    isStateChanged = true;
+                }
+                if (contentData.isContinued !== undefined && contentData.isContinued !== false) {
+                    contentData.isContinued = false;
+                    isStateChanged = true;
                 }
 
                 file.content = contentData;
@@ -200,8 +224,10 @@ class NodeEngine {
                     winInfo.file.content = contentData;
                 }
 
-                await window.storage?.saveFile?.(file);
-                window.windowManager?.refreshNodeUI?.(id);
+                if (isStateChanged) {
+                    await window.storage?.saveFile?.(file);
+                    window.windowManager?.refreshNodeUI?.(id);
+                }
             }
         }
     }
@@ -224,6 +250,7 @@ class NodeEngine {
             textareas.forEach(ta => {
                 const wKey = ta.dataset.widgetKey || 'editorVal';
                 contentData[wKey] = ta.value;
+                contentData.editorVal = ta.value;
                 contentData.content = ta.value;
             });
             const inputFields = winEl.querySelectorAll('.widget-input-field');
@@ -231,12 +258,32 @@ class NodeEngine {
                 const wKey = inp.dataset.widgetKey || 'val';
                 contentData[wKey] = inp.value;
             });
+            const toggleInputs = winEl.querySelectorAll('.widget-toggle-input');
+            toggleInputs.forEach(chk => {
+                const wKey = chk.dataset.widgetKey || 'isEnabled';
+                contentData[wKey] = chk.checked;
+            });
+            const parentToggles = winEl.querySelectorAll('.parent-node-toggle-input');
+            if (parentToggles.length > 0) {
+                if (!contentData.inputToggles) contentData.inputToggles = {};
+                parentToggles.forEach(chk => {
+                    contentData.inputToggles[chk.dataset.parentId] = chk.checked;
+                });
+            }
         }
 
-        // 🌟 1. 선행 노드들로부터 들어온 인풋 데이터 결합
+        // 🌟 1. 선행 노드들로부터 들어온 인풋 데이터 결합 (개별 토글 필터링 적용)
         const inputTexts = [];
+        const inputToggles = contentData.inputToggles || {};
+
         if (inputs && typeof inputs === 'object') {
             for (const [pId, val] of Object.entries(inputs)) {
+                // 토글 스위치가 명시적으로 꺼져(false)있는 상위 노드는 제외
+                if (inputToggles[pId] === false) {
+                    console.log(`[NodeEngine] 🚫 상위 노드 [${pId}] 토글 OFF로 출력에서 제외됨`);
+                    continue;
+                }
+
                 if (val !== undefined && val !== null && String(val).trim() !== '') {
                     inputTexts.push(typeof val === 'object' ? (val.output || JSON.stringify(val)) : String(val));
                 }
@@ -248,10 +295,15 @@ class NodeEngine {
         // 🌟 2. 위젯별 연산 및 데이터 반영
         let hasApprovalGate = false;
         let isApproved = !!contentData.isApproved;
+        let hasContinueGate = false;
+        let isContinued = !!contentData.isContinued;
 
         for (const w of widgets) {
             if (w.type === 'approval_gate') {
                 hasApprovalGate = true;
+            }
+            if (w.type === 'continue_gate') {
+                hasContinueGate = true;
             }
             if (w.type === 'text_viewer') {
                 const viewerText = aggregatedInput || '(입력 데이터 전달됨)';
@@ -284,9 +336,13 @@ class NodeEngine {
         await window.storage?.saveFile?.(file);
         window.windowManager?.refreshNodeUI?.(nodeId);
 
-        // 🌟 3. 사용자 검수/입력 대기가 필요한 경우 (approval_gate 미승인 상태 등)
-        if (hasApprovalGate && !isApproved) {
-            console.log(`[NodeEngine] ⏸️ 노드 [${file.name || nodeId}] 사용자 승인 대기 시작`);
+        // 🌟 3. 사용자 검수/입력/흐름제어 대기가 필요한 경우
+        const needsApprovalWait = hasApprovalGate && !isApproved;
+        const needsContinueWait = hasContinueGate && !isContinued;
+
+        if (needsApprovalWait || needsContinueWait) {
+            const waitReason = needsApprovalWait ? '사용자 승인 대기' : '사용자 계속 진행 확인 대기';
+            console.log(`[NodeEngine] ⏸️ 노드 [${file.name || nodeId}] ${waitReason} 시작`);
             this.setNodeState(nodeId, 'waiting');
 
             // 대기 Promise 등록
@@ -294,15 +350,55 @@ class NodeEngine {
                 session.waitingResolvers.set(String(nodeId), { resolve, reject });
             });
 
-            console.log(`[NodeEngine] ▶️ 노드 [${file.name || nodeId}] 사용자 승인 완료로 실행 재개`);
+            console.log(`[NodeEngine] ▶️ 노드 [${file.name || nodeId}] 확인 완료로 실행 재개`);
             this.setNodeState(nodeId, 'running');
         }
 
-        // 🌟 4. 결과 산출
+        // 🌟 4. 노드 동작 코드(연산 스크립트) 실행
+        const userCode = file.code || contentData.code || '';
         let outputText = contentData.editorVal || contentData.val || contentData.content || contentData.text || aggregatedInput || '';
-        // 텍스트 뷰어 위젯(모니터링/디버깅 노드)의 경우 상위에서 들어온 인풋을 그대로 바이패스 전달
-        if (widgets.some(w => w.type === 'text_viewer')) {
-            outputText = aggregatedInput;
+
+        if (userCode) {
+            try {
+                // scriptInput 객체 구성: 위젯들의 key 및 label, 토글 상태(true/false), 상위 인풋 데이터 바인딩
+                const scriptInput = {
+                    ...contentData,
+                    input: aggregatedInput,
+                    rawInputs: inputs
+                };
+                widgets.forEach(w => {
+                    const val = contentData[w.key];
+                    if (val !== undefined) {
+                        scriptInput[w.key] = val;
+                        if (w.label) scriptInput[w.label] = val;
+                    }
+                });
+
+                // 연산 스크립트 함수 실행
+                const scriptRunner = new Function('input', 'inputs', `
+                    "use strict";
+                    ${userCode}
+                `);
+                const scriptResult = scriptRunner(scriptInput, inputs);
+
+                if (scriptResult !== undefined && scriptResult !== null) {
+                    if (typeof scriptResult === 'object') {
+                        const firstVal = Object.values(scriptResult)[0];
+                        outputText = typeof firstVal === 'string' ? firstVal : JSON.stringify(scriptResult, null, 2);
+                    } else {
+                        outputText = String(scriptResult);
+                    }
+                }
+                console.log(`[NodeEngine] ⚡ 노드 [${file.name || nodeId}] 연산 스크립트 실행 완료:`, outputText);
+            } catch (scriptErr) {
+                console.error(`[NodeEngine] ⚠️ 노드 [${file.name || nodeId}] 연산 스크립트 실행 오류:`, scriptErr);
+                window.showToast?.(`노드 [${file.name || nodeId}] 스크립트 오류: ${scriptErr.message}`, 'error');
+            }
+        } else {
+            // 텍스트 뷰어 위젯(모니터링/디버깅 노드)의 경우 상위에서 들어온 인풋을 그대로 바이패스 전달
+            if (widgets.some(w => w.type === 'text_viewer') && aggregatedInput) {
+                outputText = aggregatedInput;
+            }
         }
 
         console.log(`[NodeEngine] 📤 노드 [${file.name || nodeId}] 최종 출력값:`, outputText);

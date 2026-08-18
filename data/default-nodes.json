@@ -4,7 +4,7 @@
     "createdAt": 1723642800000,
     "updatedAt": 1723642800000,
     "id": "preset_sys_character",
-    "name": "👤 캐릭터 설정 카드",
+    "name": "캐릭터 설정 카드",
     "icon": "👤",
     "desc": "이름, 소속, 성격, 특이사항 입력란과 프로필 생성 코드가 포함된 기본 노드",
     "category": "character",
@@ -60,7 +60,7 @@
     "createdAt": 1723642800000,
     "updatedAt": 1723642800000,
     "id": "preset_sys_text_inspector",
-    "name": "👁️ 텍스트 모니터링 노드",
+    "name": "텍스트 모니터링 노드",
     "icon": "👁️",
     "desc": "상위 노드의 출력을 받아 텍스트 뷰어에 표시하고, 다음 노드로 그대로 전달하는 중간 모니터링/디버깅 노드",
     "category": "general",
@@ -101,7 +101,7 @@
     "createdAt": 1723642800000,
     "updatedAt": 1723642800000,
     "id": "preset_sys_manuscript",
-    "name": "📝 소설 원고 노드",
+    "name": "소설 원고 노드",
     "icon": "📝",
     "desc": "소설 원고 본문을 직접 작성하고 다음 노드로 전달하는 원고 노드",
     "category": "writing",
@@ -139,7 +139,7 @@
     "createdAt": 1723642800000,
     "updatedAt": 1723642800000,
     "id": "preset_sys_human_approval",
-    "name": "✋ 사용자 승인/검수 노드",
+    "name": "사용자 승인/검수 노드",
     "icon": "✋",
     "desc": "상위 노드의 결과를 텍스트 뷰어로 확인하고, 사용자가 승인해야 다음으로 전달하며 반려 시 상위 노드를 재실행하는 검수 노드",
     "category": "general",
@@ -179,5 +179,91 @@
       ]
     },
     "code": "return { '승인된 데이터': input };"
+  },
+  {
+    "schemaVersion": "2.0",
+    "createdAt": 1723642800000,
+    "updatedAt": 1723642800000,
+    "id": "preset_sys_flow_control",
+    "name": "실행 흐름 제어 노드",
+    "icon": "▶️",
+    "desc": "상위 노드의 출력을 확인하고 사용자가 확인 버튼을 눌러야 다음 노드로 실행 흐름을 넘기는 일시 정지/진행 제어 노드",
+    "category": "general",
+    "color": "#0ea5e9",
+    "defaultWidth": 460,
+    "defaultHeight": 380,
+    "isDefault": true,
+    "promptForName": true,
+    "promptForDesc": false,
+    "widgets": [
+      {
+        "id": "w_viewer",
+        "type": "text_viewer",
+        "label": "수신된 데이터",
+        "key": "displayVal"
+      },
+      {
+        "id": "w_continue",
+        "type": "continue_gate",
+        "label": "실행 흐름 제어"
+      }
+    ],
+    "portsConfig": {
+      "inputs": [
+        {
+          "id": "in_1",
+          "name": "수신 데이터",
+          "color": "#0ea5e9"
+        }
+      ],
+      "outputs": [
+        {
+          "id": "out_1",
+          "name": "전달 데이터",
+          "color": "#0ea5e9"
+        }
+      ]
+    },
+    "code": "return { '전달 데이터': input };"
+  },
+  {
+    "schemaVersion": "2.0",
+    "createdAt": 1723642800000,
+    "updatedAt": 1723642800000,
+    "id": "preset_sys_multi_filter",
+    "name": "다중 입력 필터 노드",
+    "icon": "🎛️",
+    "desc": "여러 상위 노드를 연결하면 각 노드별 선택 스위치가 자동 생성되어, 원하는 데이터만 골라서 다음 노드로 전달하는 범용 필터 노드",
+    "category": "general",
+    "color": "#6366f1",
+    "defaultWidth": 460,
+    "defaultHeight": 360,
+    "isDefault": true,
+    "promptForName": true,
+    "promptForDesc": false,
+    "widgets": [
+      {
+        "id": "w_filter_list",
+        "type": "input_source_filter",
+        "label": "연결된 노드별 데이터 선택"
+      }
+    ],
+    "portsConfig": {
+      "inputs": [
+        {
+          "id": "in_1",
+          "name": "다중 입력 데이터",
+          "color": "#6366f1"
+        }
+      ],
+      "outputs": [
+        {
+          "id": "out_1",
+          "name": "선택된 데이터",
+          "color": "#6366f1"
+        }
+      ]
+    },
+    "code": "return { '선택된 데이터': input.input || '(선택된 데이터 없음)' };"
   }
 ]

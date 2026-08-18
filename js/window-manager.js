@@ -724,7 +724,7 @@ class WindowManager {
         // 초기 하이라이트 적용
         this.updateHighlighter(fileId);
         // 이미지 창인 경우 원본 크기 표시
-        const isImage = file.template === 'image' || (file.content && file.content.startsWith('data:image'));
+        const isImage = file.template === 'image' || (typeof file.content === 'string' && file.content.startsWith('data:image'));
         if (isImage && file.content) {
             this.updateImageSizeInfo(fileId, file.content);
         }
@@ -2088,7 +2088,7 @@ class WindowManager {
         if (!menu) return;
 
         const info = this.windows.get(fileId);
-        const isImage = info && (info.file.template === 'image' || (info.file.content && info.file.content.startsWith('data:image')));
+        const isImage = info && (info.file.template === 'image' || (typeof info.file.content === 'string' && info.file.content.startsWith('data:image')));
         const isMulti = this.selectedWindowIds.size > 1;
         let menuHtml = '';
 
@@ -2749,7 +2749,7 @@ class WindowManager {
         const norm = window.nodeEngine?.normalizeNodeData(file);
         const { contentData, widgets } = norm || {};
         (widgets || []).forEach(w => {
-            window.widgetManager?.updateWidgetValueInPlace(container, w, contentData);
+            window.widgetManager?.updateWidgetValueInPlace(container, w, contentData, file?.id);
         });
     }
 
@@ -3451,8 +3451,9 @@ class WindowManager {
         this.saveConnections();
         window.showToast?.('노드 포트 핀이 연결되었습니다! 🔗', 'success');
 
-        // 중앙 이벤트 통보 시스템을 통해 하위 연관 노드 및 UI 연쇄 자동 새로고침!
+        // 중앙 이벤트 통보 시스템을 통해 상위/하위 연관 노드 및 UI 연쇄 자동 새로고침!
         this.notifyNodeChanged(outputId, 'connectionChange');
+        this.notifyNodeChanged(inputId, 'connectionChange');
 
         // 포트 핀 CSS 애니메이션/트랜지션이 완전히 정돈된 후 연결선 위치 재동기화
         setTimeout(() => this.renderConnections(), 50);
@@ -3475,6 +3476,7 @@ class WindowManager {
 
             // 중앙 이벤트 통보 시스템을 통해 연쇄 자동 새로고침!
             this.notifyNodeChanged(deletedConn.fromId, 'connectionChange');
+            this.notifyNodeChanged(deletedConn.toId, 'connectionChange');
         }
     }
 

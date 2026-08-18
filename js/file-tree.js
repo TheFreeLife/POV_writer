@@ -1525,6 +1525,10 @@ class FileTreeManager {
             'input_text': '📝',
             'text_viewer': '👁️',
             'approval_gate': '✅',
+            'continue_gate': '▶️',
+            'toggle_switch': '🔘',
+            'input_source_filter': '🎛️',
+            'dynamic_input_toggles': '🎛️',
             'choice_select': '🔀',
             'editor_canvas': '📄',
             'image_canvas': '🖼️'
@@ -1534,6 +1538,10 @@ class FileTreeManager {
             'input_text': '텍스트 입력창',
             'text_viewer': '텍스트 뷰어 (출력)',
             'approval_gate': '검수 승인 게이트',
+            'continue_gate': '진행 확인 게이트',
+            'toggle_switch': '스위치 토글',
+            'input_source_filter': '연결 노드 선택 목록',
+            'dynamic_input_toggles': '연결 노드 선택 목록',
             'choice_select': '분기 선택 버튼',
             'editor_canvas': '원고 에디터',
             'image_canvas': '이미지 뷰어'
@@ -1544,7 +1552,7 @@ class FileTreeManager {
         const defaultKey = key || label || defaultLabel;
         const defaultRows = rows || (type === 'editor_canvas' ? 5 : 1);
         const showRowsOption = ['input_text', 'editor_canvas', 'text_viewer'].includes(type);
-        const hasInputs = ['input_text', 'editor_canvas'].includes(type);
+        const hasInputs = ['input_text', 'editor_canvas', 'toggle_switch'].includes(type);
 
         const row = document.createElement('div');
         row.className = 'stat-field-row mb-xs';
@@ -1609,8 +1617,6 @@ class FileTreeManager {
         if (!modal) return;
 
         this.switchWizardTab('config');
-
-
 
         const titleEl = modal.querySelector('.modal-title');
         const submitBtn = document.getElementById('submitCustomWizardBtn');
@@ -2031,10 +2037,6 @@ class FileTreeManager {
             window.showToast?.(`⚠️ 변수명 '${duplicateName}'이 다른 항목과 중복됩니다. 저장할 수 없습니다.`, 'error');
             return;
         }
-
-        const fields = [];
-
-
 
         const widgets = [];
         document.querySelectorAll('#wizardWidgetLayoutList .stat-field-row').forEach((row, idx) => {
@@ -2496,7 +2498,7 @@ class FileTreeManager {
             let textFileCount = 0;
             filesOnly.forEach(f => {
                 // 이미지 파일은 글자수 통계에서 제외
-                if (f.template === 'image' || (f.content && f.content.startsWith('data:image'))) return;
+                if (f.template === 'image' || (typeof f.content === 'string' && f.content.startsWith('data:image'))) return;
                 // 수치 계산기도 제외 (JSON 데이터이므로)
                 if (f.template === 'stat') return;
 
@@ -2518,7 +2520,7 @@ class FileTreeManager {
             allProjectFiles.forEach(f => {
                 if (f.type === 'file') {
                     // 이미지 파일이나 수치 계산기 파일은 검색 대상 텍스트에서 제외 (성능 및 정확도)
-                    if (f.template === 'image' || (f.content && f.content.startsWith('data:image'))) return;
+                    if (f.template === 'image' || (typeof f.content === 'string' && f.content.startsWith('data:image'))) return;
                     
                     const openWin = window.windowManager?.windows.get(f.id);
                     let content = (openWin && openWin.textarea) ? openWin.textarea.value : (f.content || '');

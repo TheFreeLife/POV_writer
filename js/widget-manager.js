@@ -219,6 +219,232 @@ class WidgetManager {
                 });
             }
         });
+
+        // 7) 일시 정지 및 계속 진행 게이트 위젯 (반려 없이 사용자가 확인 후 계속 진행)
+        this.register('continue_gate', {
+            render: (w, contentData, fileId) => {
+                const isContinued = !!contentData.isContinued;
+                return `
+                    <div class="widget-item" style="display: flex; flex-direction: column; gap: 8px; background: var(--color-surface-1); border: 1px solid var(--color-border); border-radius: 8px; padding: 10px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <span class="continue-gate-status-label" style="font-size: 11px; font-weight: bold; color: ${isContinued ? '#2ecc71' : '#38bdf8'};">
+                                ${isContinued ? '✅ 진행 완료' : '⏸️ 진행 대기 중'}
+                            </span>
+                            <span style="font-size: 10px; color: var(--color-text-tertiary);">흐름 제어</span>
+                        </div>
+                        <div>
+                            <button type="button" class="btn btn-primary btn-xs continue-gate-btn" style="width: 100%; padding: 8px; font-weight: bold; font-size: 12px; background: ${isContinued ? '#27ae60' : 'linear-gradient(135deg, #0284c7, #0ea5e9)'}; border: none; border-radius: 6px;">
+                                ${isContinued ? '✅ 다음 단계로 전달됨' : '▶️ 확인 및 계속 진행'}
+                            </button>
+                        </div>
+                    </div>
+                `;
+            },
+            bindEvents: (container, w, contentData, onUpdate, fileId) => {
+                const continueBtn = container.querySelector('.continue-gate-btn');
+                if (continueBtn) {
+                    continueBtn.addEventListener('click', async () => {
+                        const isWaitingInEngine = window.nodeEngine?.currentSession?.waitingResolvers?.has(String(fileId));
+                        if (!window.nodeEngine?.isRunning || !isWaitingInEngine) {
+                            window.showToast?.('⚠️ 노드 그래프 실행 중 진행 대기(주황색) 상태일 때만 동작합니다.', 'warning');
+                            return;
+                        }
+
+                        contentData.isContinued = true;
+                        onUpdate(contentData);
+
+                        if (fileId && window.nodeEngine) {
+                            window.nodeEngine.resumeWaitingNode(fileId);
+                            window.showToast?.('확인 완료! 다음 노드로 진행합니다... 🚀', 'success');
+                        }
+                    });
+                }
+            }
+        });
+
+        // 8) 스위치 토글 위젯 (특정 옵션/입력값을 켜고 끄는 토글 스위치)
+        this.register('toggle_switch', {
+            render: (w, contentData, fileId) => {
+                const key = w.key || 'isEnabled';
+                const label = w.label || '옵션 활성화';
+                const isChecked = contentData[key] !== undefined ? !!contentData[key] : (w.defaultVal !== undefined ? !!w.defaultVal : false);
+                const onText = w.onText || 'ON';
+                const offText = w.offText || 'OFF';
+                const desc = w.desc || '';
+
+                return `
+                    <div class="widget-item" style="display: flex; align-items: center; justify-content: space-between; padding: 8px 10px; background: var(--color-surface-1); border: 1px solid var(--color-border); border-radius: 8px; gap: 10px;">
+                        <div style="display: flex; flex-direction: column; gap: 2px;">
+                            <label style="font-size: 11px; font-weight: bold; color: var(--color-text-primary); cursor: pointer;" for="toggle_${fileId}_${this.escapeHtml(key)}">
+                                🔘 ${this.escapeHtml(label)}
+                            </label>
+                            ${desc ? `<span style="font-size: 10px; color: var(--color-text-tertiary);">${this.escapeHtml(desc)}</span>` : ''}
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 6px;">
+                            <span class="toggle-status-text" style="font-size: 10px; font-weight: bold; color: ${isChecked ? 'var(--color-accent-success, #10b981)' : 'var(--color-text-tertiary)'};">
+                                ${isChecked ? onText : offText}
+                            </span>
+                            <label class="switch" style="position: relative; display: inline-block; width: 36px; height: 20px; margin: 0;">
+                                <input type="checkbox" id="toggle_${fileId}_${this.escapeHtml(key)}" class="widget-toggle-input" data-widget-key="${this.escapeHtml(key)}" ${isChecked ? 'checked' : ''} style="opacity: 0; width: 0; height: 0;">
+                                <span class="slider round" style="position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: ${isChecked ? '#10b981' : '#4b5563'}; transition: 0.3s; border-radius: 20px;">
+                                    <span class="slider-thumb" style="position: absolute; height: 14px; width: 14px; left: ${isChecked ? '19px' : '3px'}; bottom: 3px; background-color: white; transition: 0.3s; border-radius: 50%;"></span>
+                                </span>
+                            </label>
+                        </div>
+                    </div>
+                `;
+            },
+            bindEvents: (container, w, contentData, onUpdate) => {
+                const key = w.key || 'isEnabled';
+                const checkbox = container.querySelector(`.widget-toggle-input[data-widget-key="${key}"]`);
+                const statusText = container.querySelector('.toggle-status-text');
+                const slider = container.querySelector('.slider');
+                const thumb = container.querySelector('.slider-thumb');
+
+                if (checkbox) {
+                    checkbox.addEventListener('change', () => {
+                        const checked = checkbox.checked;
+                        contentData[key] = checked;
+                        if (statusText) {
+                            statusText.textContent = checked ? (w.onText || 'ON') : (w.offText || 'OFF');
+                            statusText.style.color = checked ? 'var(--color-accent-success, #10b981)' : 'var(--color-text-tertiary)';
+                        }
+                        if (slider) slider.style.backgroundColor = checked ? '#10b981' : '#4b5563';
+                        if (thumb) thumb.style.left = checked ? '19px' : '3px';
+                        onUpdate(contentData);
+                    });
+                }
+            }
+        });
+
+        // 9) 동적 연결 노드별 개별 선택 목록 위젯 (연결된 각 노드의 데이터를 개별적으로 ON/OFF 선택)
+        const filterHandler = {
+            render: (w, contentData, fileId) => {
+                const connections = window.nodeEngine?._getConnections() || window.windowManager?.nodeConnections || [];
+                const incomingConns = connections.filter(c => String(c.toId) === String(fileId));
+                const inputToggles = contentData.inputToggles || {};
+
+                if (incomingConns.length === 0) {
+                    return `
+                        <div class="widget-item" style="display: flex; flex-direction: column; gap: 6px; padding: 12px; background: var(--color-bg-primary); border: 1px dashed var(--color-border); border-radius: 8px; text-align: center;">
+                            <div style="font-size: 11px; font-weight: bold; color: var(--color-text-secondary);">🔗 연결된 상위 노드 목록</div>
+                            <div style="font-size: 11px; color: var(--color-text-tertiary);">
+                                연결된 상위 노드가 없습니다.<br>다른 노드의 출력(Output) 핀을 이 노드의 입력(Input) 핀에 연결하면 각 노드별 선택 스위치가 여기에 자동으로 나타납니다!
+                            </div>
+                        </div>
+                    `;
+                }
+
+                // 상위 노드별 토글 리스트 아이템 생성
+                const itemsHtml = incomingConns.map((conn, idx) => {
+                    const parentId = String(conn.fromId);
+                    const parentFile = window.nodeEngine?._getFile(parentId);
+                    const parentName = parentFile?.name || `노드 #${parentId.slice(-4)}`;
+                    const isChecked = inputToggles[parentId] !== undefined ? !!inputToggles[parentId] : true;
+
+                    return `
+                        <div class="dynamic-input-toggle-row" data-parent-id="${this.escapeHtml(parentId)}" style="display: flex; align-items: center; justify-content: space-between; padding: 6px 10px; background: var(--color-bg-primary); border: 1px solid var(--color-border); border-radius: 6px; gap: 8px;">
+                            <div style="display: flex; align-items: center; gap: 6px; min-width: 0; flex: 1;">
+                                <span style="font-size: 12px; flex-shrink: 0;">📌</span>
+                                <span style="font-size: 11px; font-weight: 600; color: var(--color-text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${this.escapeHtml(parentName)}">
+                                    ${this.escapeHtml(parentName)}
+                                </span>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0;">
+                                <span class="row-status-text" style="font-size: 10px; font-weight: bold; color: ${isChecked ? '#10b981' : '#6b7280'};">
+                                    ${isChecked ? '포함 ON' : '제외 OFF'}
+                                </span>
+                                <label class="switch" style="position: relative; display: inline-block; width: 34px; height: 18px; margin: 0;">
+                                    <input type="checkbox" class="parent-node-toggle-input" data-parent-id="${this.escapeHtml(parentId)}" ${isChecked ? 'checked' : ''} style="opacity: 0; width: 0; height: 0;">
+                                    <span class="slider round" style="position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: ${isChecked ? '#10b981' : '#4b5563'}; transition: 0.25s; border-radius: 18px;">
+                                        <span class="slider-thumb" style="position: absolute; height: 12px; width: 12px; left: ${isChecked ? '18px' : '3px'}; bottom: 3px; background-color: white; transition: 0.25s; border-radius: 50%;"></span>
+                                    </span>
+                                </label>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+
+                return `
+                    <div class="widget-item" style="display: flex; flex-direction: column; gap: 8px; background: var(--color-surface-1); border: 1px solid var(--color-border); border-radius: 8px; padding: 10px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <label style="font-size: 11px; font-weight: bold; color: var(--color-text-primary);">
+                                🎛️ ${this.escapeHtml(w.label || '연결된 노드별 데이터 선택')}
+                            </label>
+                            <div style="display: flex; gap: 4px;">
+                                <button type="button" class="btn btn-xs toggle-all-on-btn" style="font-size: 9px; padding: 2px 5px;">전체 선택</button>
+                                <button type="button" class="btn btn-xs toggle-all-off-btn" style="font-size: 9px; padding: 2px 5px;">전체 해제</button>
+                            </div>
+                        </div>
+                        <div class="dynamic-input-toggle-list" style="display: flex; flex-direction: column; gap: 5px; max-height: 180px; overflow-y: auto;">
+                            ${itemsHtml}
+                        </div>
+                    </div>
+                `;
+            },
+            bindEvents: (container, w, contentData, onUpdate, fileId) => {
+                if (!contentData.inputToggles) contentData.inputToggles = {};
+
+                // 개별 토글 스위치 변경 이벤트
+                container.querySelectorAll('.parent-node-toggle-input').forEach(chk => {
+                    chk.addEventListener('change', () => {
+                        const pId = chk.dataset.parentId;
+                        const row = chk.closest('.dynamic-input-toggle-row');
+                        const statusText = row?.querySelector('.row-status-text');
+                        const slider = row?.querySelector('.slider');
+                        const thumb = row?.querySelector('.slider-thumb');
+
+                        contentData.inputToggles[pId] = chk.checked;
+
+                        if (statusText) {
+                            statusText.textContent = chk.checked ? '포함 ON' : '제외 OFF';
+                            statusText.style.color = chk.checked ? '#10b981' : '#6b7280';
+                        }
+                        if (slider) slider.style.backgroundColor = chk.checked ? '#10b981' : '#4b5563';
+                        if (thumb) thumb.style.left = chk.checked ? '18px' : '3px';
+
+                        onUpdate(contentData);
+                    });
+                });
+
+                // 전체 선택
+                container.querySelector('.toggle-all-on-btn')?.addEventListener('click', () => {
+                    container.querySelectorAll('.parent-node-toggle-input').forEach(chk => {
+                        chk.checked = true;
+                        const pId = chk.dataset.parentId;
+                        contentData.inputToggles[pId] = true;
+                        const row = chk.closest('.dynamic-input-toggle-row');
+                        const statusText = row?.querySelector('.row-status-text');
+                        const slider = row?.querySelector('.slider');
+                        const thumb = row?.querySelector('.slider-thumb');
+                        if (statusText) { statusText.textContent = '포함 ON'; statusText.style.color = '#10b981'; }
+                        if (slider) slider.style.backgroundColor = '#10b981';
+                        if (thumb) thumb.style.left = '18px';
+                    });
+                    onUpdate(contentData);
+                });
+
+                // 전체 해제
+                container.querySelector('.toggle-all-off-btn')?.addEventListener('click', () => {
+                    container.querySelectorAll('.parent-node-toggle-input').forEach(chk => {
+                        chk.checked = false;
+                        const pId = chk.dataset.parentId;
+                        contentData.inputToggles[pId] = false;
+                        const row = chk.closest('.dynamic-input-toggle-row');
+                        const statusText = row?.querySelector('.row-status-text');
+                        const slider = row?.querySelector('.slider');
+                        const thumb = row?.querySelector('.slider-thumb');
+                        if (statusText) { statusText.textContent = '제외 OFF'; statusText.style.color = '#6b7280'; }
+                        if (slider) slider.style.backgroundColor = '#4b5563';
+                        if (thumb) thumb.style.left = '3px';
+                    });
+                    onUpdate(contentData);
+                });
+            }
+        };
+
+        this.register('input_source_filter', filterHandler);
+        this.register('dynamic_input_toggles', filterHandler);
     }
 
     /** 위젯 타입 추가/등록 */
@@ -246,7 +472,7 @@ class WidgetManager {
     /**
      * DOM 파괴 및 재생성 없이 이미 존재하는 위젯 element의 값(Text/Value/Src)만 선택적으로 차분 갱신합니다.
      */
-    updateWidgetValueInPlace(container, widget, contentData) {
+    updateWidgetValueInPlace(container, widget, contentData, fileId) {
         if (!container) return;
         const key = widget.key;
 
@@ -292,6 +518,56 @@ class WidgetManager {
             if (apprBtn) {
                 apprBtn.style.background = isApproved ? '#27ae60' : '#2ecc71';
                 apprBtn.textContent = isApproved ? '✅ 승인 상태' : '✅ 승인 및 진행';
+            }
+        } else if (widget.type === 'continue_gate') {
+            const isContinued = !!contentData.isContinued;
+            const statusLabel = container.querySelector('.continue-gate-status-label');
+            const continueBtn = container.querySelector('.continue-gate-btn');
+            if (statusLabel) {
+                statusLabel.style.color = isContinued ? '#2ecc71' : '#38bdf8';
+                statusLabel.textContent = isContinued ? '✅ 진행 완료' : '⏸️ 진행 대기 중';
+            }
+            if (continueBtn) {
+                continueBtn.style.background = isContinued ? '#27ae60' : 'linear-gradient(135deg, #0284c7, #0ea5e9)';
+                continueBtn.textContent = isContinued ? '✅ 다음 단계로 전달됨' : '▶️ 확인 및 계속 진행';
+            }
+        } else if (widget.type === 'toggle_switch') {
+            const k = key || 'isEnabled';
+            const isChecked = contentData[k] !== undefined ? !!contentData[k] : !!widget.defaultVal;
+            const checkbox = container.querySelector(`.widget-toggle-input[data-widget-key="${k}"]`);
+            const statusText = container.querySelector('.toggle-status-text');
+            const slider = container.querySelector('.slider');
+            const thumb = container.querySelector('.slider-thumb');
+            if (checkbox && checkbox.checked !== isChecked) {
+                checkbox.checked = isChecked;
+                if (statusText) {
+                    statusText.textContent = isChecked ? (widget.onText || 'ON') : (widget.offText || 'OFF');
+                    statusText.style.color = isChecked ? 'var(--color-accent-success, #10b981)' : 'var(--color-text-tertiary)';
+                }
+                if (slider) slider.style.backgroundColor = isChecked ? '#10b981' : '#4b5563';
+                if (thumb) thumb.style.left = isChecked ? '19px' : '3px';
+            }
+        } else if (widget.type === 'input_source_filter' || widget.type === 'dynamic_input_toggles') {
+            const handler = this.widgets.get(widget.type);
+            if (handler && fileId) {
+                const listWrapper = container.querySelector('.dynamic-input-toggle-list')?.closest('.widget-item') ||
+                                    container.querySelector('.widget-item');
+                if (listWrapper) {
+                    const tempDiv = document.createElement('div');
+                    tempDiv.innerHTML = handler.render(widget, contentData, fileId);
+                    const newEl = tempDiv.firstElementChild;
+                    if (newEl) {
+                        listWrapper.replaceWith(newEl);
+                        const onUpdate = (updatedContentData) => {
+                            const info = window.windowManager?.getWindowInfo(fileId);
+                            if (info && info.file) {
+                                info.file.content = JSON.stringify(updatedContentData, null, 2);
+                                window.storage?.updateFile(fileId, { content: info.file.content });
+                            }
+                        };
+                        handler.bindEvents(container, widget, contentData, onUpdate, fileId);
+                    }
+                }
             }
         }
     }
