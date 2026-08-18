@@ -270,14 +270,26 @@ class NodeEngine {
                     contentData.inputToggles[chk.dataset.parentId] = chk.checked;
                 });
             }
+            const activeChoice = winEl.querySelector('.choice-opt-btn.selected') || winEl.querySelector('.choice-opt-btn[style*="rgba(56, 189, 248"]');
+            if (activeChoice && activeChoice.dataset.optCode) {
+                contentData.selectedOption = activeChoice.dataset.optCode;
+                contentData.selectedChoice = activeChoice.dataset.optCode;
+            }
         }
 
-        // 🌟 1. 선행 노드들로부터 들어온 인풋 데이터 결합 (개별 토글 필터링 적용)
+        // 🌟 1. 선행 부모 노드들로부터 들어온 인풋 데이터 결합 (중복 방지: 부모 노드 ID 기반으로만 결합)
         const inputTexts = [];
         const inputToggles = contentData.inputToggles || {};
+        const parents = session?.graph?.parentsMap?.get(String(nodeId)) || [];
 
         if (inputs && typeof inputs === 'object') {
+            const parentKeySet = new Set(parents.map(String));
             for (const [pId, val] of Object.entries(inputs)) {
+                // 부모 노드 ID가 아닌 포트명/포트ID로 들어온 중복 엔트리는 결합 텍스트에서 제외
+                if (parentKeySet.size > 0 && !parentKeySet.has(String(pId))) {
+                    continue;
+                }
+
                 // 토글 스위치가 명시적으로 꺼져(false)있는 상위 노드는 제외
                 if (inputToggles[pId] === false) {
                     console.log(`[NodeEngine] 🚫 상위 노드 [${pId}] 토글 OFF로 출력에서 제외됨`);
@@ -360,9 +372,10 @@ class NodeEngine {
 
         if (userCode) {
             try {
-                // scriptInput 객체 구성: 위젯들의 key 및 label, 토글 상태(true/false), 상위 인풋 데이터 바인딩
+                // scriptInput 객체 구성: 위젯들의 key 및 label, 토글 상태(true/false), 포트별 상위 인풋 데이터 바인딩
                 const scriptInput = {
                     ...contentData,
+                    ...(typeof inputs === 'object' ? inputs : {}),
                     input: aggregatedInput,
                     rawInputs: inputs
                 };
@@ -418,6 +431,7 @@ class NodeEngine {
         if (session.nodeStates.get(nodeId) === 'completed') return;
 
         const file = this._getFile(nodeId);
+        const norm = this.normalizeNodeData(file);
         const nodeName = file?.name || nodeId;
 
         console.log(`[NodeEngine] 🟢 노드 실행 시작: [${nodeName}] (ID: ${nodeId})`);
@@ -425,13 +439,32 @@ class NodeEngine {
         this.setNodeState(nodeId, 'running');
 
         try {
-            // 상위 부모 노드들로부터 출력값 취합
+            // 상위 부모 노드들로부터 출력값 취합 (노드 ID별 + 포트 핀별 매핑)
             const parents = session.graph.parentsMap.get(nodeId) || [];
             const collectedInputs = {};
+            const inputPorts = norm.portsConfig?.inputs || [];
+
+            // 1) 부모 노드 ID별 매핑
             for (const parentId of parents) {
                 this.setConnectionActive(parentId, nodeId, true);
-                collectedInputs[parentId] = session.nodeOutputs.get(parentId);
+                const outVal = session.nodeOutputs.get(parentId);
+                collectedInputs[parentId] = outVal;
             }
+
+            // 2) 포트 핀 ID(in_1, in_2) 및 포트 이름(선택지 A 데이터)별 매핑
+            const inConns = session.graph.edges.filter(c => String(c.toId) === nodeId);
+            inConns.forEach(conn => {
+                const parentVal = session.nodeOutputs.get(String(conn.fromId));
+                if (parentVal !== undefined) {
+                    const portId = conn.toPortId || 'in_1';
+                    collectedInputs[portId] = parentVal;
+
+                    const matchedPort = inputPorts.find(p => p.id === portId);
+                    if (matchedPort && matchedPort.name) {
+                        collectedInputs[matchedPort.name] = parentVal;
+                    }
+                }
+            });
 
             // 약간의 시각적 실행 딜레이 (애니메이션 체감 효과)
             await new Promise(r => setTimeout(r, 200));

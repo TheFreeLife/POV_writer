@@ -2090,7 +2090,7 @@ class FileTreeManager {
             isCustomNode: true,
             wizardType: type,
             widgets,
-            fields,
+            fields: [],
             code,
             portsConfig,
             promptForName,

@@ -17,8 +17,11 @@ class WidgetManager {
         this.register('input_text', {
             render: (w, contentData, fileId) => {
                 const rows = w.rows || 1;
-                const key = w.key || 'val';
-                const currentVal = contentData[key] !== undefined ? contentData[key] : (w.defaultVal || '');
+                const key = w.key || w.label || 'val';
+                const currentVal = contentData[w.key] !== undefined ? contentData[w.key] :
+                                  (w.label && contentData[w.label] !== undefined ? contentData[w.label] :
+                                  (contentData[key] !== undefined ? contentData[key] :
+                                  (contentData.val !== undefined ? contentData.val : (w.defaultVal || ''))));
                 const minHeight = rows === 1 ? '32px' : `${Math.max(38, rows * 22)}px`;
                 return `
                     <div class="widget-item" style="display: flex; flex-direction: column; gap: 4px;">
@@ -30,11 +33,15 @@ class WidgetManager {
                 `;
             },
             bindEvents: (container, w, contentData, onUpdate) => {
-                const key = w.key || 'val';
-                const inputEl = container.querySelector(`.widget-input-field[data-widget-key="${key}"]`);
+                const key = w.key || w.label || 'val';
+                const inputEl = container.querySelector(`.widget-input-field[data-widget-key="${key}"]`) || container.querySelector('.widget-input-field');
                 if (inputEl) {
                     inputEl.addEventListener('input', () => {
-                        contentData[key] = inputEl.value;
+                        const val = inputEl.value;
+                        contentData[key] = val;
+                        if (w.key) contentData[w.key] = val;
+                        if (w.label) contentData[w.label] = val;
+                        contentData.val = val;
                         onUpdate(contentData);
                     });
                 }
@@ -44,9 +51,14 @@ class WidgetManager {
         // 2) 소설/원고 작성 에디터 위젯
         this.register('editor_canvas', {
             render: (w, contentData, fileId) => {
-                const key = w.key || 'editorVal';
+                const key = w.key || w.label || 'editorVal';
                 const rows = w.rows || 5;
-                const val = contentData[key] !== undefined ? contentData[key] : (w.defaultVal || contentData.content || '');
+                const val = contentData[w.key] !== undefined ? contentData[w.key] :
+                            (w.label && contentData[w.label] !== undefined ? contentData[w.label] :
+                            (contentData[key] !== undefined ? contentData[key] :
+                            (contentData.editorVal !== undefined ? contentData.editorVal :
+                            (contentData.content !== undefined ? contentData.content :
+                            (contentData.text !== undefined ? contentData.text : (w.defaultVal || ''))))));
                 const ph = w.placeholder || '원고 본문을 작성하세요...';
                 const minHeight = `${Math.max(100, rows * 24)}px`;
                 return `
@@ -59,12 +71,16 @@ class WidgetManager {
                 `;
             },
             bindEvents: (container, w, contentData, onUpdate) => {
-                const key = w.key || 'editorVal';
-                const textarea = container.querySelector(`.widget-editor-textarea[data-widget-key="${key}"]`);
+                const key = w.key || w.label || 'editorVal';
+                const textarea = container.querySelector(`.widget-editor-textarea[data-widget-key="${key}"]`) || container.querySelector('.widget-editor-textarea');
                 if (textarea) {
                     textarea.addEventListener('input', () => {
-                        contentData[key] = textarea.value;
-                        contentData.content = textarea.value;
+                        const val = textarea.value;
+                        contentData[key] = val;
+                        if (w.key) contentData[w.key] = val;
+                        if (w.label) contentData[w.label] = val;
+                        contentData.editorVal = val;
+                        contentData.content = val;
                         onUpdate(contentData);
                     });
                 }
@@ -189,32 +205,93 @@ class WidgetManager {
             }
         });
 
-        // 6) 사용자 선택 분기 위젯
+        // 6) 사용자 선택 분기 위젯 (A/B 선택 및 다중 경로 선택)
         this.register('choice_select', {
             render: (w, contentData, fileId) => {
-                const choices = w.options || ['선택지 A', '선택지 B'];
-                const selected = contentData.selectedChoice || choices[0];
-                const btnsHtml = choices.map(opt => {
-                    const isSel = opt === selected;
+                const key = w.key || 'selectedOption';
+                const defaultChoices = [
+                    { id: 'in_1', code: 'A', name: '선택지 A (상단 핀)', color: '#a855f7' },
+                    { id: 'in_2', code: 'B', name: '선택지 B (하단 핀)', color: '#38bdf8' }
+                ];
+                const choices = w.options || defaultChoices;
+                const selected = contentData[key] || choices[0]?.code || choices[0]?.id || choices[0] || 'A';
+
+                // 연결선에서 각 포트에 꽂힌 상위 노드 이름 조회
+                const connections = window.nodeEngine?._getConnections() || window.windowManager?.nodeConnections || [];
+                const targetConns = fileId ? connections.filter(c => String(c.toId) === String(fileId)) : [];
+
+                const btnsHtml = choices.map((opt, idx) => {
+                    const optCode = typeof opt === 'object' ? (opt.code || opt.id) : opt;
+                    const optId = typeof opt === 'object' ? (opt.id || `in_${idx + 1}`) : `in_${idx + 1}`;
+                    const optName = typeof opt === 'object' ? opt.name : opt;
+                    const optColor = typeof opt === 'object' ? (opt.color || '#38bdf8') : (idx === 0 ? '#a855f7' : '#38bdf8');
+                    const isSel = (optCode === selected || optId === selected || optName === selected);
+
+                    // 포트에 연결된 상위 노드 이름
+                    const matchedConn = targetConns.find(c => (c.toPortId || 'in_1') === optId);
+                    let parentInfoText = '연결된 노드 없음';
+                    if (matchedConn) {
+                        const parentFile = window.nodeEngine?._getFile(matchedConn.fromId) || window.fileTreeManager?.files?.find?.(f => String(f.id) === String(matchedConn.fromId));
+                        parentInfoText = `🔗 ${parentFile?.name || '상위 노드'}`;
+                    }
+
                     return `
-                        <button type="button" class="btn choice-opt-btn" data-opt="${this.escapeHtml(opt)}" style="padding: 8px 10px; font-size: 11px; font-weight: bold; text-align: left; display: flex; justify-content: space-between; border-radius: 6px; border: 1.5px solid ${isSel ? '#3498db' : 'var(--color-border)'}; background: ${isSel ? 'rgba(52, 152, 219, 0.15)' : 'var(--color-surface-1)'}; color: ${isSel ? '#ffffff' : 'var(--color-text-secondary)'};">
-                            <span>🔀 ${this.escapeHtml(opt)}</span>
-                            <span>${isSel ? '선택됨 🎯' : '선택'}</span>
-                        </button>
+                        <div class="choice-opt-card choice-opt-btn ${isSel ? 'selected' : ''}" data-opt-code="${this.escapeHtml(optCode)}" data-opt-id="${this.escapeHtml(optId)}" style="display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border-radius: 8px; border: 1.5px solid ${isSel ? optColor : 'var(--color-border)'}; background: ${isSel ? 'rgba(56, 189, 248, 0.12)' : 'var(--color-surface-1)'}; cursor: pointer; transition: all 0.15s ease;">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <div style="display: flex; align-items: center; gap: 6px;">
+                                    <span style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: ${optColor};"></span>
+                                    <span style="font-size: 12px; font-weight: 700; color: ${isSel ? 'var(--color-text-primary)' : 'var(--color-text-secondary)'};">${this.escapeHtml(optName)}</span>
+                                </div>
+                                <span style="font-size: 11px; font-weight: 700; color: ${isSel ? optColor : 'var(--color-text-tertiary)'}; background: ${isSel ? 'var(--color-bg-primary)' : 'transparent'}; padding: 2px 8px; border-radius: 12px; border: 1px solid ${isSel ? optColor : 'transparent'};">
+                                    ${isSel ? '✓ 채택됨 🎯' : '선택하기'}
+                                </span>
+                            </div>
+                            <div style="font-size: 11px; color: ${matchedConn ? 'var(--color-accent-primary)' : 'var(--color-text-tertiary)'}; font-weight: ${matchedConn ? '600' : '400'};">
+                                ${this.escapeHtml(parentInfoText)}
+                            </div>
+                        </div>
                     `;
                 }).join('');
+
                 return `
-                    <div class="widget-item" style="display: flex; flex-direction: column; gap: 6px;">
-                        <label style="font-size: 11px; font-weight: bold; color: var(--color-text-secondary);">🔀 경로 선택</label>
-                        <div style="display: flex; flex-direction: column; gap: 6px;">${btnsHtml}</div>
+                    <div class="widget-item choice-select-widget-container" style="display: flex; flex-direction: column; gap: 8px; background: var(--color-bg-secondary); padding: 10px; border-radius: 8px; border: 1px solid var(--color-border);">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <label style="font-size: 11px; font-weight: bold; color: var(--color-text-secondary);">
+                                🔀 ${this.escapeHtml(w.label || '진행 경로 / 선택지 분기')}
+                            </label>
+                            <span style="font-size: 10px; color: var(--color-text-tertiary);">원하는 경로를 클릭하세요</span>
+                        </div>
+                        <div class="choice-cards-list" style="display: flex; flex-direction: column; gap: 6px;">${btnsHtml}</div>
                     </div>
                 `;
             },
-            bindEvents: (container, w, contentData, onUpdate) => {
+            bindEvents: (container, w, contentData, onUpdate, fileId) => {
+                const key = w.key || 'selectedOption';
                 container.querySelectorAll('.choice-opt-btn').forEach(btn => {
                     btn.addEventListener('click', () => {
-                        contentData.selectedChoice = btn.dataset.opt;
+                        const optCode = btn.dataset.optCode;
+                        contentData[key] = optCode;
+                        contentData.selectedChoice = optCode;
+                        contentData.selectedOption = optCode;
                         onUpdate(contentData);
+
+                        // 실시간 UI 하이라이트 동기화
+                        const widgetBox = btn.closest('.choice-select-widget-container');
+                        if (widgetBox) {
+                            widgetBox.querySelectorAll('.choice-opt-btn').forEach(b => {
+                                const isTarget = b === btn;
+                                if (isTarget) b.classList.add('selected');
+                                else b.classList.remove('selected');
+                                b.style.borderColor = isTarget ? '#38bdf8' : 'var(--color-border)';
+                                b.style.background = isTarget ? 'rgba(56, 189, 248, 0.12)' : 'var(--color-surface-1)';
+                                const badge = b.querySelector('span[style*="border-radius: 12px"]');
+                                if (badge) {
+                                    badge.textContent = isTarget ? '✓ 채택됨 🎯' : '선택하기';
+                                    badge.style.color = isTarget ? '#38bdf8' : 'var(--color-text-tertiary)';
+                                    badge.style.borderColor = isTarget ? '#38bdf8' : 'transparent';
+                                }
+                            });
+                        }
                     });
                 });
             }
@@ -473,34 +550,54 @@ class WidgetManager {
      * DOM 파괴 및 재생성 없이 이미 존재하는 위젯 element의 값(Text/Value/Src)만 선택적으로 차분 갱신합니다.
      */
     updateWidgetValueInPlace(container, widget, contentData, fileId) {
-        if (!container) return;
-        const key = widget.key;
+        if (!container || !widget || !contentData) return;
 
         if (widget.type === 'text_viewer') {
-            const k = key || 'displayVal';
-            const val = contentData[k] !== undefined ? contentData[k] : (contentData.output || '(결과 데이터 없음)');
+            const k = widget.key || widget.label || 'displayVal';
+            const val = contentData[widget.key] !== undefined ? contentData[widget.key] :
+                        (widget.label && contentData[widget.label] !== undefined ? contentData[widget.label] :
+                        (contentData[k] !== undefined ? contentData[k] :
+                        (contentData.output !== undefined ? contentData.output :
+                        (contentData.displayVal !== undefined ? contentData.displayVal : '(결과 데이터 없음)'))));
             const displayStr = typeof val === 'object' ? JSON.stringify(val, null, 2) : String(val);
-            const preEl = container.querySelector(`.widget-text-viewer-pre[data-widget-key="${k}"]`) || container.querySelector('pre');
+            const preEl = container.querySelector(`.widget-text-viewer-pre[data-widget-key="${k}"]`) ||
+                          container.querySelector(`.widget-text-viewer-pre[data-widget-key="${widget.key}"]`) ||
+                          container.querySelector('.widget-text-viewer-pre') ||
+                          container.querySelector('pre');
             if (preEl && preEl.textContent !== displayStr) {
                 preEl.textContent = displayStr;
             }
         } else if (widget.type === 'input_text') {
-            const k = key || 'val';
-            const val = contentData[k] !== undefined ? contentData[k] : (widget.defaultVal || '');
-            const inputEl = container.querySelector(`.widget-input-field[data-widget-key="${k}"]`);
+            const k = widget.key || widget.label || 'val';
+            const val = contentData[widget.key] !== undefined ? contentData[widget.key] :
+                        (widget.label && contentData[widget.label] !== undefined ? contentData[widget.label] :
+                        (contentData[k] !== undefined ? contentData[k] :
+                        (contentData.val !== undefined ? contentData.val : (widget.defaultVal || ''))));
+            const inputEl = container.querySelector(`.widget-input-field[data-widget-key="${k}"]`) ||
+                            container.querySelector(`.widget-input-field[data-widget-key="${widget.key}"]`) ||
+                            container.querySelector(`.widget-input-field[data-widget-key="${widget.label}"]`) ||
+                            container.querySelector('.widget-input-field');
             if (inputEl && document.activeElement !== inputEl && inputEl.value !== val) {
                 inputEl.value = val;
             }
         } else if (widget.type === 'editor_canvas') {
-            const k = key || 'editorVal';
-            const val = contentData[k] !== undefined ? contentData[k] : (contentData.content || '');
-            const textarea = container.querySelector(`.widget-editor-textarea[data-widget-key="${k}"]`);
+            const k = widget.key || widget.label || 'editorVal';
+            const val = contentData[widget.key] !== undefined ? contentData[widget.key] :
+                        (widget.label && contentData[widget.label] !== undefined ? contentData[widget.label] :
+                        (contentData[k] !== undefined ? contentData[k] :
+                        (contentData.editorVal !== undefined ? contentData.editorVal :
+                        (contentData.content !== undefined ? contentData.content :
+                        (contentData.text !== undefined ? contentData.text : (widget.defaultVal || ''))))));
+            const textarea = container.querySelector(`.widget-editor-textarea[data-widget-key="${k}"]`) ||
+                             container.querySelector(`.widget-editor-textarea[data-widget-key="${widget.key}"]`) ||
+                             container.querySelector(`.widget-editor-textarea[data-widget-key="${widget.label}"]`) ||
+                             container.querySelector('.widget-editor-textarea');
             if (textarea && document.activeElement !== textarea && textarea.value !== val) {
                 textarea.value = val;
             }
         } else if (widget.type === 'image_canvas') {
-            const k = key || 'image_val';
-            const imgSrc = contentData[k] || contentData.image || widget.defaultSrc || '';
+            const k = widget.key || widget.label || 'image_val';
+            const imgSrc = contentData[widget.key] || contentData[widget.label] || contentData[k] || contentData.image || widget.defaultSrc || '';
             const imgEl = container.querySelector('.widget-image-preview');
             if (imgEl && imgEl.getAttribute('src') !== imgSrc) {
                 if (imgSrc) {
@@ -532,9 +629,15 @@ class WidgetManager {
                 continueBtn.textContent = isContinued ? '✅ 다음 단계로 전달됨' : '▶️ 확인 및 계속 진행';
             }
         } else if (widget.type === 'toggle_switch') {
-            const k = key || 'isEnabled';
-            const isChecked = contentData[k] !== undefined ? !!contentData[k] : !!widget.defaultVal;
-            const checkbox = container.querySelector(`.widget-toggle-input[data-widget-key="${k}"]`);
+            const k = widget.key || widget.label || 'isEnabled';
+            const isChecked = contentData[widget.key] !== undefined ? !!contentData[widget.key] :
+                             (widget.label && contentData[widget.label] !== undefined ? !!contentData[widget.label] :
+                             (contentData[k] !== undefined ? !!contentData[k] :
+                             (contentData.isEnabled !== undefined ? !!contentData.isEnabled : !!widget.defaultVal)));
+            const checkbox = container.querySelector(`.widget-toggle-input[data-widget-key="${k}"]`) ||
+                             container.querySelector(`.widget-toggle-input[data-widget-key="${widget.key}"]`) ||
+                             container.querySelector(`.widget-toggle-input[data-widget-key="${widget.label}"]`) ||
+                             container.querySelector('.widget-toggle-input');
             const statusText = container.querySelector('.toggle-status-text');
             const slider = container.querySelector('.slider');
             const thumb = container.querySelector('.slider-thumb');
@@ -569,7 +672,34 @@ class WidgetManager {
                     }
                 }
             }
+        } else if (widget.type === 'choice_select') {
+            const handler = this.widgets.get(widget.type);
+            if (handler && fileId) {
+                const choiceWrapper = container.querySelector('.choice-select-widget-container')?.closest('.widget-item') ||
+                                      container.querySelector('.choice-select-widget-container');
+                if (choiceWrapper) {
+                    const tempDiv = document.createElement('div');
+                    tempDiv.innerHTML = handler.render(widget, contentData, fileId);
+                    const newEl = tempDiv.firstElementChild;
+                    if (newEl) {
+                        choiceWrapper.replaceWith(newEl);
+                        const onUpdate = (updatedContentData) => {
+                            const info = window.windowManager?.getWindowInfo(fileId);
+                            if (info && info.file) {
+                                info.file.content = JSON.stringify(updatedContentData, null, 2);
+                                window.storage?.updateFile(fileId, { content: info.file.content });
+                            }
+                        };
+                        handler.bindEvents(container, widget, contentData, onUpdate, fileId);
+                    }
+                }
+            }
         }
+    }
+
+    _getFile(fileId) {
+        return window.nodeEngine?._getFile?.(fileId) ||
+               (Array.isArray(window.fileTreeManager?.files) ? window.fileTreeManager.files.find(f => String(f.id) === String(fileId)) : null);
     }
 
     escapeHtml(str) {

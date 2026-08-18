@@ -265,5 +265,51 @@
       ]
     },
     "code": "return { '선택된 데이터': input.input || '(선택된 데이터 없음)' };"
+  },
+  {
+    "schemaVersion": "2.0",
+    "createdAt": 1723642800000,
+    "updatedAt": 1723642800000,
+    "id": "preset_sys_ab_choice",
+    "name": "A/B 선택 분기 노드",
+    "icon": "🔀",
+    "desc": "2개의 서로 다른 상위 노드(선택지 A/B)를 입력받아, 사용자가 선택한 하나의 데이터만 다음 노드로 전달하는 분기 노드",
+    "category": "general",
+    "color": "#ec4899",
+    "defaultWidth": 460,
+    "defaultHeight": 380,
+    "isDefault": true,
+    "promptForName": true,
+    "promptForDesc": false,
+    "widgets": [
+      {
+        "id": "w_choice",
+        "type": "choice_select",
+        "label": "진행할 선택지 결정",
+        "key": "selectedOption"
+      }
+    ],
+    "portsConfig": {
+      "inputs": [
+        {
+          "id": "in_1",
+          "name": "선택지 A 데이터",
+          "color": "#a855f7"
+        },
+        {
+          "id": "in_2",
+          "name": "선택지 B 데이터",
+          "color": "#38bdf8"
+        }
+      ],
+      "outputs": [
+        {
+          "id": "out_1",
+          "name": "최종 선택 데이터",
+          "color": "#ec4899"
+        }
+      ]
+    },
+    "code": "const choice = input.selectedOption || input.selectedChoice || 'A';\nconst dataA = input['선택지 A 데이터'] || input['in_1'] || '';\nconst dataB = input['선택지 B 데이터'] || input['in_2'] || '';\nconst result = (choice === 'B' || choice === 'in_2') ? dataB : dataA;\nreturn { '최종 선택 데이터': result || '(선택된 데이터 내용 없음)' };"
   }
 ]
