@@ -1477,9 +1477,22 @@ class WindowManager {
     }
 
     /**
-     * 마우스 이동 처리
+     * 마우스 이동 처리 (rAF 고속 동기화 최적화)
      */
     onMouseMove(e) {
+        this._lastMouseMoveEvent = e;
+        if (!this._isRafPending) {
+            this._isRafPending = true;
+            requestAnimationFrame(() => {
+                this._isRafPending = false;
+                if (this._lastMouseMoveEvent) {
+                    this._processMouseMove(this._lastMouseMoveEvent);
+                }
+            });
+        }
+    }
+
+    _processMouseMove(e) {
         // 다중 드래그 이동
         if (this.dragState) {
             const currentScale = this.scale || this.zoom || 1;
@@ -1561,7 +1574,7 @@ class WindowManager {
             }
         }
 
-        // 캔버스 그룹 영역 4방향 모서리 크기 조절
+        // 캔버스 그룹 영역 리사이즈
         if (this.regionResizeState) {
             const currentScale = this.scale || this.zoom || 1;
             const dx = (e.clientX - this.regionResizeState.startX) / currentScale;
@@ -1637,6 +1650,7 @@ class WindowManager {
                 });
             });
             this.dragState = null;
+            this.renderConnections({ forceRefreshUI: true });
         }
 
         if (this.resizeState) {
@@ -3478,7 +3492,10 @@ class WindowManager {
     /**
      * 모든 연결선 SVG 렌더링
      */
-    renderConnections() {
+    /**
+     * 노드 간 연결선 SVG 렌더링 (In-place DOM 최적화 & rAF 고속 연산)
+     */
+    renderConnections(options = {}) {
         const svg = document.getElementById('nodeConnectionsSvg');
         const container = document.getElementById('canvasContainer');
         if (!svg || !container) return;
@@ -3487,11 +3504,19 @@ class WindowManager {
             container.insertBefore(svg, container.firstChild);
         }
 
-        const existingLines = svg.querySelectorAll('.node-connection-line');
-        existingLines.forEach(l => l.remove());
-
         if (!Array.isArray(this.nodeConnections)) this.nodeConnections = [];
 
+        const activeConnIds = new Set(this.nodeConnections.map(c => String(c.id)));
+
+        // 1) 삭제된 연결선 엘리먼트만 선별 제거
+        const existingLines = svg.querySelectorAll('.node-connection-line');
+        existingLines.forEach(l => {
+            if (!activeConnIds.has(l.dataset.connId)) {
+                l.remove();
+            }
+        });
+
+        // 2) 연결선 좌표 속성만 갱신 (In-place DOM Reuse)
         this.nodeConnections.forEach(conn => {
             const fromWin = this.getWindowInfo(conn.fromId);
             const toWin = this.getWindowInfo(conn.toId);
@@ -3509,39 +3534,49 @@ class WindowManager {
                 fromPortEl = fromWin?.element?.querySelector(`.node-port.port-right`);
             }
             const strokeColor = fromPortEl?.dataset?.portColor || '#00ffcc';
-
             const pathD = this.calculateBezierPath(start.x, start.y, conn.fromPort, end.x, end.y, conn.toPort);
-            
             const isSelected = (this.selectedConnectionId === conn.id);
-            const pathEl = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-            pathEl.setAttribute('d', pathD);
-            pathEl.setAttribute('class', `node-connection-line${isSelected ? ' selected' : ''}`);
-            pathEl.setAttribute('stroke', isSelected ? '#ffcc00' : strokeColor);
-            pathEl.setAttribute('stroke-width', isSelected ? '5' : '4');
-            pathEl.setAttribute('fill', 'none');
-            pathEl.setAttribute('marker-end', isSelected ? 'url(#arrowhead-selected)' : 'url(#arrowhead)');
-            pathEl.dataset.connId = conn.id;
 
-            pathEl.addEventListener('click', (e) => {
-                e.stopPropagation();
-                this.selectConnection(conn.id);
-            });
+            let pathEl = svg.querySelector(`.node-connection-line[data-conn-id="${conn.id}"]`);
+            if (pathEl) {
+                pathEl.setAttribute('d', pathD);
+                pathEl.setAttribute('class', `node-connection-line${isSelected ? ' selected' : ''}`);
+                pathEl.setAttribute('stroke', isSelected ? '#ffcc00' : strokeColor);
+                pathEl.setAttribute('stroke-width', isSelected ? '5' : '4');
+                pathEl.setAttribute('marker-end', isSelected ? 'url(#arrowhead-selected)' : 'url(#arrowhead)');
+            } else {
+                pathEl = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                pathEl.setAttribute('d', pathD);
+                pathEl.setAttribute('class', `node-connection-line${isSelected ? ' selected' : ''}`);
+                pathEl.setAttribute('stroke', isSelected ? '#ffcc00' : strokeColor);
+                pathEl.setAttribute('stroke-width', isSelected ? '5' : '4');
+                pathEl.setAttribute('fill', 'none');
+                pathEl.setAttribute('marker-end', isSelected ? 'url(#arrowhead-selected)' : 'url(#arrowhead)');
+                pathEl.dataset.connId = conn.id;
 
-            pathEl.addEventListener('contextmenu', (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                if (confirm('이 노드 연결선을 삭제할까요?')) {
-                    this.deleteConnection(conn.id);
-                }
-            });
+                pathEl.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    this.selectConnection(conn.id);
+                });
 
-            svg.appendChild(pathEl);
+                pathEl.addEventListener('contextmenu', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (confirm('이 노드 연결선을 삭제할까요?')) {
+                        this.deleteConnection(conn.id);
+                    }
+                });
+
+                svg.appendChild(pathEl);
+            }
         });
 
-        // 캔버스 노드들의 UI 연결 갱신 반영
-        this.windows.forEach((info, fId) => {
-            this.refreshNodeUI(fId);
-        });
+        // 3) 캔버스 노드들의 UI 연결 갱신은 드래그 중에는 생략하고 명시적 요청 시에만 실행
+        if (options.forceRefreshUI) {
+            this.windows.forEach((info, fId) => {
+                this.refreshNodeUI(fId);
+            });
+        }
     }
 
     renderSystemPromptNodeUI(file, win) {

@@ -16,6 +16,7 @@ class StorageManager {
   constructor() {
     this.db = null;
     this._initPromise = null;
+    this._settingsCache = new Map();
   }
 
   async init() {
@@ -605,18 +606,24 @@ class StorageManager {
     });
   }
 
-  // 설정 관리 메서드 (IndexedDB)
+  // 설정 관리 메서드 (IndexedDB + 인메모리 캐싱 최적화)
   async getGlobalSettings(key) {
-    return this._transaction([SETTINGS_STORE], 'readonly', (tx) => {
+    if (this._settingsCache.has(key)) {
+      return this._settingsCache.get(key);
+    }
+    const val = await this._transaction([SETTINGS_STORE], 'readonly', (tx) => {
       return new Promise((resolve) => {
         const req = tx.objectStore(SETTINGS_STORE).get(key);
         req.onsuccess = () => resolve(req.result ? req.result.value : null);
         req.onerror = () => resolve(null);
       });
     });
+    this._settingsCache.set(key, val);
+    return val;
   }
 
   async saveGlobalSettings(key, value) {
+    this._settingsCache.set(key, value);
     await this._transaction([SETTINGS_STORE], 'readwrite', (tx) => {
       // 명시적으로 키(key)를 두 번째 인자로 전달하여 out-of-line key 에러 방지
       tx.objectStore(SETTINGS_STORE).put({ id: key, value: value, updatedAt: Date.now() }, key);
