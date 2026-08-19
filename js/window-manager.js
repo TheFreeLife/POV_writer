@@ -1029,6 +1029,7 @@ class WindowManager {
                 </div>
                 <div class="window-titlebar-actions">
                     <button class="window-btn window-btn-save-template" data-action="save-template" title="⭐ 현재 채워진 입력 상태 그대로 노드 템플릿 저장">⭐</button>
+                    <button class="window-btn window-btn-sync-preset" data-action="sync-preset" title="🔄 최신 프리셋으로 코드 및 설정 동기화 (작성 데이터 100% 보존)">🔄</button>
                     ${isImage ? `<button class="window-btn window-btn-rotate" data-action="rotate" title="90도 회전">🔄</button>` : ''}
                     <button class="window-btn window-btn-collapse" data-action="collapse" title="접기/펴기">${collapseChar}</button>
                     <button class="window-btn window-btn-close" data-action="close" title="🗑️ 노드 완전 삭제">✕</button>
@@ -1236,6 +1237,7 @@ class WindowManager {
                 if (action === 'collapse') this.toggleCollapse(fileId);
                 if (action === 'rotate') this.rotateImage(fileId);
                 if (action === 'save-template') this.saveNodeAsTemplate(fileId);
+                if (action === 'sync-preset') this.syncNodeWithLatestPreset(fileId);
             });
         });
 
