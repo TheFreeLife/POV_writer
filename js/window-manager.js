@@ -803,7 +803,7 @@ class WindowManager {
 
         await storage.updateFile(fileId, updates);
 
-        // 4. 노드 UI 즉시 새로고침 (기존 위치 및 줌 상태 완벽 유지)
+        // 4. 노드 UI 즉시 새로고침 (DB 삭제 없이 DOM 창만 안전하게 재생성)
         const winInfo = this.windows.get(fileId);
         if (winInfo && winInfo.element) {
             const currentRect = {
@@ -813,7 +813,10 @@ class WindowManager {
                 height: parseInt(winInfo.element.style.height, 10) || targetPreset.defaultHeight || 650,
                 isUserResized: true
             };
-            this.closeWindow(fileId);
+            // 🌟 DB 파일 삭제(closeWindow)를 절대 호출하지 않고, 순수 DOM만 안전 교체!
+            winInfo.element.remove();
+            this.windows.delete(fileId);
+            window.nodeManager?.unregisterNode(fileId);
             await this.openWindow(fileId, currentRect);
         }
 
