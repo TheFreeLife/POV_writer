@@ -889,11 +889,11 @@ class StorageManager {
 
   getSystemNodeCategories() {
     return [
-      { id: 'world', icon: '🌍', name: '세계관 & 배경', isSystem: true },
+      { id: 'lore', icon: '📚', name: '로어북 & 사전', isSystem: true },
       { id: 'character', icon: '👤', name: '인물 & 캐릭터', isSystem: true },
-      { id: 'story', icon: '📜', name: '줄거리 & 구성', isSystem: true },
-      { id: 'logic', icon: '⚡', name: 'AI 연산 & 기능', isSystem: true },
-      { id: 'review', icon: '📊', name: '검수 & 데이터', isSystem: true }
+      { id: 'story', icon: '📜', name: '줄거리 & 기획', isSystem: true },
+      { id: 'ai', icon: '🤖', name: 'AI & 프롬프트', isSystem: true },
+      { id: 'logic', icon: '🔀', name: '데이터 & 로직', isSystem: true }
     ];
   }
 

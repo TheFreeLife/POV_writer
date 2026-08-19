@@ -2491,17 +2491,7 @@ class WindowManager {
             const info = this.getWindowInfo(fileId);
             if (info && info.element) {
                 const titleNameEl = info.element.querySelector('.window-titlebar-name');
-                const titleIconEl = info.element.querySelector('.window-titlebar-icon');
-
                 if (titleNameEl) titleNameEl.textContent = newCleanName;
-                if (titleIconEl && newIcon) titleIconEl.textContent = newIcon;
-                else if (titleIconEl && !newIcon) titleIconEl.textContent = '';
-
-                if (titleBar && newColor) {
-                    titleBar.style.borderTop = `4px solid ${newColor}`;
-                    titleBar.style.background = `linear-gradient(180deg, ${newColor}25 0%, ${newColor}08 80%, var(--color-surface-2) 100%)`;
-                    info.element.style.boxShadow = `0 4px 20px rgba(0,0,0,0.3), 0 0 12px ${newColor}44`;
-                }
 
                 // 이미지 뷰어 엘리먼트가 열려있다면 즉시 이미지 갱신
                 const imgEl = info.element.querySelector(`#imageViewer_${fileId}`) || info.element.querySelector('.image-viewer-content img');
