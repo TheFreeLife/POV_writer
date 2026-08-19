@@ -2630,7 +2630,16 @@ class FileTreeManager {
         document.getElementById('ctx-new-folder')?.addEventListener('click', () => this.showNewItemModal('folder', file.id));
         document.getElementById('ctx-folder-stats')?.addEventListener('click', () => this.showFolderStatsModal(file));
         document.getElementById('ctx-folder-settings')?.addEventListener('click', () => this.showFolderSettingsModal(file));
-        document.getElementById('ctx-rename')?.addEventListener('click', () => this.showNewItemModal(file.type, file.parentId, file));
+        document.getElementById('ctx-rename')?.addEventListener('click', () => {
+            menu.classList.add('hidden');
+            if (file.type === 'folder') {
+                this.showNewItemModal(file.type, file.parentId, file);
+            } else if (window.windowManager) {
+                window.windowManager.showEditNodeInfoModal(file.id);
+            } else {
+                this.showNewItemModal(file.type, file.parentId, file);
+            }
+        });
         document.getElementById('ctx-delete')?.addEventListener('click', () => this.deleteItem(file));
     }
 

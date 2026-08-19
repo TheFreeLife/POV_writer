@@ -66,6 +66,13 @@ class WindowManager {
         window.addEventListener('blur', () => {
             document.querySelectorAll('.selection-box').forEach(el => el.remove());
             this.selectionState = null;
+            if (this.regionDragState || this.regionResizeState) {
+                this.regionDragState = null;
+                this.regionResizeState = null;
+                this.saveRegions();
+            }
+            document.body.style.cursor = '';
+            document.body.style.userSelect = '';
         });
 
         // 캔버스 상단 그래프 실행 제어 미니 팝업 메뉴 이벤트
@@ -1761,6 +1768,21 @@ class WindowManager {
             this.resizeState = null;
         }
 
+        // 캔버스 그룹 영역 드래그 & 리사이즈 종료 처리
+        if (this.regionDragState) {
+            this.regionDragState = null;
+            this.saveRegions();
+            document.body.style.cursor = '';
+            document.body.style.userSelect = '';
+        }
+
+        if (this.regionResizeState) {
+            this.regionResizeState = null;
+            this.saveRegions();
+            document.body.style.cursor = '';
+            document.body.style.userSelect = '';
+        }
+
         if (this.panState || this.selectionState) {
             this.panState = null;
             this.selectionState = null;
@@ -2165,6 +2187,10 @@ class WindowManager {
                     <span class="context-menu-icon">▶️</span>
                     <span>이 노드를 목표(End)로 즉시 실행</span>
                 </div>
+                <div class="context-menu-item" data-action="edit-node-info">
+                    <span class="context-menu-icon">✏️</span>
+                    <span>노드 정보 수정 (이름/설명)...</span>
+                </div>
                 <div class="context-menu-item" data-action="duplicate">
                     <span class="context-menu-icon">📋</span>
                     <span>노드 복사</span>
@@ -2206,6 +2232,14 @@ class WindowManager {
                 await window.nodeEngine.runTargetNode(fileId);
             }
         });
+
+        const editInfoBtn = menu.querySelector('[data-action="edit-node-info"]');
+        editInfoBtn?.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.showEditNodeInfoModal(fileId);
+            this.hideContextMenu();
+        });
+
         const deleteBtn = menu.querySelector('[data-action="delete"]');
         deleteBtn?.addEventListener('click', (e) => {
             e.stopPropagation();
@@ -2269,6 +2303,230 @@ class WindowManager {
         if (window.nodeManager) {
             return await window.nodeManager.duplicateNode(fileId);
         }
+    }
+
+    /**
+     * 파일 ID로부터 파일 객체 안전하게 조회
+     */
+    async _getFile(fileId) {
+        if (!fileId) return null;
+        const winInfo = this.windows.get(fileId);
+        if (winInfo && winInfo.file) return winInfo.file;
+        if (window.fileTreeManager?.files) {
+            const found = window.fileTreeManager.files.find(f => String(f.id) === String(fileId));
+            if (found) return found;
+        }
+        if (window.nodeEngine?._getFile) {
+            const found = window.nodeEngine._getFile(fileId);
+            if (found) return found;
+        }
+        if (window.storage?.getFile) {
+            return await window.storage.getFile(fileId);
+        }
+        return null;
+    }
+
+    /**
+     * 노드 기본 정보(이름, 상세 설명) 수정 모달
+     */
+    async showEditNodeInfoModal(fileId) {
+        const file = await this._getFile(fileId);
+        if (!file) {
+            window.showToast?.('노드 정보를 찾을 수 없습니다.', 'warning');
+            return;
+        }
+
+        const existingModal = document.getElementById('editNodeInfoModal');
+        if (existingModal) existingModal.remove();
+
+        const parsed = this.parseFileIconAndName(file);
+        let contentData = {};
+        if (typeof file.content === 'string') {
+            try { contentData = JSON.parse(file.content); } catch (e) { contentData = {}; }
+        } else if (typeof file.content === 'object' && file.content) {
+            contentData = file.content;
+        }
+
+        const currentColor = file.color || contentData.color || '#8b5cf6';
+        const currentDesc = file.description || contentData.description || '';
+
+        const hasImage = file.template === 'image' || (typeof file.content === 'string' && file.content.startsWith('data:image')) || contentData.image_val || (Array.isArray(contentData.widgets) && contentData.widgets.some(w => w.type === 'image_canvas'));
+        let currentImage = (file.template === 'image' && typeof file.content === 'string' && file.content.startsWith('data:image')) ? file.content : (contentData.image_val || '');
+
+        let imageFieldHtml = '';
+        if (hasImage) {
+            imageFieldHtml = `
+                <div style="border: 1px dashed var(--color-border, #313244); border-radius: 8px; padding: 10px; background: rgba(0,0,0,0.15);">
+                    <label style="font-size: 11px; font-weight: 700; color: var(--color-text-secondary); display: block; margin-bottom: 6px;">🖼️ 노드 이미지 / 썸네일</label>
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <div id="editNodeImagePreview" style="width: 52px; height: 52px; border-radius: 6px; border: 1px solid var(--color-border); background: #111; display: flex; align-items: center; justify-content: center; overflow: hidden; flex-shrink: 0;">
+                            ${currentImage ? `<img src="${currentImage}" style="width: 100%; height: 100%; object-fit: cover;">` : `<span style="font-size: 20px; color: var(--color-text-tertiary);">🖼️</span>`}
+                        </div>
+                        <div style="flex: 1; display: flex; flex-direction: column; gap: 4px;">
+                            <input id="editNodeImageFileInput" type="file" accept="image/*" style="font-size: 11px; color: var(--color-text-secondary);">
+                            ${currentImage ? `<button type="button" id="editNodeImageRemoveBtn" style="align-self: flex-start; background: transparent; border: none; font-size: 11px; color: var(--color-accent-danger, #f38ba8); cursor: pointer; padding: 0;">이미지 삭제</button>` : ''}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        const overlay = document.createElement('div');
+        overlay.id = 'editNodeInfoModal';
+        overlay.style.cssText = `
+            position: fixed; inset: 0; z-index: 10000;
+            background: rgba(0,0,0,0.65); backdrop-filter: blur(4px);
+            display: flex; align-items: center; justify-content: center;
+        `;
+
+        overlay.innerHTML = `
+            <div style="background: var(--color-surface-1, #1e1e2e); border: 1px solid var(--color-border, #313244); border-radius: 12px; padding: 22px; width: 440px; max-width: 92vw; box-shadow: 0 16px 36px rgba(0,0,0,0.5); display: flex; flex-direction: column; gap: 14px; color: var(--color-text-primary, #cdd6f4);">
+                <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--color-border, #313244); padding-bottom: 10px;">
+                    <div style="font-size: 15px; font-weight: 700; display: flex; align-items: center; gap: 8px;">
+                        <span>✏️ 노드 정보 수정</span>
+                    </div>
+                    <button id="closeEditNodeInfoBtn" style="background: transparent; border: none; font-size: 16px; color: var(--color-text-tertiary); cursor: pointer;">✕</button>
+                </div>
+
+                <div style="display: flex; flex-direction: column; gap: 4px;">
+                    <label style="font-size: 11px; font-weight: 700; color: var(--color-text-secondary); display: block;">노드 이름</label>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <span style="font-size: 18px; padding: 4px 8px; background: rgba(0,0,0,0.25); border: 1px solid var(--color-border); border-radius: 6px; flex-shrink: 0;" title="노드 기본 아이콘">${this.escapeHtml(parsed.icon)}</span>
+                        <input id="editNodeNameInput" type="text" class="input" value="${this.escapeHtml(parsed.cleanName)}" placeholder="노드 이름을 입력하세요" style="flex: 1; font-size: 13px; font-weight: 600; height: 34px;">
+                    </div>
+                </div>
+
+                ${imageFieldHtml}
+
+                <div>
+                    <label style="font-size: 11px; font-weight: 700; color: var(--color-text-secondary); display: block; margin-bottom: 4px;">노드 상세 설명 / 메모 (선택)</label>
+                    <textarea id="editNodeDescInput" class="input" rows="4" placeholder="해당 노드의 역할이나 설명, 메모를 입력하세요..." style="width: 100%; font-size: 12px; line-height: 1.6; resize: vertical;">${this.escapeHtml(currentDesc)}</textarea>
+                </div>
+
+                <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 6px;">
+                    <button id="cancelEditNodeInfoBtn" class="btn btn-secondary" style="padding: 6px 14px; font-size: 12px;">취소</button>
+                    <button id="saveEditNodeInfoBtn" class="btn btn-primary" style="padding: 6px 16px; font-size: 12px; font-weight: 600;">저장</button>
+                </div>
+            </div>
+        `;
+
+        document.body.appendChild(overlay);
+
+        const nameInp = overlay.querySelector('#editNodeNameInput');
+        const descInp = overlay.querySelector('#editNodeDescInput');
+        const imageFileInput = overlay.querySelector('#editNodeImageFileInput');
+        const imagePreview = overlay.querySelector('#editNodeImagePreview');
+        const imageRemoveBtn = overlay.querySelector('#editNodeImageRemoveBtn');
+
+        let updatedImageData = currentImage;
+
+        imageFileInput?.addEventListener('change', (e) => {
+            const f = e.target.files?.[0];
+            if (f) {
+                const reader = new FileReader();
+                reader.onload = (evt) => {
+                    updatedImageData = evt.target.result;
+                    if (imagePreview) {
+                        imagePreview.innerHTML = `<img src="${updatedImageData}" style="width: 100%; height: 100%; object-fit: cover;">`;
+                    }
+                };
+                reader.readAsDataURL(f);
+            }
+        });
+
+        imageRemoveBtn?.addEventListener('click', () => {
+            updatedImageData = '';
+            if (imagePreview) {
+                imagePreview.innerHTML = `<span style="font-size: 20px; color: var(--color-text-tertiary);">🖼️</span>`;
+            }
+            if (imageFileInput) imageFileInput.value = '';
+        });
+
+        nameInp?.focus();
+        nameInp?.select();
+
+        const closeModal = () => overlay.remove();
+        overlay.querySelector('#closeEditNodeInfoBtn')?.addEventListener('click', closeModal);
+        overlay.querySelector('#cancelEditNodeInfoBtn')?.addEventListener('click', closeModal);
+        overlay.addEventListener('click', (e) => {
+            if (e.target === overlay) closeModal();
+        });
+
+        const saveInfo = async () => {
+            const newCleanName = (nameInp?.value || '').trim() || parsed.cleanName || '이름 없음 노드';
+            const nodeIcon = parsed.icon || '';
+            const newFullName = nodeIcon ? `${nodeIcon} ${newCleanName}` : newCleanName;
+            const newDesc = (descInp?.value || '').trim();
+
+            // 1. 파일 객체 데이터 갱신
+            file.name = newFullName;
+            file.description = newDesc;
+
+            // contentData 내 설명/이미지 동기화
+            contentData.description = newDesc;
+            if (hasImage) {
+                contentData.image_val = updatedImageData;
+                if (Array.isArray(contentData.widgets)) {
+                    contentData.widgets.forEach(w => {
+                        if (w.type === 'image_canvas') contentData[w.key] = updatedImageData;
+                    });
+                }
+                if (file.template === 'image' || (typeof file.content === 'string' && file.content.startsWith('data:image'))) {
+                    file.content = updatedImageData;
+                } else {
+                    file.content = typeof file.content === 'string' ? JSON.stringify(contentData, null, 2) : contentData;
+                }
+            } else {
+                file.content = typeof file.content === 'string' ? JSON.stringify(contentData, null, 2) : contentData;
+            }
+
+            // 2. 스토리지 저장
+            await window.storage?.updateFile?.(fileId, {
+                name: newFullName,
+                description: newDesc,
+                content: file.content
+            });
+
+            // 3. 열려있는 윈도우 UI(타이틀바 및 이미지 뷰어) 즉각 갱신
+            const info = this.getWindowInfo(fileId);
+            if (info && info.element) {
+                const titleNameEl = info.element.querySelector('.window-titlebar-name');
+                const titleIconEl = info.element.querySelector('.window-titlebar-icon');
+
+                if (titleNameEl) titleNameEl.textContent = newCleanName;
+                if (titleIconEl && newIcon) titleIconEl.textContent = newIcon;
+                else if (titleIconEl && !newIcon) titleIconEl.textContent = '';
+
+                if (titleBar && newColor) {
+                    titleBar.style.borderTop = `4px solid ${newColor}`;
+                    titleBar.style.background = `linear-gradient(180deg, ${newColor}25 0%, ${newColor}08 80%, var(--color-surface-2) 100%)`;
+                    info.element.style.boxShadow = `0 4px 20px rgba(0,0,0,0.3), 0 0 12px ${newColor}44`;
+                }
+
+                // 이미지 뷰어 엘리먼트가 열려있다면 즉시 이미지 갱신
+                const imgEl = info.element.querySelector(`#imageViewer_${fileId}`) || info.element.querySelector('.image-viewer-content img');
+                if (imgEl && updatedImageData) {
+                    imgEl.src = updatedImageData;
+                }
+            }
+
+            // 4. 좌측 파일 트리 갱신
+            if (window.fileTreeManager) {
+                await window.fileTreeManager.loadProjectFiles?.(window.fileTreeManager.currentProjectId || window.currentProjectId);
+            }
+
+            // 5. 연쇄 이벤트 통보
+            await this.notifyNodeChanged(fileId, 'nameChange');
+
+            closeModal();
+            window.showToast?.(`'${newCleanName}' 노드 정보가 수정되었습니다. ✏️`, 'success');
+        };
+
+        overlay.querySelector('#saveEditNodeInfoBtn')?.addEventListener('click', saveInfo);
+        nameInp?.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') saveInfo();
+            if (e.key === 'Escape') closeModal();
+        });
     }
 
     addNodePortEditRow(type = 'input', name = '', color = '') {
@@ -3150,7 +3408,11 @@ class WindowManager {
         const container = document.getElementById('canvasContainer');
         if (!container) return;
 
-        container.querySelectorAll('.canvas-region-box').forEach(el => el.remove());
+        container.querySelectorAll('.canvas-region-box').forEach(el => {
+            if (el && el.parentNode) {
+                el.remove();
+            }
+        });
 
         if (!this.canvasRegions || this.canvasRegions.length === 0) return;
 
@@ -3212,16 +3474,26 @@ class WindowManager {
                 input.focus();
                 input.select();
 
+                let isFinished = false;
                 const finishRename = () => {
+                    if (isFinished) return;
+                    isFinished = true;
                     const newTitle = input.value.trim() || '이름 없음 영역';
                     r.title = newTitle;
                     this.renderCanvasRegions();
                     this.saveRegions();
                 };
 
-                input.addEventListener('blur', finishRename);
+                input.addEventListener('blur', finishRename, { once: true });
                 input.addEventListener('keydown', (evt) => {
-                    if (evt.key === 'Enter') finishRename();
+                    if (evt.key === 'Enter') {
+                        evt.preventDefault();
+                        finishRename();
+                    } else if (evt.key === 'Escape') {
+                        evt.preventDefault();
+                        isFinished = true;
+                        this.renderCanvasRegions();
+                    }
                 });
             });
 
@@ -3237,6 +3509,8 @@ class WindowManager {
                     origX: r.x,
                     origY: r.y
                 };
+                document.body.style.cursor = 'move';
+                document.body.style.userSelect = 'none';
             };
 
             header?.addEventListener('mousedown', startDrag);
@@ -3259,6 +3533,7 @@ class WindowManager {
                         origW: r.width,
                         origH: r.height
                     };
+                    document.body.style.userSelect = 'none';
                 });
             });
 

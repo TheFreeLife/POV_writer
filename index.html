@@ -42,7 +42,8 @@
       <div class="project-controls">
         <div class="project-search-wrapper">
           <span class="project-search-icon">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+              stroke-linecap="round" stroke-linejoin="round">
               <circle cx="11" cy="11" r="8"></circle>
               <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
             </svg>
@@ -56,7 +57,8 @@
             <option value="created">생성일순</option>
           </select>
           <button class="btn-glass" id="backupProjectBtn">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+              stroke-linecap="round" stroke-linejoin="round">
               <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
               <polyline points="17 21 17 13 7 13 7 21"></polyline>
               <polyline points="7 3 7 8 15 8"></polyline>
@@ -64,7 +66,8 @@
             <span>백업 및 복구</span>
           </button>
           <button class="btn-glow-primary" id="newProjectBtn">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+              stroke-linecap="round" stroke-linejoin="round">
               <line x1="12" y1="5" x2="12" y2="19"></line>
               <line x1="5" y1="12" x2="19" y2="12"></line>
             </svg>
@@ -97,25 +100,31 @@
         <button class="btn btn-secondary" id="toggleNodeGuideBtn" title="화면 밖 노드 위치를 가장자리에 표시 (토글)">🧭 노드 레이더</button>
 
         <div style="position: relative;">
-          <button id="toggleGraphExecMenuBtn" class="btn btn-primary" title="노드 그래프 실행 제어 메뉴" style="background: linear-gradient(135deg, #00ffcc, #00b894); color: #0f141d; font-weight: 800; border: none; box-shadow: 0 2px 8px rgba(0,255,204,0.3); gap: 4px;">
+          <button id="toggleGraphExecMenuBtn" class="btn btn-primary" title="노드 그래프 실행 제어 메뉴"
+            style="background: linear-gradient(135deg, #00ffcc, #00b894); color: #0f141d; font-weight: 800; border: none; box-shadow: 0 2px 8px rgba(0,255,204,0.3); gap: 4px;">
             <span>⚡</span>
             <span>실행 제어</span>
             <span style="font-size: 10px; opacity: 0.8;">▾</span>
           </button>
 
           <!-- 콤팩트 미니 실행 팝업창 -->
-          <div id="graphExecPopmenu" class="hidden" style="position: absolute; top: calc(100% + 8px); right: 0; z-index: 1000; width: 220px; background: rgba(20, 24, 33, 0.95); backdrop-filter: blur(12px); border: 1px solid var(--color-border); border-radius: 12px; padding: 10px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); display: flex; flex-direction: column; gap: 8px;">
-            <button id="runAllGraphBtn" class="btn btn-secondary btn-sm" style="width: 100%; justify-content: flex-start; gap: 8px; font-weight: 700; background: rgba(0,255,204,0.1); color: #00ffcc; border-color: rgba(0,255,204,0.3);">
+          <div id="graphExecPopmenu" class="hidden"
+            style="position: absolute; top: calc(100% + 8px); right: 0; z-index: 1000; width: 220px; background: rgba(20, 24, 33, 0.95); backdrop-filter: blur(12px); border: 1px solid var(--color-border); border-radius: 12px; padding: 10px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); display: flex; flex-direction: column; gap: 8px;">
+            <button id="runAllGraphBtn" class="btn btn-secondary btn-sm"
+              style="width: 100%; justify-content: flex-start; gap: 8px; font-weight: 700; background: rgba(0,255,204,0.1); color: #00ffcc; border-color: rgba(0,255,204,0.3);">
               <span>▶️</span> 전체 그래프 실행 <span style="font-size: 10px; opacity: 0.6; margin-left: auto;">Ctrl+↵</span>
             </button>
-            <button id="runTargetNodeBtn" class="btn btn-secondary btn-sm" style="width: 100%; justify-content: flex-start; gap: 8px; font-weight: 600;">
+            <button id="runTargetNodeBtn" class="btn btn-secondary btn-sm"
+              style="width: 100%; justify-content: flex-start; gap: 8px; font-weight: 600;">
               <span>🎯</span> 목표(End) 노드 연산
             </button>
-            <button id="stopGraphExecBtn" class="btn btn-danger btn-sm" style="width: 100%; justify-content: flex-start; gap: 8px; font-weight: 700; background: rgba(231,76,60,0.15); color: #ff6b6b; border: 1px solid rgba(231,76,60,0.4);">
+            <button id="stopGraphExecBtn" class="btn btn-danger btn-sm"
+              style="width: 100%; justify-content: flex-start; gap: 8px; font-weight: 700; background: rgba(231,76,60,0.15); color: #ff6b6b; border: 1px solid rgba(231,76,60,0.4);">
               <span>🛑</span> 모든 실행 중단
             </button>
             <div style="height: 1px; background: var(--color-border); margin: 2px 0;"></div>
-            <label style="display: flex; align-items: center; justify-content: space-between; cursor: pointer; font-size: 11px; font-weight: 600; color: var(--color-text-secondary); padding: 4px 6px; user-select: none;">
+            <label
+              style="display: flex; align-items: center; justify-content: space-between; cursor: pointer; font-size: 11px; font-weight: 600; color: var(--color-text-secondary); padding: 4px 6px; user-select: none;">
               <span style="display: flex; align-items: center; gap: 6px;">⚡ 실시간 자동 연산</span>
               <input type="checkbox" id="autoRunToggleSwitch" style="cursor: pointer; accent-color: #00ffcc;">
             </label>
@@ -131,19 +140,25 @@
     <main class="editor-main">
       <!-- 왼쪽 파일 트리 패널 -->
       <aside class="file-tree-panel" id="fileTreePanel">
-        <div class="file-tree-header" style="display: flex; flex-direction: column; gap: 10px; align-items: stretch; padding: 12px 14px 8px 14px;">
+        <div class="file-tree-header"
+          style="display: flex; flex-direction: column; gap: 10px; align-items: stretch; padding: 12px 14px 8px 14px;">
           <div class="file-tree-actions" style="display: flex; flex-direction: column; gap: 6px; width: 100%;">
-            <button class="btn btn-primary btn-sm" id="newNodeBtn" title="노드 추가 및 캔버스 열기" style="width: 100%; justify-content: center;">
+            <button class="btn btn-primary btn-sm" id="newNodeBtn" title="노드 추가 및 캔버스 열기"
+              style="width: 100%; justify-content: center;">
               <span>➕</span>
               <span>노드 추가</span>
             </button>
-            <button class="btn btn-secondary btn-sm" id="newNodeTemplateBtn" title="채워진 입력 보존 템플릿으로 노드 추가" style="width: 100%; justify-content: center; background: rgba(241, 224, 90, 0.12); border-color: rgba(241, 224, 90, 0.35); color: #f1e05a;">
+            <button class="btn btn-secondary btn-sm" id="newNodeTemplateBtn" title="채워진 입력 보존 템플릿으로 노드 추가"
+              style="width: 100%; justify-content: center; background: rgba(241, 224, 90, 0.12); border-color: rgba(241, 224, 90, 0.35); color: #f1e05a;">
               <span>⭐</span>
               <span>노드 템플릿 추가</span>
             </button>
           </div>
-          <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--color-border); padding-top: 10px; margin-top: 4px;">
-            <span class="file-tree-title" style="font-size: 14px; font-weight: 700; color: var(--color-text-secondary); letter-spacing: 0.5px;">노드 목록</span>
+          <div
+            style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--color-border); padding-top: 10px; margin-top: 4px;">
+            <span class="file-tree-title"
+              style="font-size: 14px; font-weight: 700; color: var(--color-text-secondary); letter-spacing: 0.5px;">노드
+              목록</span>
           </div>
         </div>
         <div class="file-tree-content" id="fileTree">
@@ -162,10 +177,12 @@
           <!-- 노드 간 연결선 SVG 레이어 -->
           <svg id="nodeConnectionsSvg" class="node-connections-svg" width="20000" height="20000">
             <defs>
-              <marker id="arrowhead" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <marker id="arrowhead" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6"
+                orient="auto-start-reverse">
                 <path d="M 0 0 L 10 5 L 0 10 z" fill="context-stroke" />
               </marker>
-              <marker id="arrowhead-selected" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <marker id="arrowhead-selected" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6"
+                orient="auto-start-reverse">
                 <path d="M 0 0 L 10 5 L 0 10 z" fill="#f39c12" />
               </marker>
             </defs>
@@ -186,10 +203,22 @@
           box-shadow: 0 0 25px rgba(46, 204, 113, 0.75), inset 0 0 15px rgba(46, 204, 113, 0.3) !important;
           animation: pulse-executing 1s infinite ease-in-out !important;
         }
+
         @keyframes pulse-executing {
-          0% { box-shadow: 0 0 15px rgba(46, 204, 113, 0.4); border-color: #2ecc71 !important; }
-          50% { box-shadow: 0 0 30px rgba(46, 204, 113, 0.9); border-color: #27ae60 !important; }
-          100% { box-shadow: 0 0 15px rgba(46, 204, 113, 0.4); border-color: #2ecc71 !important; }
+          0% {
+            box-shadow: 0 0 15px rgba(46, 204, 113, 0.4);
+            border-color: #2ecc71 !important;
+          }
+
+          50% {
+            box-shadow: 0 0 30px rgba(46, 204, 113, 0.9);
+            border-color: #27ae60 !important;
+          }
+
+          100% {
+            box-shadow: 0 0 15px rgba(46, 204, 113, 0.4);
+            border-color: #2ecc71 !important;
+          }
         }
 
         /* 승인 대기(일시 정지) 중인 노드 하이라이트 애니메이션 */
@@ -198,19 +227,39 @@
           box-shadow: 0 0 25px rgba(241, 196, 15, 0.7), inset 0 0 15px rgba(241, 196, 15, 0.3) !important;
           animation: pulse-paused 1.5s infinite ease-in-out !important;
         }
+
         @keyframes pulse-paused {
-          0% { box-shadow: 0 0 15px rgba(241, 196, 15, 0.4); border-color: #f39c12 !important; }
-          50% { box-shadow: 0 0 35px rgba(241, 196, 15, 0.9); border-color: #f1c40f !important; }
-          100% { box-shadow: 0 0 15px rgba(241, 196, 15, 0.4); border-color: #f39c12 !important; }
+          0% {
+            box-shadow: 0 0 15px rgba(241, 196, 15, 0.4);
+            border-color: #f39c12 !important;
+          }
+
+          50% {
+            box-shadow: 0 0 35px rgba(241, 196, 15, 0.9);
+            border-color: #f1c40f !important;
+          }
+
+          100% {
+            box-shadow: 0 0 15px rgba(241, 196, 15, 0.4);
+            border-color: #f39c12 !important;
+          }
         }
 
         /* 실행 성공 노드 순간 펄스 */
         .editor-window.node-success-pulse {
           animation: pulse-success 0.8s ease-out !important;
         }
+
         @keyframes pulse-success {
-          0% { border-color: #2ecc71; box-shadow: 0 0 30px rgba(46, 204, 113, 0.8); }
-          100% { border-color: var(--color-border); box-shadow: none; }
+          0% {
+            border-color: #2ecc71;
+            box-shadow: 0 0 30px rgba(46, 204, 113, 0.8);
+          }
+
+          100% {
+            border-color: var(--color-border);
+            box-shadow: none;
+          }
         }
 
         /* SVG 연결선 빛 흐름 애니메이션 */
@@ -220,9 +269,15 @@
           animation: dash-flow 0.8s linear infinite !important;
           filter: drop-shadow(0 0 6px rgba(0, 255, 204, 0.8)) !important;
         }
+
         @keyframes dash-flow {
-          from { stroke-dashoffset: 24; }
-          to { stroke-dashoffset: 0; }
+          from {
+            stroke-dashoffset: 24;
+          }
+
+          to {
+            stroke-dashoffset: 0;
+          }
         }
       </style>
 
@@ -343,16 +398,21 @@
           나만의 커스텀 노드를 분류할 카테고리를 추가하거나 이름을 변경할 수 있습니다.<br>
           (시스템 기본 카테고리는 표준 규격으로 보호되어 고정 유지됩니다.)
         </p>
-        
+
         <!-- 새 카테고리 추가 입력창 -->
-        <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 16px; background: var(--color-bg-secondary); padding: 10px; border-radius: 8px; border: 1px solid var(--color-border);">
-          <input type="text" class="input" id="newCategoryIcon" placeholder="이모지" value="📁" style="width: 52px; font-size: 14px; text-align: center;">
-          <input type="text" class="input" id="newCategoryName" placeholder="새 카테고리 이름 (예: 🛡️ 무기 & 장비)" style="flex: 1; font-size: 12px;">
-          <button type="button" class="btn btn-primary btn-xs" id="addNewCategoryBtn" style="padding: 6px 12px; font-weight: 700; white-space: nowrap;">➕ 추가</button>
+        <div
+          style="display: flex; gap: 8px; align-items: center; margin-bottom: 16px; background: var(--color-bg-secondary); padding: 10px; border-radius: 8px; border: 1px solid var(--color-border);">
+          <input type="text" class="input" id="newCategoryIcon" placeholder="이모지" value="📁"
+            style="width: 52px; font-size: 14px; text-align: center;">
+          <input type="text" class="input" id="newCategoryName" placeholder="새 카테고리 이름 (예: 🛡️ 무기 & 장비)"
+            style="flex: 1; font-size: 12px;">
+          <button type="button" class="btn btn-primary btn-xs" id="addNewCategoryBtn"
+            style="padding: 6px 12px; font-weight: 700; white-space: nowrap;">➕ 추가</button>
         </div>
 
         <!-- 기존 카테고리 리스트 -->
-        <div id="categoryManageList" style="display: flex; flex-direction: column; gap: 8px; max-height: 280px; overflow-y: auto; padding-right: 4px;">
+        <div id="categoryManageList"
+          style="display: flex; flex-direction: column; gap: 8px; max-height: 280px; overflow-y: auto; padding-right: 4px;">
           <!-- 동적으로 등록된 카테고리 항목들이 렌더링됩니다 -->
         </div>
       </div>
@@ -365,20 +425,25 @@
   <!-- 5. 노드 스키마 v2.0 마이그레이션 확인 모달 (방식 B) -->
   <div id="nodeSchemaUpgradeModal" class="modal-overlay hidden">
     <div class="modal modal-md" style="max-width: 540px;">
-      <div class="modal-header" style="background: var(--color-surface-2); border-bottom: 1px solid var(--color-border);">
-        <h2 class="modal-title" style="color: var(--color-accent-primary); font-size: 15px;">⚙️ 노드 템플릿 스키마 v2.0 업그레이드 안내</h2>
+      <div class="modal-header"
+        style="background: var(--color-surface-2); border-bottom: 1px solid var(--color-border);">
+        <h2 class="modal-title" style="color: var(--color-accent-primary); font-size: 15px;">⚙️ 노드 템플릿 스키마 v2.0 업그레이드 안내
+        </h2>
         <button class="modal-close" id="closeNodeSchemaUpgradeModal">✕</button>
       </div>
       <div class="modal-body" style="padding: 18px 22px;">
-        <div style="font-size: 13px; color: var(--color-text-primary); margin-bottom: 14px; line-height: 1.5; background: var(--color-bg-secondary); padding: 12px 14px; border-radius: 8px; border: 1px solid var(--color-border);">
+        <div
+          style="font-size: 13px; color: var(--color-text-primary); margin-bottom: 14px; line-height: 1.5; background: var(--color-bg-secondary); padding: 12px 14px; border-radius: 8px; border: 1px solid var(--color-border);">
           구버전(v1.0)으로 생성된 노드 템플릿이 감지되었습니다.<br>
           안정적인 캔버스 연산 및 향후 기능 호환을 위해 <strong>최신 v2.0 표준 규격</strong>으로 데이터 보정을 진행합니다.
         </div>
 
-        <div style="display: flex; flex-direction: column; gap: 8px; font-size: 12px; background: var(--color-surface-1); padding: 12px; border-radius: 8px; border: 1px solid var(--color-border); margin-bottom: 16px;">
+        <div
+          style="display: flex; flex-direction: column; gap: 8px; font-size: 12px; background: var(--color-surface-1); padding: 12px; border-radius: 8px; border: 1px solid var(--color-border); margin-bottom: 16px;">
           <div style="display: flex; justify-content: space-between; align-items: center;">
             <span style="color: var(--color-text-tertiary);">📌 스키마 버전</span>
-            <span style="font-weight: 700; color: #f1e05a;">v1.0 (레거시) ➔ <strong style="color: var(--color-accent-primary);">v2.0 (최신 규격)</strong></span>
+            <span style="font-weight: 700; color: #f1e05a;">v1.0 (레거시) ➔ <strong
+                style="color: var(--color-accent-primary);">v2.0 (최신 규격)</strong></span>
           </div>
           <div style="display: flex; justify-content: space-between; align-items: center;">
             <span style="color: var(--color-text-tertiary);">🎨 보정 필드 항목</span>
@@ -394,13 +459,15 @@
           </div>
         </div>
 
-        <div id="legacyPresetsListPreview" style="font-size: 11px; color: var(--color-text-tertiary); max-height: 100px; overflow-y: auto; background: var(--color-bg-primary); padding: 8px 10px; border-radius: 6px; border: 1px dashed var(--color-border);">
+        <div id="legacyPresetsListPreview"
+          style="font-size: 11px; color: var(--color-text-tertiary); max-height: 100px; overflow-y: auto; background: var(--color-bg-primary); padding: 8px 10px; border-radius: 6px; border: 1px dashed var(--color-border);">
           <!-- 감지된 레거시 프리셋 목록이 표시됩니다 -->
         </div>
       </div>
       <div class="modal-footer" style="display: flex; justify-content: space-between; align-items: center; gap: 10px;">
         <button type="button" class="btn btn-secondary" id="cancelNodeSchemaUpgradeBtn">나중에 하기</button>
-        <button type="button" class="btn btn-primary" id="confirmNodeSchemaUpgradeBtn" style="font-weight: 700; padding: 8px 16px;">✨ 최신 v2.0으로 템플릿 DB & 노드 업그레이드</button>
+        <button type="button" class="btn btn-primary" id="confirmNodeSchemaUpgradeBtn"
+          style="font-weight: 700; padding: 8px 16px;">✨ 최신 v2.0으로 템플릿 DB & 노드 업그레이드</button>
       </div>
     </div>
   </div>
@@ -414,7 +481,8 @@
       </div>
       <div class="modal-body">
         <p class="node-select-subtitle">원하는 템플릿을 선택하면 입력 칸이 채워진 상태의 노드가 캔버스에 즉시 생성됩니다.</p>
-        <div id="modalNodeTemplatesContainer" style="margin-top: 16px; max-height: 60vh; overflow-y: auto; padding-right: 6px;">
+        <div id="modalNodeTemplatesContainer"
+          style="margin-top: 16px; max-height: 60vh; overflow-y: auto; padding-right: 6px;">
           <!-- 템플릿 카드들이 동적으로 생성됩니다 -->
         </div>
       </div>
@@ -456,22 +524,31 @@
             <label class="form-label">노드 기본 정보 및 스타일 설정</label>
             <div class="flex gap-md items-center mb-md">
               <div class="icon-picker-container" style="position: relative;">
-                <button type="button" class="btn btn-secondary" id="wizardIconBtn" style="font-size: 24px; padding: 10px 18px;">📄</button>
+                <button type="button" class="btn btn-secondary" id="wizardIconBtn"
+                  style="font-size: 24px; padding: 10px 18px;">📄</button>
                 <input type="hidden" id="wizardIcon" value="📄">
                 <div id="wizardIconPopover" class="icon-picker-popover hidden"></div>
               </div>
               <div style="flex: 1;">
-                <label style="font-size: 12px; font-weight: 700; color: var(--color-text-secondary); display: block; margin-bottom: 4px;">노드 이름</label>
-                <input type="text" class="input" id="wizardName" placeholder="노드 이름을 입력하세요 (예: 캐릭터 정보 설정)" style="width: 100%; font-size: 13px; font-weight: 600;">
+                <label
+                  style="font-size: 12px; font-weight: 700; color: var(--color-text-secondary); display: block; margin-bottom: 4px;">노드
+                  이름</label>
+                <input type="text" class="input" id="wizardName" placeholder="노드 이름을 입력하세요 (예: 캐릭터 정보 설정)"
+                  style="width: 100%; font-size: 13px; font-weight: 600;">
               </div>
             </div>
             <div style="display: flex; gap: 10px; margin-top: 10px;">
               <div style="flex: 1;">
-                <label style="font-size: 12px; font-weight: 700; color: var(--color-text-secondary); display: block; margin-bottom: 4px;">노드 설명 (선택)</label>
-                <input type="text" class="input" id="wizardDesc" placeholder="노드 카드에 표시될 간단한 설명이나 메모를 작성하세요" style="width: 100%;">
+                <label
+                  style="font-size: 12px; font-weight: 700; color: var(--color-text-secondary); display: block; margin-bottom: 4px;">노드
+                  설명 (선택)</label>
+                <input type="text" class="input" id="wizardDesc" placeholder="노드 카드에 표시될 간단한 설명이나 메모를 작성하세요"
+                  style="width: 100%;">
               </div>
               <div style="width: 180px;">
-                <label style="font-size: 12px; font-weight: 700; color: var(--color-text-secondary); display: block; margin-bottom: 4px;">📁 노드 카테고리</label>
+                <label
+                  style="font-size: 12px; font-weight: 700; color: var(--color-text-secondary); display: block; margin-bottom: 4px;">📁
+                  노드 카테고리</label>
                 <select class="input" id="wizardCategory" style="width: 100%; font-size: 12px; height: 36px;">
                   <option value="general">📁 기타 (기본)</option>
                   <option value="character">👤 인물 & 캐릭터</option>
@@ -482,21 +559,38 @@
                 </select>
               </div>
             </div>
-            
+
             <!-- 🎨 노드 포인트 색상 피커 -->
-            <div style="margin-top: 12px; background: var(--color-bg-secondary); padding: 10px 12px; border-radius: 8px; border: 1px solid var(--color-border); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
+            <div
+              style="margin-top: 12px; background: var(--color-bg-secondary); padding: 10px 12px; border-radius: 8px; border: 1px solid var(--color-border); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
               <div style="display: flex; align-items: center; gap: 8px;">
-                <label style="font-size: 12px; font-weight: 700; color: var(--color-text-secondary);">🎨 노드 창 테마 색상 (Point Color)</label>
-                <input type="color" id="wizardColor" value="#4a6fa5" style="width: 38px; height: 28px; padding: 1px; cursor: pointer; border-radius: 6px; border: 1px solid var(--color-border); background: transparent;">
+                <label style="font-size: 12px; font-weight: 700; color: var(--color-text-secondary);">🎨 노드 창 테마 색상
+                  (Point Color)</label>
+                <input type="color" id="wizardColor" value="#4a6fa5"
+                  style="width: 38px; height: 28px; padding: 1px; cursor: pointer; border-radius: 6px; border: 1px solid var(--color-border); background: transparent;">
               </div>
               <div id="colorPresetChips" style="display: flex; gap: 6px; align-items: center;">
-                <button type="button" class="color-chip-btn" data-color="" style="width: 20px; height: 20px; border-radius: 50%; background: var(--color-bg-primary); border: 2px solid var(--color-border); cursor: pointer; font-size: 10px; display: flex; align-items: center; justify-content: center; color: var(--color-text-tertiary);" title="기본 창 테마 색상 복원">⚪</button>
-                <button type="button" class="color-chip-btn" data-color="#7b68ee" style="width: 20px; height: 20px; border-radius: 50%; background: #7b68ee; border: 2px solid transparent; cursor: pointer;" title="보라/라벤더"></button>
-                <button type="button" class="color-chip-btn" data-color="#4a6fa5" style="width: 20px; height: 20px; border-radius: 50%; background: #4a6fa5; border: 2px solid transparent; cursor: pointer;" title="블루/네이비"></button>
-                <button type="button" class="color-chip-btn" data-color="#00b894" style="width: 20px; height: 20px; border-radius: 50%; background: #00b894; border: 2px solid transparent; cursor: pointer;" title="에메랄드/민트"></button>
-                <button type="button" class="color-chip-btn" data-color="#fdcb6e" style="width: 20px; height: 20px; border-radius: 50%; background: #fdcb6e; border: 2px solid transparent; cursor: pointer;" title="골드/옐로우"></button>
-                <button type="button" class="color-chip-btn" data-color="#e84393" style="width: 20px; height: 20px; border-radius: 50%; background: #e84393; border: 2px solid transparent; cursor: pointer;" title="핑크/매젠타"></button>
-                <button type="button" class="color-chip-btn" data-color="#e17055" style="width: 20px; height: 20px; border-radius: 50%; background: #e17055; border: 2px solid transparent; cursor: pointer;" title="오렌지/레드"></button>
+                <button type="button" class="color-chip-btn" data-color=""
+                  style="width: 20px; height: 20px; border-radius: 50%; background: var(--color-bg-primary); border: 2px solid var(--color-border); cursor: pointer; font-size: 10px; display: flex; align-items: center; justify-content: center; color: var(--color-text-tertiary);"
+                  title="기본 창 테마 색상 복원">⚪</button>
+                <button type="button" class="color-chip-btn" data-color="#7b68ee"
+                  style="width: 20px; height: 20px; border-radius: 50%; background: #7b68ee; border: 2px solid transparent; cursor: pointer;"
+                  title="보라/라벤더"></button>
+                <button type="button" class="color-chip-btn" data-color="#4a6fa5"
+                  style="width: 20px; height: 20px; border-radius: 50%; background: #4a6fa5; border: 2px solid transparent; cursor: pointer;"
+                  title="블루/네이비"></button>
+                <button type="button" class="color-chip-btn" data-color="#00b894"
+                  style="width: 20px; height: 20px; border-radius: 50%; background: #00b894; border: 2px solid transparent; cursor: pointer;"
+                  title="에메랄드/민트"></button>
+                <button type="button" class="color-chip-btn" data-color="#fdcb6e"
+                  style="width: 20px; height: 20px; border-radius: 50%; background: #fdcb6e; border: 2px solid transparent; cursor: pointer;"
+                  title="골드/옐로우"></button>
+                <button type="button" class="color-chip-btn" data-color="#e84393"
+                  style="width: 20px; height: 20px; border-radius: 50%; background: #e84393; border: 2px solid transparent; cursor: pointer;"
+                  title="핑크/매젠타"></button>
+                <button type="button" class="color-chip-btn" data-color="#e17055"
+                  style="width: 20px; height: 20px; border-radius: 50%; background: #e17055; border: 2px solid transparent; cursor: pointer;"
+                  title="오렌지/레드"></button>
               </div>
             </div>
             <!-- 노드 생성 시 이름 입력 여부 토글 -->
@@ -522,21 +616,26 @@
               </label>
             </div>
             <!-- 노드 기본 창 크기 설정 -->
-            <div class="wizard-toggle-row" style="margin-top: 10px; display: flex; align-items: center; justify-content: space-between;">
+            <div class="wizard-toggle-row"
+              style="margin-top: 10px; display: flex; align-items: center; justify-content: space-between;">
               <div class="wizard-toggle-info" style="flex: 1;">
                 <span class="wizard-toggle-label">📐 노드 창 기본 크기 지정</span>
                 <span class="wizard-toggle-desc">노드를 캔버스에 추가할 때 열릴 초기 창의 너비(W)와 높이(H)를 설정합니다</span>
               </div>
               <div style="display: flex; align-items: center; gap: 8px;">
-                <div style="display: flex; align-items: center; gap: 4px; background: var(--color-bg-primary); padding: 4px 10px; border-radius: 6px; border: 1px solid var(--color-border);">
+                <div
+                  style="display: flex; align-items: center; gap: 4px; background: var(--color-bg-primary); padding: 4px 10px; border-radius: 6px; border: 1px solid var(--color-border);">
                   <span style="font-size: 11px; font-weight: 700; color: var(--color-text-secondary);">W</span>
-                  <input type="number" class="input" id="wizardDefaultWidth" value="520" min="300" max="1600" step="10" style="width: 62px; font-size: 12px; padding: 2px 4px; text-align: right; font-family: monospace; border: none; background: transparent;">
+                  <input type="number" class="input" id="wizardDefaultWidth" value="520" min="300" max="1600" step="10"
+                    style="width: 62px; font-size: 12px; padding: 2px 4px; text-align: right; font-family: monospace; border: none; background: transparent;">
                   <span style="font-size: 11px; color: var(--color-text-tertiary);">px</span>
                 </div>
                 <span style="font-size: 12px; color: var(--color-text-tertiary); font-weight: bold;">×</span>
-                <div style="display: flex; align-items: center; gap: 4px; background: var(--color-bg-primary); padding: 4px 10px; border-radius: 6px; border: 1px solid var(--color-border);">
+                <div
+                  style="display: flex; align-items: center; gap: 4px; background: var(--color-bg-primary); padding: 4px 10px; border-radius: 6px; border: 1px solid var(--color-border);">
                   <span style="font-size: 11px; font-weight: 700; color: var(--color-text-secondary);">H</span>
-                  <input type="number" class="input" id="wizardDefaultHeight" value="650" min="200" max="1400" step="10" style="width: 62px; font-size: 12px; padding: 2px 4px; text-align: right; font-family: monospace; border: none; background: transparent;">
+                  <input type="number" class="input" id="wizardDefaultHeight" value="650" min="200" max="1400" step="10"
+                    style="width: 62px; font-size: 12px; padding: 2px 4px; text-align: right; font-family: monospace; border: none; background: transparent;">
                   <span style="font-size: 11px; color: var(--color-text-tertiary);">px</span>
                 </div>
               </div>
@@ -554,22 +653,36 @@
             </div>
 
             <!-- 위젯 추가 툴바 -->
-            <div class="wizard-widget-toolbar" style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; background: var(--color-bg-secondary); padding: 10px; border-radius: 8px; border: 1px solid var(--color-border);">
-              <button type="button" class="btn btn-secondary btn-xs add-widget-btn" data-widget-type="section_header"><span class="widget-plus-icon">+</span> 📌 섹션 구분 헤더</button>
-              <button type="button" class="btn btn-secondary btn-xs add-widget-btn" data-widget-type="input_text"><span class="widget-plus-icon">+</span> 📝 텍스트 입력창</button>
-              <button type="button" class="btn btn-secondary btn-xs add-widget-btn" data-widget-type="dropdown_select"><span class="widget-plus-icon">+</span> 🔽 드롭다운</button>
-              <button type="button" class="btn btn-secondary btn-xs add-widget-btn" data-widget-type="text_viewer"><span class="widget-plus-icon">+</span> 👁️ 텍스트 뷰어 (출력)</button>
-              <button type="button" class="btn btn-secondary btn-xs add-widget-btn" data-widget-type="raw_data_viewer"><span class="widget-plus-icon">+</span> 🧬 원형 데이터 뷰어</button>
-              <button type="button" class="btn btn-secondary btn-xs add-widget-btn" data-widget-type="approval_gate"><span class="widget-plus-icon">+</span> ✋ 검수 승인 게이트</button>
-              <button type="button" class="btn btn-secondary btn-xs add-widget-btn" data-widget-type="continue_gate"><span class="widget-plus-icon">+</span> ▶️ 진행 확인 게이트</button>
-              <button type="button" class="btn btn-secondary btn-xs add-widget-btn" data-widget-type="toggle_switch"><span class="widget-plus-icon">+</span> 🔘 스위치 토글</button>
-              <button type="button" class="btn btn-secondary btn-xs add-widget-btn" data-widget-type="input_source_filter"><span class="widget-plus-icon">+</span> 🎛️ 연결 노드 선택 목록</button>
-              <button type="button" class="btn btn-secondary btn-xs add-widget-btn" data-widget-type="choice_select"><span class="widget-plus-icon">+</span> 🔀 분기 선택 버튼</button>
-              <button type="button" class="btn btn-secondary btn-xs add-widget-btn" data-widget-type="editor_canvas"><span class="widget-plus-icon">+</span> 📄 원고 에디터</button>
-              <button type="button" class="btn btn-secondary btn-xs add-widget-btn" data-widget-type="image_canvas"><span class="widget-plus-icon">+</span> 🖼️ 이미지 뷰어</button>
+            <div class="wizard-widget-toolbar"
+              style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; background: var(--color-bg-secondary); padding: 10px; border-radius: 8px; border: 1px solid var(--color-border);">
+              <button type="button" class="btn btn-secondary btn-xs add-widget-btn"
+                data-widget-type="section_header"><span class="widget-plus-icon">+</span> 📌 섹션 구분 헤더</button>
+              <button type="button" class="btn btn-secondary btn-xs add-widget-btn" data-widget-type="input_text"><span
+                  class="widget-plus-icon">+</span> 📝 텍스트 입력창</button>
+              <button type="button" class="btn btn-secondary btn-xs add-widget-btn"
+                data-widget-type="dropdown_select"><span class="widget-plus-icon">+</span> 🔽 드롭다운</button>
+              <button type="button" class="btn btn-secondary btn-xs add-widget-btn" data-widget-type="text_viewer"><span
+                  class="widget-plus-icon">+</span> 👁️ 텍스트 뷰어 (출력)</button>
+              <button type="button" class="btn btn-secondary btn-xs add-widget-btn"
+                data-widget-type="raw_data_viewer"><span class="widget-plus-icon">+</span> 🧬 원형 데이터 뷰어</button>
+              <button type="button" class="btn btn-secondary btn-xs add-widget-btn"
+                data-widget-type="approval_gate"><span class="widget-plus-icon">+</span> ✋ 검수 승인 게이트</button>
+              <button type="button" class="btn btn-secondary btn-xs add-widget-btn"
+                data-widget-type="continue_gate"><span class="widget-plus-icon">+</span> ▶️ 진행 확인 게이트</button>
+              <button type="button" class="btn btn-secondary btn-xs add-widget-btn"
+                data-widget-type="toggle_switch"><span class="widget-plus-icon">+</span> 🔘 스위치 토글</button>
+              <button type="button" class="btn btn-secondary btn-xs add-widget-btn"
+                data-widget-type="input_source_filter"><span class="widget-plus-icon">+</span> 🎛️ 연결 노드 선택 목록</button>
+              <button type="button" class="btn btn-secondary btn-xs add-widget-btn"
+                data-widget-type="choice_select"><span class="widget-plus-icon">+</span> 🔀 분기 선택 버튼</button>
+              <button type="button" class="btn btn-secondary btn-xs add-widget-btn"
+                data-widget-type="editor_canvas"><span class="widget-plus-icon">+</span> 📄 원고 에디터</button>
+              <button type="button" class="btn btn-secondary btn-xs add-widget-btn"
+                data-widget-type="image_canvas"><span class="widget-plus-icon">+</span> 🖼️ 이미지 뷰어</button>
             </div>
 
-            <div style="display: flex; gap: 6px; margin-bottom: 8px; padding: 0 10px; font-size: 11px; font-weight: 700; color: var(--color-text-tertiary); align-items: center;">
+            <div
+              style="display: flex; gap: 6px; margin-bottom: 8px; padding: 0 10px; font-size: 11px; font-weight: 700; color: var(--color-text-tertiary); align-items: center;">
               <span style="width: 16px; font-size: 12px; text-align: center;" title="드래그하여 순서 변경">⋮⋮</span>
               <span style="width: 18px;"></span>
               <span style="width: 140px;">입력 항목 제목 (화면 표시)</span>
@@ -578,7 +691,8 @@
               <span style="width: 22px;"></span>
             </div>
             <!-- 조립된 위젯 목록 -->
-            <div id="wizardWidgetLayoutList" class="stat-fields-list" style="display: flex; flex-direction: column; gap: 8px; min-height: 120px; background: rgba(0,0,0,0.2); padding: 10px; border-radius: 8px; border: 1px dashed var(--color-border);">
+            <div id="wizardWidgetLayoutList" class="stat-fields-list"
+              style="display: flex; flex-direction: column; gap: 8px; min-height: 120px; background: rgba(0,0,0,0.2); padding: 10px; border-radius: 8px; border: 1px dashed var(--color-border);">
               <!-- 조립된 UI 위젯 항목들이 동적으로 들어옵니다 -->
             </div>
           </div>
@@ -590,12 +704,14 @@
           <div class="node-create-section">
             <label class="form-label">노드 포트 (Input / Output 핀) 이름 및 핀 색상 설정</label>
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px;">
-              
+
               <!-- 왼쪽 Input 포트 목록 -->
-              <div style="background: var(--color-bg-secondary); padding: 12px; border-radius: 10px; border: 1px solid var(--color-border);">
+              <div
+                style="background: var(--color-bg-secondary); padding: 12px; border-radius: 10px; border: 1px solid var(--color-border);">
                 <div class="flex justify-between items-center mb-xs">
                   <span style="font-size: 12px; font-weight: 700; color: #2ecc71;">📥 Input 포트 (왼쪽)</span>
-                  <button type="button" class="btn btn-secondary btn-sm" id="wizardAddInputPortBtn" style="font-size: 11px; padding: 2px 8px;">➕ 추가</button>
+                  <button type="button" class="btn btn-secondary btn-sm" id="wizardAddInputPortBtn"
+                    style="font-size: 11px; padding: 2px 8px;">➕ 추가</button>
                 </div>
                 <div id="wizardInputPortList" class="stat-fields-list" style="max-height: 180px; padding: 6px;">
                   <!-- 동적 Input 포트 행 -->
@@ -603,10 +719,12 @@
               </div>
 
               <!-- 오른쪽 Output 포트 목록 -->
-              <div style="background: var(--color-bg-secondary); padding: 12px; border-radius: 10px; border: 1px solid var(--color-border);">
+              <div
+                style="background: var(--color-bg-secondary); padding: 12px; border-radius: 10px; border: 1px solid var(--color-border);">
                 <div class="flex justify-between items-center mb-xs">
                   <span style="font-size: 12px; font-weight: 700; color: #00ffcc;">📤 Output 포트 (오른쪽)</span>
-                  <button type="button" class="btn btn-secondary btn-sm" id="wizardAddOutputPortBtn" style="font-size: 11px; padding: 2px 8px;">➕ 추가</button>
+                  <button type="button" class="btn btn-secondary btn-sm" id="wizardAddOutputPortBtn"
+                    style="font-size: 11px; padding: 2px 8px;">➕ 추가</button>
                 </div>
                 <div id="wizardOutputPortList" class="stat-fields-list" style="max-height: 180px; padding: 6px;">
                   <!-- 동적 Output 포트 행 -->
@@ -623,23 +741,32 @@
             <div class="flex justify-between items-center mb-xs">
               <label class="form-label" style="margin: 0;">⚡ 동작 코드 (JavaScript)</label>
               <div style="display: flex; gap: 6px;">
-                <button type="button" class="btn btn-secondary btn-sm" id="wizardCodeManualBtn" style="font-size: 11px; padding: 2px 8px;">📖 사용 설명서</button>
-                <button type="button" class="btn btn-secondary btn-sm" id="wizardTestRunBtn" style="font-size: 11px; padding: 2px 8px;">▶ 테스트 실행</button>
+                <button type="button" class="btn btn-secondary btn-sm" id="wizardCodeManualBtn"
+                  style="font-size: 11px; padding: 2px 8px;">📖 사용 설명서</button>
+                <button type="button" class="btn btn-secondary btn-sm" id="wizardTestRunBtn"
+                  style="font-size: 11px; padding: 2px 8px;">▶ 테스트 실행</button>
               </div>
             </div>
-            <div id="wizardVarChips" style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; min-height: 24px;"></div>
-            <div style="font-size: 11px; color: var(--color-text-tertiary); margin-bottom: 8px; line-height: 1.8; background: var(--color-surface-1); padding: 10px 12px; border-radius: 6px; border: 1px solid var(--color-border);">
-              💡 <b>input</b> 객체로 모든 입력 변수에 접근합니다. &nbsp;|&nbsp; 반드시 <code><b>return { 핀이름: 값, ... }</b></code> 으로 반환하세요.<br>
+            <div id="wizardVarChips"
+              style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; min-height: 24px;"></div>
+            <div
+              style="font-size: 11px; color: var(--color-text-tertiary); margin-bottom: 8px; line-height: 1.8; background: var(--color-surface-1); padding: 10px 12px; border-radius: 6px; border: 1px solid var(--color-border);">
+              💡 <b>input</b> 객체로 모든 입력 변수에 접근합니다. &nbsp;|&nbsp; 반드시 <code><b>return { 핀이름: 값, ... }</b></code> 으로
+              반환하세요.<br>
               &nbsp;&nbsp;&nbsp;• return 키 이름 = output 핀 이름이 <b>정확히 일치</b>해야 해당 핀으로 전달됩니다.<br>
               &nbsp;&nbsp;&nbsp;• 코드를 작성하지 않으면 노드는 데이터만 보관합니다 (input 값 → output 핀 이름 매칭으로 통과).
             </div>
-            <textarea class="input" id="wizardCodeEditor" rows="10" style="width: 100%; font-family: 'Fira Code', 'Consolas', monospace; font-size: 12px; line-height: 1.7; min-height: 200px; resize: vertical; tab-size: 2;" placeholder="// [input 변수] 이름(텍스트), 직업(텍스트), 공격력(수치), 방어력(수치)
+            <textarea class="input" id="wizardCodeEditor" rows="10"
+              style="width: 100%; font-family: 'Fira Code', 'Consolas', monospace; font-size: 12px; line-height: 1.7; min-height: 200px; resize: vertical; tab-size: 2;"
+              placeholder="// [input 변수] 이름(텍스트), 직업(텍스트), 공격력(수치), 방어력(수치)
 // [output 핀]  프로필,  전투력
 
 const 프로필 = `${input.이름} / ${input.직업}`;
 const 전투력 = input.공격력 * 2 + input.방어력;
 return { 프로필, 전투력 };"></textarea>
-            <div id="wizardTestResult" style="display:none; margin-top: 8px; padding: 10px; border-radius: 6px; font-size: 12px; font-family: monospace; white-space: pre-wrap; word-break: break-all; border: 1px solid var(--color-border); background: var(--color-surface-1);"></div>
+            <div id="wizardTestResult"
+              style="display:none; margin-top: 8px; padding: 10px; border-radius: 6px; font-size: 12px; font-family: monospace; white-space: pre-wrap; word-break: break-all; border: 1px solid var(--color-border); background: var(--color-surface-1);">
+            </div>
           </div>
         </div>
 
@@ -661,11 +788,12 @@ return { 프로필, 전투력 };"></textarea>
         <button class="modal-close" id="closeWizardCodeManualModal">✕</button>
       </div>
       <div class="modal-body" style="font-size: 13px; line-height: 1.7; max-height: 70vh; overflow-y: auto;">
-        
+
         <h4 style="margin-top: 0; color: var(--color-accent-primary);">1. 입력 변수 접근 (input)</h4>
         <p style="margin-bottom: 12px;">
           노드에 정의된 모든 입력 항목(수치, 텍스트, Input 포트 핀)은 <code>input.변수명</code> 으로 접근할 수 있습니다.<br>
-          <span style="color: var(--color-text-tertiary); font-size: 12px;">예: <code>input.체력</code>, <code>input.이름</code>, <code>input.상위데이터</code></span>
+          <span style="color: var(--color-text-tertiary); font-size: 12px;">예: <code>input.체력</code>,
+            <code>input.이름</code>, <code>input.상위데이터</code></span>
         </p>
 
         <h4 style="color: var(--color-accent-primary);">2. 출력 반환 (return 객체)</h4>
@@ -674,7 +802,8 @@ return { 프로필, 전투력 };"></textarea>
           <strong>이름 매칭 방식:</strong> <code>return</code> 객체의 키(Key) 이름과 <strong>Output 포트 핀 이름</strong>이 정확히 일치해야 합니다.
         </p>
 
-        <div style="background: var(--color-surface-1); padding: 12px; border-radius: 8px; border: 1px solid var(--color-border); margin-bottom: 16px;">
+        <div
+          style="background: var(--color-surface-1); padding: 12px; border-radius: 8px; border: 1px solid var(--color-border); margin-bottom: 16px;">
           <strong style="color: var(--color-text-primary);">💡 단축 표기법 vs 풀어서 쓰기</strong>
           <pre style="margin: 8px 0 0 0; font-family: monospace; font-size: 12px; color: var(--color-accent-primary);">
 // 1) 단축 표기법 (변수명이 핀 이름과 같을 때)
@@ -690,17 +819,19 @@ return {
         </div>
 
         <h4 style="color: var(--color-accent-primary);">3. 다양한 사용 예시</h4>
-        
+
         <div style="margin-bottom: 12px;">
           <strong>🔹 예시 A. 텍스트 가공 및 결합</strong>
-          <pre style="background: var(--color-surface-1); padding: 8px; border-radius: 6px; font-family: monospace; font-size: 11px; margin-top: 4px;">
+          <pre
+            style="background: var(--color-surface-1); padding: 8px; border-radius: 6px; font-family: monospace; font-size: 11px; margin-top: 4px;">
 const 결과 = `📌 [${input.제목}]\n• 작가: ${input.작가}\n• 내용: ${input.본문}`;
 return { 결과 };</pre>
         </div>
 
         <div style="margin-bottom: 12px;">
           <strong>🔹 예시 B. 수치 계산 및 조건문</strong>
-          <pre style="background: var(--color-surface-1); padding: 8px; border-radius: 6px; font-family: monospace; font-size: 11px; margin-top: 4px;">
+          <pre
+            style="background: var(--color-surface-1); padding: 8px; border-radius: 6px; font-family: monospace; font-size: 11px; margin-top: 4px;">
 const 총합 = input.근력 + input.민첩 + input.지능;
 const 랭크 = 총합 >= 100 ? 'S랭크' : 'A랭크';
 return { 총합, 랭크 };</pre>
@@ -730,19 +861,22 @@ return { 총합, 랭크 };</pre>
       </div>
       <div class="modal-body">
         <input type="hidden" id="nodePortEditFileId">
-        <div style="font-size: 12px; color: var(--color-text-tertiary); margin-bottom: 12px; background: var(--color-surface-1); padding: 8px 12px; border-radius: 6px;">
+        <div
+          style="font-size: 12px; color: var(--color-text-tertiary); margin-bottom: 12px; background: var(--color-surface-1); padding: 8px 12px; border-radius: 6px;">
           💡 포트 핀 추가/수정은 노드 목록의 <b>노드 ✏️ 수정</b> 마법사에서 하실 수 있습니다.
         </div>
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px;">
           <!-- 왼쪽 Input 포트 -->
-          <div style="background: var(--color-bg-secondary); padding: 12px; border-radius: 10px; border: 1px solid var(--color-border);">
+          <div
+            style="background: var(--color-bg-secondary); padding: 12px; border-radius: 10px; border: 1px solid var(--color-border);">
             <div class="mb-xs">
               <span style="font-size: 12px; font-weight: 700; color: #2ecc71;">📥 Input 포트</span>
             </div>
             <div id="editInputPortList" class="stat-fields-list" style="max-height: 200px; padding: 6px;"></div>
           </div>
           <!-- 오른쪽 Output 포트 -->
-          <div style="background: var(--color-bg-secondary); padding: 12px; border-radius: 10px; border: 1px solid var(--color-border);">
+          <div
+            style="background: var(--color-bg-secondary); padding: 12px; border-radius: 10px; border: 1px solid var(--color-border);">
             <div class="mb-xs">
               <span style="font-size: 12px; font-weight: 700; color: #00ffcc;">📤 Output 포트</span>
             </div>
@@ -979,26 +1113,35 @@ return { 총합, 랭크 };</pre>
         <button class="modal-close" id="closeFolderStatsModal">✕</button>
       </div>
       <div class="modal-body">
-        <div class="stats-summary-grid" style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-bottom: 24px;">
-          <div class="stats-card" style="background: var(--color-surface-2); padding: 16px; border-radius: 12px; border: 1px solid var(--color-border);">
+        <div class="stats-summary-grid"
+          style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-bottom: 24px;">
+          <div class="stats-card"
+            style="background: var(--color-surface-2); padding: 16px; border-radius: 12px; border: 1px solid var(--color-border);">
             <div style="font-size: 11px; color: var(--color-text-tertiary); margin-bottom: 4px;">총 글자 수</div>
-            <div id="totalFolderChars" style="font-size: 18px; font-weight: 700; color: var(--color-accent-primary);">0자</div>
+            <div id="totalFolderChars" style="font-size: 18px; font-weight: 700; color: var(--color-accent-primary);">0자
+            </div>
           </div>
-          <div class="stats-card" style="background: var(--color-surface-2); padding: 16px; border-radius: 12px; border: 1px solid var(--color-border);">
+          <div class="stats-card"
+            style="background: var(--color-surface-2); padding: 16px; border-radius: 12px; border: 1px solid var(--color-border);">
             <div style="font-size: 11px; color: var(--color-text-tertiary); margin-bottom: 4px;">포함된 파일 수</div>
-            <div id="totalFolderFiles" style="font-size: 18px; font-weight: 700; color: var(--color-accent-secondary);">0개</div>
+            <div id="totalFolderFiles" style="font-size: 18px; font-weight: 700; color: var(--color-accent-secondary);">
+              0개</div>
           </div>
-          <div class="stats-card" style="background: var(--color-surface-2); padding: 16px; border-radius: 12px; border: 1px solid var(--color-border);">
+          <div class="stats-card"
+            style="background: var(--color-surface-2); padding: 16px; border-radius: 12px; border: 1px solid var(--color-border);">
             <div style="font-size: 11px; color: var(--color-text-tertiary); margin-bottom: 4px;">평균 글자 수</div>
-            <div id="avgFolderChars" style="font-size: 18px; font-weight: 700; color: var(--color-accent-success);">0자</div>
+            <div id="avgFolderChars" style="font-size: 18px; font-weight: 700; color: var(--color-accent-success);">0자
+            </div>
           </div>
         </div>
 
-        <h3 style="font-size: 14px; font-weight: 600; margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
-          📊 파일별 언급 횟수 
+        <h3
+          style="font-size: 14px; font-weight: 600; margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
+          📊 파일별 언급 횟수
           <span style="font-size: 11px; font-weight: normal; color: var(--color-text-tertiary);">(프로젝트 전체 문서 기준)</span>
         </h3>
-        <div id="fileMentionList" style="background: var(--color-bg-tertiary); border-radius: 12px; border: 1px solid var(--color-border); max-height: 300px; overflow-y: auto;">
+        <div id="fileMentionList"
+          style="background: var(--color-bg-tertiary); border-radius: 12px; border: 1px solid var(--color-border); max-height: 300px; overflow-y: auto;">
           <!-- 파일 언급 통계가 여기에 동적으로 추가됩니다 -->
         </div>
       </div>
@@ -1018,9 +1161,11 @@ return { 총합, 랭크 };</pre>
       <div class="modal-body">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
           <span style="font-size: 13px; color: var(--color-text-tertiary);">현재 상태를 스냅샷으로 저장할 수 있습니다.</span>
-          <button class="btn btn-primary" id="saveSnapshotBtn" style="padding: 6px 12px; font-size: 12px;">📸 새 스냅샷 저장</button>
+          <button class="btn btn-primary" id="saveSnapshotBtn" style="padding: 6px 12px; font-size: 12px;">📸 새 스냅샷
+            저장</button>
         </div>
-        <div id="versionList" style="display: flex; flex-direction: column; gap: 8px; max-height: 400px; overflow-y: auto; padding: 4px;">
+        <div id="versionList"
+          style="display: flex; flex-direction: column; gap: 8px; max-height: 400px; overflow-y: auto; padding: 4px;">
           <!-- 버전 목록이 여기에 동적으로 추가됩니다 -->
         </div>
       </div>
@@ -1046,7 +1191,8 @@ return { 총합, 랭크 };</pre>
           <label class="form-label">이미지 선택</label>
           <div class="thumbnail-upload" id="imageUploadWrapper" style="height: 200px; cursor: pointer;">
             <input type="file" id="imageFileInput" accept="image/*" style="display: none;">
-            <img id="imageFilePreview" class="thumbnail-preview hidden" alt="미리보기" style="max-height: 100%; object-fit: contain;">
+            <img id="imageFilePreview" class="thumbnail-preview hidden" alt="미리보기"
+              style="max-height: 100%; object-fit: contain;">
             <div class="thumbnail-placeholder" id="imageFilePlaceholder">
               <div class="thumbnail-placeholder-icon">🖼️</div>
               <div>클릭하거나 이미지를 드래그하여 선택하세요</div>
@@ -1064,14 +1210,17 @@ return { 총합, 랭크 };</pre>
   <!-- 백업 관리 모달 -->
   <div id="backupModal" class="modal-overlay hidden">
     <div class="modal" style="max-width: 500px; position: relative;">
-      <div class="modal-header" style="border-bottom: 1px solid var(--color-border); padding-bottom: 15px; margin-bottom: 15px;">
+      <div class="modal-header"
+        style="border-bottom: 1px solid var(--color-border); padding-bottom: 15px; margin-bottom: 15px;">
         <h2 class="modal-title" style="font-size: 18px; font-weight: 700;">💾 데이터 백업 및 복구</h2>
-        <button id="closeBackupModalBtn" style="position: absolute; top: 12px; right: 12px; width: 30px; height: 32px; display: flex; align-items: center; justify-content: center; background: transparent; border: none; font-size: 20px; color: var(--color-text-tertiary); cursor: pointer; transition: color 0.2s; opacity: 0.6; line-height: 1;">✕</button>
+        <button id="closeBackupModalBtn"
+          style="position: absolute; top: 12px; right: 12px; width: 30px; height: 32px; display: flex; align-items: center; justify-content: center; background: transparent; border: none; font-size: 20px; color: var(--color-text-tertiary); cursor: pointer; transition: color 0.2s; opacity: 0.6; line-height: 1;">✕</button>
       </div>
       <div class="modal-body">
         <div class="settings-section" style="margin-bottom: 16px;">
           <h3 class="settings-section-title">📥 데이터 복구 (불러오기)</h3>
-          <button class="btn btn-primary" id="modalImportBtn" style="width: 100%; padding: 12px; background: var(--color-accent-success); border: none; font-size: 13px;">
+          <button class="btn btn-primary" id="modalImportBtn"
+            style="width: 100%; padding: 12px; background: var(--color-accent-success); border: none; font-size: 13px;">
             <span style="font-size: 16px; margin-right: 6px;">📂</span>
             백업 파일 불러오기 (.pov)
           </button>
@@ -1081,23 +1230,28 @@ return { 총합, 랭크 };</pre>
         <div class="settings-section" style="margin-bottom: 16px;">
           <h3 class="settings-section-title">📦 전체/설정 백업 (내보내기)</h3>
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
-            <button class="btn btn-secondary" id="exportAllFullBtn" style="font-size: 12px; padding: 10px;">🏛️ 전체 데이터</button>
-            <button class="btn btn-secondary" id="exportOnlySettingsBtn" style="font-size: 12px; padding: 10px;">⚙️ 설정/프리셋</button>
+            <button class="btn btn-secondary" id="exportAllFullBtn" style="font-size: 12px; padding: 10px;">🏛️ 전체
+              데이터</button>
+            <button class="btn btn-secondary" id="exportOnlySettingsBtn" style="font-size: 12px; padding: 10px;">⚙️
+              설정/프리셋</button>
           </div>
         </div>
 
         <div class="settings-section">
           <h3 class="settings-section-title">📘 프로젝트 선택 백업</h3>
           <p style="font-size: 11px; color: var(--color-text-tertiary); margin-bottom: 10px;">백업할 프로젝트를 선택하세요.</p>
-          <div id="backupProjectList" style="max-height: 250px; overflow-y: auto; border: 1px solid var(--color-border); border-radius: 8px; padding: 8px; background: var(--color-bg-primary);">
+          <div id="backupProjectList"
+            style="max-height: 250px; overflow-y: auto; border: 1px solid var(--color-border); border-radius: 8px; padding: 8px; background: var(--color-bg-primary);">
             <!-- 프로젝트 목록이 여기에 렌더링됩니다 -->
           </div>
         </div>
       </div>
       <div class="modal-footer">
-        <div style="flex: 1; text-align: left; font-size: 12px; color: var(--color-text-tertiary);" id="backupCountText">0개 선택됨</div>
+        <div style="flex: 1; text-align: left; font-size: 12px; color: var(--color-text-tertiary);"
+          id="backupCountText">0개 선택됨</div>
         <button class="btn btn-secondary" id="cancelBackupBtn">취소</button>
-        <button class="btn btn-primary" id="startSelectedBackupBtn" style="background: var(--color-accent-primary);">선택한 항목 백업</button>
+        <button class="btn btn-primary" id="startSelectedBackupBtn" style="background: var(--color-accent-primary);">선택한
+          항목 백업</button>
       </div>
     </div>
   </div>
