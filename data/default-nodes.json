@@ -180,11 +180,11 @@
       {
         "id": "w_extra_notes",
         "type": "input_text",
-        "label": "기타 소지품 및 특이사항",
+        "label": "기타",
         "key": "extra_notes",
         "rows": 2,
         "defaultVal": "",
-        "placeholder": "소지품, 알레르기, 특수 제약, 인간관계 등 추가 메모..."
+        "placeholder": "소지품, 알레르기, 특수 제약, 인간관계 등 기타 메모..."
       },
       {
         "id": "sec_custom_md",
