@@ -48,6 +48,26 @@ class WidgetManager {
             }
         });
 
+        // 1-0) 섹션 구분 헤더 바 위젯 (시각적 구역 분리용)
+        this.register('section_header', {
+            render: (w) => {
+                const title = w.label || w.title || '섹션';
+                const color = w.color || 'var(--color-primary, #8b5cf6)';
+                const icon = w.icon || '📌';
+                const desc = w.desc || w.description || '';
+                return `
+                    <div class="widget-item widget-section-header" style="margin-top: 10px; margin-bottom: 2px; padding: 6px 10px; background: rgba(255, 255, 255, 0.04); border-left: 3px solid ${color}; border-radius: 4px; display: flex; align-items: center; justify-content: space-between;">
+                        <span style="font-size: 12px; font-weight: 700; color: var(--color-text-primary); letter-spacing: -0.2px; display: flex; align-items: center; gap: 6px;">
+                            <span>${icon}</span>
+                            <span>${this.escapeHtml(title)}</span>
+                        </span>
+                        ${desc ? `<span style="font-size: 10px; color: var(--color-text-tertiary);">${this.escapeHtml(desc)}</span>` : ''}
+                    </div>
+                `;
+            },
+            bindEvents: () => {}
+        });
+
         // 1-2) 드롭다운 선택 위젯
         this.register('dropdown_select', {
             render: (w, contentData, fileId) => {

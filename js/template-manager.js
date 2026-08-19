@@ -100,9 +100,8 @@ class TemplateManager {
     }
 
     async getDefaultNodeTemplates() {
-        if (this._cachedDefaultNodes) return this._cachedDefaultNodes;
         try {
-            const res = await fetch('data/default-nodes.json');
+            const res = await fetch('data/default-nodes.json?t=' + Date.now());
             if (res.ok) {
                 this._cachedDefaultNodes = await res.json();
                 return this._cachedDefaultNodes;
@@ -110,7 +109,7 @@ class TemplateManager {
         } catch (e) {
             console.warn('data/default-nodes.json 로드 실패:', e);
         }
-        return [];
+        return this._cachedDefaultNodes || [];
     }
 
 

@@ -995,9 +995,8 @@ class FileTreeManager {
     }
 
     async getDefaultNodeTemplates() {
-        if (this._cachedDefaultNodes) return this._cachedDefaultNodes;
         try {
-            const res = await fetch('data/default-nodes.json');
+            const res = await fetch('data/default-nodes.json?t=' + Date.now());
             if (res.ok) {
                 this._cachedDefaultNodes = await res.json();
                 return this._cachedDefaultNodes;
@@ -1005,7 +1004,7 @@ class FileTreeManager {
         } catch (e) {
             console.warn('data/default-nodes.json 로드 실패:', e);
         }
-        return [];
+        return this._cachedDefaultNodes || [];
     }
 
     async renderCustomNodePresets() {
@@ -1618,6 +1617,7 @@ class FileTreeManager {
         if (!list) return;
 
         const widgetIcons = {
+            'section_header': '📌',
             'input_text': '📝',
             'dropdown_select': '🔽',
             'text_viewer': '👁️',
@@ -1633,6 +1633,7 @@ class FileTreeManager {
         };
 
         const widgetNames = {
+            'section_header': '섹션 구분 헤더',
             'input_text': '텍스트 입력창',
             'dropdown_select': '드롭다운',
             'text_viewer': '텍스트 뷰어 (출력)',
@@ -1654,38 +1655,103 @@ class FileTreeManager {
         const showRowsOption = ['input_text', 'editor_canvas', 'text_viewer', 'raw_data_viewer'].includes(type);
         const hasInputs = ['input_text', 'editor_canvas', 'toggle_switch'].includes(type);
         const isDropdown = type === 'dropdown_select';
+        const isSectionHeader = type === 'section_header';
         const optionsStr = Array.isArray(options) ? options.join(', ') : (options || defaultVal || '옵션 1, 옵션 2, 옵션 3');
 
         const row = document.createElement('div');
         row.className = 'stat-field-row mb-xs';
         row.dataset.widgetType = type;
-        row.style.cssText = 'background: var(--color-surface-1); padding: 8px 10px; border-radius: 6px; border: 1px solid var(--color-border); display: flex; gap: 6px; align-items: center; box-sizing: border-box;';
+        row.setAttribute('draggable', 'true');
+        row.style.cssText = 'background: var(--color-surface-1); padding: 8px 10px; border-radius: 6px; border: 1px solid var(--color-border); display: flex; gap: 6px; align-items: center; box-sizing: border-box; transition: opacity 0.15s, background 0.15s, border-color 0.15s;';
 
-        row.innerHTML = `
-            <span style="font-size: 13px; width: 18px; text-align: center; display: inline-block; flex-shrink: 0;" title="${this.escapeHtml(widgetNames[type] || '')}">${icon}</span>
-            <input type="text" class="input widget-label-input field-name" value="${this.escapeHtml(defaultLabel)}" placeholder="항목 제목 (예: 직업/등급)" style="width: 140px; flex-shrink: 0; font-size: 12px;">
-            ${showRowsOption ? `
-                <div style="display: flex; align-items: center; gap: 2px; background: var(--color-bg-primary); padding: 2px 6px; border-radius: 6px; border: 1px solid var(--color-border); width: 58px; height: 26px; box-sizing: border-box; flex-shrink: 0;" title="입력창 기본 세로 높이 (줄 수 - 화살표 버튼 조절 또는 수치 직접 입력)">
-                    <input type="number" class="input widget-rows-input" value="${defaultRows}" min="1" max="50" step="1" style="width: 28px; font-size: 11px; padding: 0; text-align: right; border: none; background: transparent; font-family: monospace; color: var(--color-text-primary);">
-                    <span style="font-size: 10px; color: var(--color-text-tertiary); font-weight: bold;">줄</span>
-                </div>
-            ` : `<div style="width: 58px; flex-shrink: 0;"></div>`}
-            ${isDropdown ? `
-                <input type="text" class="input widget-options-input" value="${this.escapeHtml(optionsStr)}" placeholder="옵션 목록 (쉼표 구분: A, B, C)" style="flex: 2; font-size: 11px; min-width: 0;" title="드롭다운에 표시될 옵션 목록을 쉼표(,)로 구분하여 입력하세요">
-            ` : (hasInputs ? `
-                <input type="text" class="input widget-default-input" value="${this.escapeHtml(defaultVal)}" placeholder="기본 내용" style="flex: 1; font-size: 11px; min-width: 0;" title="노드 처음 생성 시 입력창에 채워질 기본 내용">
-                <input type="text" class="input widget-placeholder-input" value="${this.escapeHtml(placeholder)}" placeholder="안내 힌트" style="flex: 1; font-size: 11px; min-width: 0;" title="입력창이 비어있을 때 연하게 표시될 안내 힌트 문구">
-            ` : `
-                <div style="flex: 2;"></div>
-            `)}
-            <input type="text" class="input widget-key-input" value="${this.escapeHtml(defaultKey)}" placeholder="변수 Key" style="width: 100px; font-size: 11px; font-family: monospace; flex-shrink: 0;" title="코드 작성 시 사용될 변수 Key">
-            <button type="button" class="btn btn-danger btn-xs remove-widget-row-btn" style="width: 22px; flex-shrink: 0; padding: 2px 0; text-align: center;">✕</button>
-        `;
+        const dragHandleHtml = `<span class="widget-drag-handle" style="cursor: grab; font-size: 12px; color: var(--color-text-tertiary); user-select: none; width: 16px; text-align: center; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;" title="드래그하여 순서 변경">⋮⋮</span>`;
+
+        if (isSectionHeader) {
+            const secColor = (typeof options === 'object' && options?.color) ? options.color : (defaultVal && defaultVal.startsWith('#') ? defaultVal : '#38bdf8');
+            const secDesc = placeholder || ((typeof options === 'object' && options?.desc) ? options.desc : '');
+            row.innerHTML = `
+                ${dragHandleHtml}
+                <span style="font-size: 13px; width: 18px; text-align: center; display: inline-block; flex-shrink: 0;" title="섹션 구분 헤더">${icon}</span>
+                <input type="text" class="input widget-label-input field-name" value="${this.escapeHtml(defaultLabel)}" placeholder="섹션 제목 (예: 인물 설정 정보)" style="width: 180px; flex-shrink: 0; font-size: 12px; font-weight: bold; border-left: 3px solid ${secColor};">
+                <input type="text" class="input widget-desc-input" value="${this.escapeHtml(secDesc || '')}" placeholder="보조 설명 문구 (선택)" style="flex: 1; font-size: 11px; min-width: 0;" title="섹션 우측에 표시될 보조 설명">
+                <input type="color" class="widget-color-input" value="${secColor}" style="width: 32px; height: 26px; padding: 1px; cursor: pointer; border-radius: 4px; border: 1px solid var(--color-border); background: transparent;" title="섹션 포인트 색상">
+                <input type="hidden" class="widget-key-input" value="${this.escapeHtml(defaultKey)}">
+                <button type="button" class="btn btn-danger btn-xs remove-widget-row-btn" style="width: 22px; flex-shrink: 0; padding: 2px 0; text-align: center;">✕</button>
+            `;
+            const colorPicker = row.querySelector('.widget-color-input');
+            const labelInputEl = row.querySelector('.widget-label-input');
+            colorPicker?.addEventListener('input', () => {
+                if (labelInputEl) labelInputEl.style.borderLeftColor = colorPicker.value;
+            });
+        } else {
+            row.innerHTML = `
+                ${dragHandleHtml}
+                <span style="font-size: 13px; width: 18px; text-align: center; display: inline-block; flex-shrink: 0;" title="${this.escapeHtml(widgetNames[type] || '')}">${icon}</span>
+                <input type="text" class="input widget-label-input field-name" value="${this.escapeHtml(defaultLabel)}" placeholder="항목 제목 (예: 직업/등급)" style="width: 140px; flex-shrink: 0; font-size: 12px;">
+                ${showRowsOption ? `
+                    <div style="display: flex; align-items: center; gap: 2px; background: var(--color-bg-primary); padding: 2px 6px; border-radius: 6px; border: 1px solid var(--color-border); width: 58px; height: 26px; box-sizing: border-box; flex-shrink: 0;" title="입력창 기본 세로 높이 (줄 수 - 화살표 버튼 조절 또는 수치 직접 입력)">
+                        <input type="number" class="input widget-rows-input" value="${defaultRows}" min="1" max="50" step="1" style="width: 28px; font-size: 11px; padding: 0; text-align: right; border: none; background: transparent; font-family: monospace; color: var(--color-text-primary);">
+                        <span style="font-size: 10px; color: var(--color-text-tertiary); font-weight: bold;">줄</span>
+                    </div>
+                ` : `<div style="width: 58px; flex-shrink: 0;"></div>`}
+                ${isDropdown ? `
+                    <input type="text" class="input widget-options-input" value="${this.escapeHtml(optionsStr)}" placeholder="옵션 목록 (쉼표 구분: A, B, C)" style="flex: 2; font-size: 11px; min-width: 0;" title="드롭다운에 표시될 옵션 목록을 쉼표(,)로 구분하여 입력하세요">
+                ` : (hasInputs ? `
+                    <input type="text" class="input widget-default-input" value="${this.escapeHtml(defaultVal)}" placeholder="기본 내용" style="flex: 1; font-size: 11px; min-width: 0;" title="노드 처음 생성 시 입력창에 채워질 기본 내용">
+                    <input type="text" class="input widget-placeholder-input" value="${this.escapeHtml(placeholder)}" placeholder="안내 힌트" style="flex: 1; font-size: 11px; min-width: 0;" title="입력창이 비어있을 때 연하게 표시될 안내 힌트 문구">
+                ` : `
+                    <div style="flex: 2;"></div>
+                `)}
+                <input type="text" class="input widget-key-input" value="${this.escapeHtml(defaultKey)}" placeholder="변수 Key" style="width: 100px; font-size: 11px; font-family: monospace; flex-shrink: 0;" title="코드 작성 시 사용될 변수 Key">
+                <button type="button" class="btn btn-danger btn-xs remove-widget-row-btn" style="width: 22px; flex-shrink: 0; padding: 2px 0; text-align: center;">✕</button>
+            `;
+        }
 
         row.querySelector('.remove-widget-row-btn')?.addEventListener('click', () => {
             row.remove();
             this.updateWizardVarChips();
         });
+
+        // 🔄 드래그 앤 드롭 순서 변경 이벤트
+        row.addEventListener('dragstart', (e) => {
+            if (['INPUT', 'TEXTAREA', 'SELECT', 'BUTTON'].includes(e.target.tagName)) {
+                e.preventDefault();
+                return;
+            }
+            this.draggedWizardWidgetRow = row;
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', type);
+            setTimeout(() => {
+                row.style.opacity = '0.35';
+                row.style.borderColor = 'var(--color-primary, #8b5cf6)';
+                row.style.background = 'var(--color-bg-secondary)';
+            }, 0);
+        });
+
+        row.addEventListener('dragend', () => {
+            row.style.opacity = '1';
+            row.style.borderColor = 'var(--color-border)';
+            row.style.background = 'var(--color-surface-1)';
+            this.draggedWizardWidgetRow = null;
+            this.updateWizardVarChips();
+        });
+
+        if (!list._dragReorderBound) {
+            list._dragReorderBound = true;
+            list.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+                const dragging = this.draggedWizardWidgetRow;
+                if (!dragging) return;
+
+                const targetRow = e.target.closest('#wizardWidgetLayoutList .stat-field-row');
+                if (!targetRow || targetRow === dragging) return;
+
+                const rect = targetRow.getBoundingClientRect();
+                const isAfter = (e.clientY - rect.top) / (rect.bottom - rect.top) > 0.5;
+                list.insertBefore(dragging, isAfter ? targetRow.nextSibling : targetRow);
+            });
+        }
 
         const nameInput = row.querySelector('.widget-label-input');
         const keyInput = row.querySelector('.widget-key-input');
@@ -1770,7 +1836,7 @@ class FileTreeManager {
         if (widgetList) {
             widgetList.innerHTML = '';
             if (Array.isArray(presetToEdit?.widgets) && presetToEdit.widgets.length > 0) {
-                presetToEdit.widgets.forEach(w => this.addWizardWidgetRow(w.type, w.label, w.key, w.rows, w.defaultVal, w.placeholder, w.options));
+                presetToEdit.widgets.forEach(w => this.addWizardWidgetRow(w.type, w.label, w.key, w.rows, w.defaultVal || w.color, w.placeholder || w.desc, w.options || { color: w.color, desc: w.desc }));
             }
         }
 
@@ -2152,7 +2218,11 @@ class FileTreeManager {
             const placeholder = row.querySelector('.widget-placeholder-input')?.value || '';
             const optionsInput = row.querySelector('.widget-options-input')?.value || '';
             const options = optionsInput ? optionsInput.split(',').map(s => s.trim()).filter(Boolean) : null;
-            if (wType) {
+            if (wType === 'section_header') {
+                const wColor = row.querySelector('.widget-color-input')?.value || '#38bdf8';
+                const wDesc = row.querySelector('.widget-desc-input')?.value.trim() || '';
+                widgets.push({ id: `sec_${idx + 1}`, type: 'section_header', label: wLabel, icon: '📌', color: wColor, desc: wDesc });
+            } else if (wType) {
                 const widgetObj = { id: `w_${idx + 1}`, type: wType, label: wLabel, key: wKey, rows: wRows, defaultVal, placeholder };
                 if (options && options.length > 0) widgetObj.options = options;
                 widgets.push(widgetObj);
