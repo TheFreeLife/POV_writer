@@ -529,24 +529,66 @@ class NodeEngine {
             const collectedInputs = {};
             const inputPorts = norm.portsConfig?.inputs || [];
 
-            // 1) 부모 노드 ID별 매핑
+            // 1) 부모 노드 ID별 매핑 (미실행 노드도 파일 데이터에서 자동 수집)
             for (const parentId of parents) {
                 this.setConnectionActive(parentId, nodeId, true);
-                const outVal = session.nodeOutputs.get(parentId);
+                let outVal = session.nodeOutputs.get(parentId);
+                if (outVal === undefined) {
+                    const pFile = this._getFile(parentId);
+                    if (pFile) {
+                        const pNorm = this.normalizeNodeData(pFile);
+                        const pContentData = pNorm?.contentData || {};
+                        outVal = pContentData.output || 
+                                 pContentData.editorVal || 
+                                 pContentData.content || 
+                                 pContentData.val || 
+                                 pContentData.persona_md || 
+                                 pFile.content;
+                    }
+                }
                 collectedInputs[parentId] = outVal;
             }
 
-            // 2) 포트 핀 ID(in_1, in_2) 및 포트 이름(선택지 A 데이터)별 매핑
+            // 2) 포트 핀 ID 및 포트 이름별 매핑 (다중 노드 연결 시 배열로 안전하게 취합)
             const inConns = session.graph.edges.filter(c => String(c.toId) === nodeId);
             inConns.forEach(conn => {
-                const parentVal = session.nodeOutputs.get(String(conn.fromId));
-                if (parentVal !== undefined) {
+                let parentVal = session.nodeOutputs.get(String(conn.fromId));
+                if (parentVal === undefined) {
+                    const pFile = this._getFile(conn.fromId);
+                    if (pFile) {
+                        const pNorm = this.normalizeNodeData(pFile);
+                        const pContentData = pNorm?.contentData || {};
+                        parentVal = pContentData.output || 
+                                     pContentData.editorVal || 
+                                     pContentData.content || 
+                                     pContentData.val || 
+                                     pContentData.persona_md || 
+                                     pFile.content;
+                    }
+                }
+
+                if (parentVal !== undefined && parentVal !== null) {
                     const portId = conn.toPortId || 'in_1';
-                    collectedInputs[portId] = parentVal;
+                    
+                    // 다중 연결 시 배열로 누적 수집
+                    if (collectedInputs[portId] === undefined) {
+                        collectedInputs[portId] = parentVal;
+                    } else if (Array.isArray(collectedInputs[portId])) {
+                        collectedInputs[portId].push(parentVal);
+                    } else {
+                        collectedInputs[portId] = [collectedInputs[portId], parentVal];
+                    }
 
                     const matchedPort = inputPorts.find(p => p.id === portId);
                     if (matchedPort && matchedPort.name) {
-                        collectedInputs[matchedPort.name] = parentVal;
+                        const pName = matchedPort.name;
+                        if (collectedInputs[pName] === undefined) {
+                            collectedInputs[pName] = parentVal;
+                        } else if (Array.isArray(collectedInputs[pName])) {
+                            collectedInputs[pName].push(parentVal);
+                        } else {
+                            collectedInputs[pName] = [collectedInputs[pName], parentVal];
+                        }
                     }
                 }
             });
