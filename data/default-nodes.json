@@ -1233,24 +1233,24 @@
     "portsConfig": {
       "inputs": [
         {
+          "id": "in_ai_config",
+          "name": "⚡ AI 환경 설정 (필수)",
+          "color": "#38bdf8"
+        },
+        {
           "id": "in_characters",
-          "name": "👥 등장인물 데이터",
+          "name": "👥 등장인물 데이터 (필수)",
           "color": "#a855f7"
         },
         {
           "id": "in_scene",
-          "name": "🎬 씬 상황 & 대화 목표",
+          "name": "🎬 씬 상황 & 대화 목표 (필수)",
           "color": "#38bdf8"
         },
         {
           "id": "in_lore",
           "name": "📚 추가 로어북 (선택)",
           "color": "#eab308"
-        },
-        {
-          "id": "in_ai_config",
-          "name": "⚡ AI 환경 설정 (선택)",
-          "color": "#38bdf8"
         }
       ],
       "outputs": [
