@@ -1360,5 +1360,78 @@
       ]
     },
     "code": "// 1. AI 환경 설정 수신\nconst aiConfigRaw = inputs['⚡ AI 환경 설정 (필수)'] || inputs['in_ai_config'] || inputs['AI 환경 설정'] || {};\nconst aiConfig = {\n  provider: aiConfigRaw.provider || 'Google (Gemini)',\n  model: aiConfigRaw.model || 'gemini-3.6-flash',\n  apiKey: aiConfigRaw.apiKey || '',\n  temperature: parseFloat(aiConfigRaw.temperature) || 0.7,\n  endpoint: aiConfigRaw.endpoint || ''\n};\n\n// 2. 대략적인 줄거리/아이디어 추출\nlet roughPlot = inputs['📝 대략적인 줄거리 / 아이디어 (필수)'] || inputs['in_rough_plot'] || inputs['줄거리'] || '';\nif (roughPlot && typeof roughPlot === 'object') {\n  roughPlot = roughPlot.content || roughPlot.text || roughPlot.summary || JSON.stringify(roughPlot);\n}\nroughPlot = String(roughPlot || '').trim();\nif (!roughPlot) {\n  roughPlot = '주요 인물들이 마주쳐 현재 상황을 파악하고 향후 행동 방향을 결정하기 위해 대립한다.';\n}\n\n// 3. 등장인물 데이터 수집\nfunction extractCharacters(raw) {\n  const list = [];\n  function dig(item) {\n    if (!item) return;\n    if (Array.isArray(item)) {\n      item.forEach(dig);\n    } else if (typeof item === 'object') {\n      if (item.persona_md || item.lore) {\n        list.push({\n          name: item.lore?.name || item.name || '인물 ' + (list.length + 1),\n          role: item.lore?.role || item.role || '등장인물',\n          persona_md: item.persona_md || '',\n          lorebook_entries: item.lorebook_entries || []\n        });\n      } else if (item['등장인물 데이터']) {\n        dig(item['등장인물 데이터']);\n      } else {\n        Object.values(item).forEach(v => {\n          if (v && typeof v === 'object' && (v.persona_md || v.lore)) dig(v);\n        });\n      }\n    }\n  }\n  dig(raw);\n  return list;\n}\nconst charInput = inputs['👥 등장인물 데이터 (선택)'] || inputs['in_characters'] || [];\nconst charactersList = extractCharacters(charInput);\n\n// 4. 세계관 및 복선 데이터 수집\nlet worldLoreText = '';\nconst rawLore = inputs['📚 세계관 & 복선 로어 (선택)'] || inputs['in_world_lore'] || '';\nif (typeof rawLore === 'string') {\n  worldLoreText = rawLore.trim();\n} else if (rawLore && typeof rawLore === 'object') {\n  worldLoreText = rawLore.content || rawLore.text || JSON.stringify(rawLore);\n}\n\n// 5. 프롬프트 및 사용자 지침 조립\nconst sceneGoal = (input.scene_goal || '').trim();\nconst tempoMood = (input.tempo_mood || '팽팽한 기싸움 & 심리전').trim();\nconst promptTemplate = (input.prompt_template || '').trim();\n\nlet charSummary = charactersList.map((c, i) => `인물 ${i + 1}: ${c.name} (${c.role})` + (c.persona_md ? `\\n${c.persona_md}` : '')).join('\\n\\n');\nif (!charSummary) charSummary = '(연결된 특정 인물 없음 - 줄거리 기반 인물 설정 요망)';\n\nconst systemPrompt = `${promptTemplate}\n\n[추가 연출 조건]:\n- 씬 전개 템포 및 분위기: ${tempoMood}\n${sceneGoal ? `- 씬의 핵심 목표 및 필수 달성 사건: ${sceneGoal}` : ''}`;\n\nconst userPrompt = `# [대략적인 줄거리 및 아이디어]\n${roughPlot}\n\n# [참여 등장인물 설정]\n${charSummary}\n\n${worldLoreText ? `# [세계관 및 배경 로어]\\n${worldLoreText}` : ''}\n\n위 정보를 종합 분석하여, 지정된 5단계 양식으로 생생하고 입체적인 씬 시나리오(Scene Beat Sheet)를 완성하라.`;\n\nlet generatedScenario = '';\n\n// 6. AI 호출 또는 스마트 동적 시뮬레이터 실행\ntry {\n  if (typeof window !== 'undefined' && window.aiApi && aiConfig.apiKey) {\n    generatedScenario = await window.aiApi.call(aiConfig, systemPrompt, userPrompt);\n  } else {\n    // 오프라인 / 테스트용 동적 5단 시나리오 빌더\n    const c1 = charactersList[0] || { name: '주인공' };\n    const c2 = charactersList[1] || { name: '상대방' };\n\n    generatedScenario = `[1. 씬 개요 & 배경 환경]\n- 장소: 긴장감이 감도는 폐쇄된 회랑 또는 은신처\n- 분위기: ${tempoMood}의 공기가 흐르며, 바깥의 미세한 소음만이 적막을 깬다. ${roughPlot}\n\n[2. 인물별 목표 & 갈등 구도]\n- ${c1.name}: ${sceneGoal || '자신의 정체와 패를 숨기며 상대의 진짜 의도를 파악하고 주도권을 쥔다.'}\n- ${c2.name}: 상대방의 취약점을 파고들며 자신에게 유리한 조건으로 상황을 이끌려 한다.\n\n[3. 씬 사건 전개 흐름 (비트별 전개)]\n- 발단: ${c1.name}과 ${c2.name}이 마주치며 형식적인 탐색전을 시작한다.\n- 전개: 사소한 조건과 언동을 두고 팽팽한 의견 대립이 격화된다.\n- 전환점: 예상치 못한 단서가 언급되며 대화의 주도권이 급격히 뒤흔들린다.\n- 결말: 각자의 다음 행동을 결정지을 중요한 합의(또는 균열)가 발생하며 씬이 마무리된다.\n\n[4. 로어 & 소품 & 복선 활용]\n- 대화 중 언급되는 고유 물품과 과거 사건의 편린이 두 사람의 관계를 긴장시킨다. ${worldLoreText ? `(${worldLoreText.slice(0, 50)}...)` : ''}\n\n[5. 대본 연결 씬 요약]\n${c1.name}과 ${c2.name}이 마주쳐 ${roughPlot}에 대해 팽팽한 기싸움을 벌이며 각자의 숨은 패를 드러내기 시작한다.`;\n  }\n} catch (err) {\n  generatedScenario = `[시나리오 생성 오류: ${err.message}]`;\n}\n\n// 7. 5단 시나리오 파싱하여 JSON 객체 조립\nconst parseSection = (header) => {\n  const regex = new RegExp(`\\\\[${header}[^\\\\]]*\\\\]\\\\s*([\\\\s\\\\S]*?)(?=\\\\[\\\\d+\\\\.|━━━━━━━━|$)`, 'i');\n  const match = generatedScenario.match(regex);\n  return match ? match[1].trim() : '';\n};\n\nconst scenarioData = {\n  raw_scenario: generatedScenario,\n  scene_overview: parseSection('1. 씬 개요'),\n  character_goals: parseSection('2. 인물별 목표'),\n  plot_beats: parseSection('3. 씬 사건 전개'),\n  lore_and_props: parseSection('4. 로어 & 소품'),\n  dialogue_summary: parseSection('5. 대본 연결'),\n  ai_config: {\n    provider: aiConfig.provider,\n    model: aiConfig.model\n  }\n};\n\n// 8. 최종 출력 (대본 생성기 노드로 직결 가능)\nreturn {\n  '🎬 상세 시나리오 (텍스트)': generatedScenario,\n  '🧬 시나리오 JSON 데이터': scenarioData\n};"
+  },
+  {
+    "id": "preset_sys_universal_hub",
+    "name": "데이터 통합 허브 노드",
+    "icon": "🔀",
+    "desc": "텍스트, 원고, 세계관 설정, 고유명사, 복선, 등장인물 등 여러 노드의 출력을 하나로 묶어 단일 연결선으로 깔끔하게 전달하는 만능 데이터 통합 허브 노드",
+    "category": "logic",
+    "color": "#06b6d4",
+    "defaultWidth": 540,
+    "defaultHeight": 660,
+    "isDefault": true,
+    "promptForName": true,
+    "promptForDesc": false,
+    "widgets": [
+      {
+        "id": "w_merge_mode",
+        "type": "dropdown_select",
+        "label": "🧩 텍스트 병합 방식 (선택)",
+        "key": "merge_mode",
+        "options": [
+          "📌 스마트 섹션 마크다운 (제목 + 내용 자동 구분)",
+          "📑 구분선 이어붙이기 (---)",
+          "📄 단순 줄바꿈 이어붙이기 (\\n\\n)",
+          "🧬 JSON 구조체 배열 결합"
+        ],
+        "defaultVal": "📌 스마트 섹션 마크다운 (제목 + 내용 자동 구분)"
+      },
+      {
+        "id": "w_custom_prefix",
+        "type": "input_text",
+        "label": "🏷️ 상단 머리말 / 공통 제목 (선택)",
+        "key": "custom_prefix",
+        "rows": 1,
+        "defaultVal": "",
+        "placeholder": "예: # [통합 로어 및 설정 자료집] (비워둘 시 생략)"
+      },
+      {
+        "id": "w_merged_viewer",
+        "type": "editor_canvas",
+        "label": "👁️ 통합된 결과물 (실행 시 자동 병합 & 직접 편집)",
+        "key": "merged_viewer",
+        "rows": 14,
+        "defaultVal": "",
+        "placeholder": "통합할 상위 노드들을 연결하고 실행하면 이곳에 하나로 병합된 데이터가 출력됩니다. 생성 후 직접 자유롭게 수정도 가능합니다."
+      }
+    ],
+    "portsConfig": {
+      "inputs": [
+        {
+          "id": "in_nodes",
+          "name": "📥 통합할 노드 데이터들 (다중 연결)",
+          "color": "#06b6d4"
+        },
+        {
+          "id": "in_extra",
+          "name": "📝 추가 보조 데이터 (선택)",
+          "color": "#a855f7"
+        }
+      ],
+      "outputs": [
+        {
+          "id": "out_merged_text",
+          "name": "📜 통합된 텍스트 / 마크다운",
+          "color": "#06b6d4"
+        },
+        {
+          "id": "out_merged_data",
+          "name": "🧬 통합된 데이터 (JSON / 배열)",
+          "color": "#8b5cf6"
+        }
+      ]
+    },
+    "code": "// 1. 모든 연결된 입력 데이터 수집 및 플랫 배열화\nconst rawInputs = inputs['📥 통합할 노드 데이터들 (다중 연결)'] || inputs['in_nodes'] || inputs;\nconst extraInput = inputs['📝 추가 보조 데이터 (선택)'] || inputs['in_extra'];\n\nconst collectedItems = [];\n\nfunction harvest(item, defaultTitle = '데이터') {\n  if (item === null || item === undefined) return;\n  if (Array.isArray(item)) {\n    item.forEach((sub, idx) => harvest(sub, `${defaultTitle} #${idx + 1}`));\n  } else if (typeof item === 'object') {\n    // 특정 노드 형태 판별\n    if (item.persona_md || item.lore) {\n      collectedItems.push({\n        title: item.lore?.name || item.name || defaultTitle,\n        type: 'character',\n        text: item.persona_md || (typeof item.lore === 'object' ? JSON.stringify(item.lore, null, 2) : String(item.lore)),\n        raw: item\n      });\n    } else if (item.scene_overview || item.plot_beats) {\n      collectedItems.push({\n        title: '🎬 시나리오 비트 데이터',\n        type: 'scenario',\n        text: item.raw_scenario || JSON.stringify(item, null, 2),\n        raw: item\n      });\n    } else if (item['📜 완성된 씬 대본'] || item.turns) {\n      collectedItems.push({\n        title: '🎭 씬 대본집',\n        type: 'dialogue_script',\n        text: item['📜 완성된 씬 대본'] || item.script || JSON.stringify(item, null, 2),\n        raw: item\n      });\n    } else if (item.content || item.text || item.desc) {\n      collectedItems.push({\n        title: item.title || item.name || defaultTitle,\n        type: 'text_node',\n        text: String(item.content || item.text || item.desc || ''),\n        raw: item\n      });\n    } else {\n      // 일반 객체인 경우\n      const keys = Object.keys(item);\n      const isNamedDict = keys.length > 0 && keys.every(k => typeof item[k] === 'object' || typeof item[k] === 'string');\n      if (isNamedDict && keys.length <= 10) {\n        keys.forEach(k => harvest(item[k], k));\n      } else {\n        collectedItems.push({\n          title: defaultTitle,\n          type: 'json_object',\n          text: JSON.stringify(item, null, 2),\n          raw: item\n        });\n      }\n    }\n  } else {\n    // 순수 문자열 또는 원시값\n    const textVal = String(item).trim();\n    if (textVal) {\n      collectedItems.push({\n        title: defaultTitle,\n        type: 'raw_text',\n        text: textVal,\n        raw: item\n      });\n    }\n  }\n}\n\nharvest(rawInputs, '입력 항목');\nif (extraInput) harvest(extraInput, '보조 데이터');\n\nif (collectedItems.length === 0) {\n  return {\n    '📜 통합된 텍스트 / 마크다운': '(통합할 노드가 연결되지 않았습니다.)',\n    '🧬 통합된 데이터 (JSON / 배열)': { count: 0, items: [] }\n  };\n}\n\n// 2. 위젯 설정 및 병합 모드 처리\nconst mergeMode = (input.merge_mode || '📌 스마트 섹션 마크다운 (제목 + 내용 자동 구분)').trim();\nconst prefix = (input.custom_prefix || '').trim();\n\nlet mergedText = '';\nconst textBlocks = [];\n\nif (prefix) {\n  textBlocks.push(prefix);\n}\n\nif (mergeMode.includes('스마트 섹션')) {\n  collectedItems.forEach((it, idx) => {\n    let block = '';\n    if (it.text.startsWith('#')) {\n      block = it.text;\n    } else {\n      block = `## [${it.title || `항목 ${idx + 1}`}]\\n${it.text}`;\n    }\n    textBlocks.push(block);\n  });\n  mergedText = textBlocks.join('\\n\\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\n\\n');\n} else if (mergeMode.includes('구분선')) {\n  collectedItems.forEach(it => textBlocks.push(it.text));\n  mergedText = textBlocks.join('\\n\\n---\\n\\n');\n} else if (mergeMode.includes('단순 줄바꿈')) {\n  collectedItems.forEach(it => textBlocks.push(it.text));\n  mergedText = textBlocks.join('\\n\\n');\n} else if (mergeMode.includes('JSON')) {\n  const jsonArr = collectedItems.map(it => it.raw);\n  mergedText = JSON.stringify(jsonArr, null, 2);\n} else {\n  collectedItems.forEach(it => textBlocks.push(`### ${it.title}\\n${it.text}`));\n  mergedText = textBlocks.join('\\n\\n');\n}\n\n// 3. 최종 출력 반환\nreturn {\n  '📜 통합된 텍스트 / 마크다운': mergedText,\n  '🧬 통합된 데이터 (JSON / 배열)': {\n    count: collectedItems.length,\n    items: collectedItems.map(it => it.raw),\n    structured: collectedItems\n  }\n};"
   }
 ]
