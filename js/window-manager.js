@@ -737,6 +737,90 @@ class WindowManager {
     }
 
     /**
+     * 캔버스에 이미 꺼내둔 노드의 작성 데이터는 100% 보존하면서,
+     * 내부 실행 코드(code), 포트 구성(portsConfig), 위젯 설정을 최신 프리셋으로 스마트 동기화합니다.
+     */
+    async syncNodeWithLatestPreset(fileId) {
+        const file = await storage.getFile(fileId);
+        if (!file) return;
+
+        // 1. 시스템 및 커스텀 프리셋 로드
+        let systemPresets = [];
+        try {
+            const res = await fetch('data/default-nodes.json?t=' + Date.now());
+            if (res.ok) systemPresets = await res.json();
+        } catch (e) {
+            console.warn('default-nodes.json 로드 실패:', e);
+        }
+
+        let customPresets = [];
+        try {
+            if (window.storage?.getCustomNodePresets) {
+                customPresets = await window.storage.getCustomNodePresets() || [];
+            }
+        } catch (e) {
+            console.warn('custom presets 로드 실패:', e);
+        }
+
+        const allPresets = [...systemPresets, ...customPresets];
+
+        // 2. 매칭되는 프리셋 탐색 (presetId -> 이름 유사도)
+        const cleanName = (file.name || '').replace(/^[^\w가-힣a-zA-Z0-9]+/, '').trim();
+        let targetPreset = allPresets.find(p => p.id && (p.id === file.presetId || p.id === file.contentData?.presetId));
+        if (!targetPreset) {
+            targetPreset = allPresets.find(p => p.name === file.name || p.name === cleanName || file.name.includes(p.name) || (cleanName && p.name.includes(cleanName)));
+        }
+
+        if (!targetPreset) {
+            window.showToast?.('이 노드와 일치하는 최신 프리셋을 찾을 수 없습니다. ⚠️');
+            return;
+        }
+
+        // 3. 기존 사용자가 입력한 값(contentData)은 100% 보존하면서 프리셋 설정 동기화
+        let contentObj = file.contentData;
+        if (!contentObj && typeof file.content === 'string') {
+            try { contentObj = JSON.parse(file.content); } catch(e) { contentObj = {}; }
+        }
+        contentObj = contentObj || {};
+
+        if (Array.isArray(targetPreset.widgets)) {
+            contentObj.widgets = targetPreset.widgets;
+        }
+        if (targetPreset.defaultWidth) contentObj.defaultWidth = targetPreset.defaultWidth;
+        if (targetPreset.defaultHeight) contentObj.defaultHeight = targetPreset.defaultHeight;
+        if (targetPreset.color) contentObj.color = targetPreset.color;
+        contentObj.presetId = targetPreset.id;
+
+        const updates = {
+            presetId: targetPreset.id,
+            code: targetPreset.code || '',
+            portsConfig: targetPreset.portsConfig || null,
+            defaultWidth: targetPreset.defaultWidth || file.defaultWidth || 520,
+            defaultHeight: targetPreset.defaultHeight || file.defaultHeight || 650,
+            contentData: contentObj,
+            content: JSON.stringify(contentObj, null, 2)
+        };
+
+        await storage.updateFile(fileId, updates);
+
+        // 4. 노드 UI 즉시 새로고침 (기존 위치 및 줌 상태 완벽 유지)
+        const winInfo = this.windows.get(fileId);
+        if (winInfo && winInfo.element) {
+            const currentRect = {
+                x: parseInt(winInfo.element.style.left, 10) || 0,
+                y: parseInt(winInfo.element.style.top, 10) || 0,
+                width: parseInt(winInfo.element.style.width, 10) || targetPreset.defaultWidth || 520,
+                height: parseInt(winInfo.element.style.height, 10) || targetPreset.defaultHeight || 650,
+                isUserResized: true
+            };
+            this.closeWindow(fileId);
+            await this.openWindow(fileId, currentRect);
+        }
+
+        window.showToast?.(`'${targetPreset.name}' 노드가 최신 프리셋 코드 및 포트로 동기화되었습니다! ✨`);
+    }
+
+    /**
      * 이미지 원본 크기 정보 업데이트
      */
     updateImageSizeInfo(fileId, base64) {
