@@ -248,10 +248,13 @@ class NodeEngine {
         if (winEl) {
             const textareas = winEl.querySelectorAll('textarea');
             textareas.forEach(ta => {
-                const wKey = ta.dataset.widgetKey || 'editorVal';
-                contentData[wKey] = ta.value;
-                contentData.editorVal = ta.value;
-                contentData.content = ta.value;
+                const wKey = ta.dataset.widgetKey;
+                if (wKey) {
+                    contentData[wKey] = ta.value;
+                } else {
+                    contentData.editorVal = ta.value;
+                    contentData.content = ta.value;
+                }
             });
             const inputFields = winEl.querySelectorAll('.widget-input-field');
             inputFields.forEach(inp => {
@@ -431,14 +434,25 @@ class NodeEngine {
                     }
                 }
 
-                // 스크립트 실행 후 text_viewer 위젯이 있으면 최종 outputText로 동기화
+                // 스크립트 실행 후 결과 위젯(text_viewer, editor_canvas 등)에 최종 outputText 동기화
                 widgets.forEach(w => {
                     if (w.type === 'text_viewer') {
                         contentData[w.key || 'displayVal'] = outputText;
                         contentData.output = outputText;
                         if (winEl) {
-                            const preEl = winEl.querySelector('.widget-text-viewer-pre') || winEl.querySelector('pre');
+                            const preEl = winEl.querySelector(`.widget-text-viewer-pre[data-widget-key="${w.key}"]`) || 
+                                          winEl.querySelector('.widget-text-viewer-pre') || 
+                                          winEl.querySelector('pre');
                             if (preEl) preEl.textContent = outputText;
+                        }
+                    } else if (w.type === 'editor_canvas' || w.key === 'merged_viewer' || w.key === 'script_editor' || w.key === 'scenario_editor' || w.key === 'displayVal') {
+                        contentData[w.key] = outputText;
+                        contentData.output = outputText;
+                        if (winEl) {
+                            const ta = winEl.querySelector(`.widget-editor-textarea[data-widget-key="${w.key}"]`) || 
+                                       winEl.querySelector(`textarea[data-widget-key="${w.key}"]`) ||
+                                       winEl.querySelector('.widget-editor-textarea');
+                            if (ta) ta.value = outputText;
                         }
                     }
                 });
