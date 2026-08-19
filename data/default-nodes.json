@@ -1188,7 +1188,7 @@
     "category": "logic",
     "color": "#ec4899",
     "defaultWidth": 560,
-    "defaultHeight": 680,
+    "defaultHeight": 780,
     "isDefault": true,
     "promptForName": true,
     "promptForDesc": false,
@@ -1210,6 +1210,15 @@
         "rows": 2,
         "defaultVal": "서로 은근히 기싸움을 벌이며 팽팽한 텐션을 유지할 것. 상대의 대사에 따른 표정/시선/손동작의 미세한 변화를 구체적으로 지문에 담고, 겉 대사와 다른 본심/속마음을 독백으로 솔직하게 드러낼 것.",
         "placeholder": "추가 연출 지시사항 및 씬 분위기 요구사항 (비워둘 시 표준 연출 적용)"
+      },
+      {
+        "id": "w_script_format_template",
+        "type": "input_text",
+        "label": "📋 대본 출력 양식 & 프롬프트 템플릿 (선택)",
+        "key": "script_format_template",
+        "rows": 5,
+        "defaultVal": "[턴별 기본 출력 양식]\n{{speaker}}:\n(행동 및 표정: 상대의 말에 대한 제스처, 표정, 시선 처리 - 특이사항 없으면 생략 가능)\n[속마음: 겉 대사와 다른 내면의 진짜 심리와 의도 - 특이사항 없으면 생략 가능]\n\"{{speaker}}의 고유 말투가 100% 반영된 실제 발화 대사\"",
+        "placeholder": "AI 에이전트들이 따를 턴별 대본 출력 양식을 직접 수정할 수 있습니다."
       },
       {
         "id": "w_script_editor",
