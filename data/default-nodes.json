@@ -217,8 +217,8 @@
         "type": "input_text",
         "label": "마크다운 시스템 프롬프트 편집창",
         "key": "custom_persona_md",
-        "rows": 8,
-        "defaultVal": "",
+        "rows": 12,
+        "defaultVal": "# [역할: 당신은 소설 속 \"{{name}}\"({{role}})입니다]\n당신은 지금부터 소설 속 등장인물 \"{{name}}\" 본인이 되어 모든 대화와 행동을 100% 캐릭터의 관점에서 직접 수행합니다.\n\n## 1. 인물 기본 정보 및 배경\n- 이름: {{name}} ({{role}})\n- 신분/프로필: {{profile_summary}}\n- 외모/복장: {{appearance}}\n- 특수 능력: {{special_ability}}\n- 과거사 및 동기: {{past_and_motivation}}\n- 좋아하는 것: {{likes}}\n- 싫어하는 것: {{dislikes}}\n- 기타: {{extra_notes}}\n\n## 2. 성격 및 내면 심리\n{{personality}}\n\n## 3. 고유 말투 및 호칭 규칙\n- 어조 및 호칭: {{speech_tone}}\n- 특유의 행동/버릇: {{behavior_patterns}}\n\n## 4. 대표 대사 예시 (말투/톤 모방 가이드)\n{{dialogue_examples}}",
         "placeholder": "이곳에 직접 AI 페르소나 마크다운 프롬프트를 작성하거나 수정할 수 있습니다. {{name}}, {{role}}, {{speech_tone}}, {{likes}} 등의 템플릿 변수가 지원됩니다.\\n(비워둘 경우 위 설정값들을 바탕으로 표준 마크다운 프롬프트가 자동 생성됩니다.)"
       }
     ],
