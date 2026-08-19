@@ -66,7 +66,7 @@
     "category": "character",
     "color": "#8b5cf6",
     "defaultWidth": 540,
-    "defaultHeight": 980,
+    "defaultHeight": 840,
     "isDefault": true,
     "promptForName": true,
     "promptForDesc": false,
@@ -80,31 +80,22 @@
         "desc": "기본 프로필 및 배경"
       },
       {
-        "id": "w_name",
+        "id": "w_name_role",
         "type": "input_text",
-        "label": "캐릭터 이름",
-        "key": "name",
+        "label": "캐릭터 이름 / 역할 (/ 로 구분)",
+        "key": "name_role",
         "rows": 1,
         "defaultVal": "",
-        "placeholder": "이름을 입력하세요 (예: 카일, 실비아)"
-      },
-      {
-        "id": "w_role",
-        "type": "input_text",
-        "label": "역할 / 포지션",
-        "key": "role",
-        "rows": 1,
-        "defaultVal": "",
-        "placeholder": "역할 및 포지션 (예: 주인공, 히로인, 메인 악역, 조력자, 스승 등)"
+        "placeholder": "이름 / 역할 및 포지션 (예: 카일 / 주인공 (전직 기사단장, 현재 떠돌이 상인))"
       },
       {
         "id": "w_profile",
         "type": "input_text",
-        "label": "기본 인적사항 & 신분",
+        "label": "기본 인적사항 & 신분 (/ 로 구분 가능)",
         "key": "profile_summary",
         "rows": 2,
         "defaultVal": "",
-        "placeholder": "나이, 성별, 종족, 출신 및 신분 (예: 29세 / 남성 / 인간 / 전 아스트라 기사단장, 현재 떠돌이 상인)"
+        "placeholder": "나이 / 성별 / 종족 / 출신 및 신분 (예: 29세 / 남성 / 인간 / 전 아스트라 기사단장, 현재 떠돌이 상인)"
       },
       {
         "id": "w_appearance",
@@ -125,22 +116,13 @@
         "placeholder": "전투력, 마법, 기술, 직업적 특기 (예: 황실식 마도전투술 완성자, 마도구/던전 지식 최고 수준)"
       },
       {
-        "id": "w_likes",
+        "id": "w_preferences",
         "type": "input_text",
-        "label": "좋아하는 것",
-        "key": "likes",
+        "label": "호불호 (좋아하는 것 / 싫어하는 것)",
+        "key": "preferences",
         "rows": 2,
         "defaultVal": "",
-        "placeholder": "좋아하는 대상, 기호, 취미 (예: 돈 버는 일, 희귀한 마도구, 맛있는 음식, 따뜻한 차, 의리)"
-      },
-      {
-        "id": "w_dislikes",
-        "type": "input_text",
-        "label": "싫어하는 것",
-        "key": "dislikes",
-        "rows": 2,
-        "defaultVal": "",
-        "placeholder": "싫어하는 대상, 혐오, 금기 (예: 권력을 위해 사람을 희생시키는 자, 배신, 피 냄새, 위선적인 성직자)"
+        "placeholder": "좋아하는 것 / 싫어하는 것 (예: 돈 버는 일, 맛있는 음식, 따뜻한 차 / 배신, 무고한 희생, 피 냄새)"
       },
       {
         "id": "w_past_motivation",
@@ -150,6 +132,15 @@
         "rows": 3,
         "defaultVal": "",
         "placeholder": "과거 핵심 사건, 트라우마, 목표/행동 동기 (예: 황실 음모에 반발해 탈출. 과거 빼앗은 목숨만큼 사람들을 구하며 속죄하고자 함)"
+      },
+      {
+        "id": "w_extra_notes",
+        "type": "input_text",
+        "label": "기타 설정 및 특이사항",
+        "key": "extra_notes",
+        "rows": 2,
+        "defaultVal": "",
+        "placeholder": "기타 소지품, 알레르기, 특수 제약, 인간관계 등 추가 메모..."
       },
       {
         "id": "sec_persona",
@@ -171,7 +162,7 @@
       {
         "id": "w_dialogue_ex",
         "type": "input_text",
-        "label": "대표 대사 예시 (줄바꿈 구분)",
+        "label": "대표 대사 예시 (줄바꿈으로 구분)",
         "key": "dialogue_examples",
         "rows": 4,
         "defaultVal": "",
@@ -196,15 +187,6 @@
         "placeholder": "무의식적인 습관, 위기/전투 시 행동 양식 (예: 생각할 때 동전을 굴림. 사람을 만나면 손과 시선으로 실력 가늠. 위기 시 농담으로 분위기 전환)"
       },
       {
-        "id": "w_extra_notes",
-        "type": "input_text",
-        "label": "기타 설정 및 특이사항",
-        "key": "extra_notes",
-        "rows": 3,
-        "defaultVal": "",
-        "placeholder": "기타 소지품, 알레르기, 특수 제약, 인간관계 등 추가 메모..."
-      },
-      {
         "id": "sec_custom_md",
         "type": "section_header",
         "label": "AI 페르소나 마크다운 직접 편집",
@@ -219,7 +201,7 @@
         "key": "custom_persona_md",
         "rows": 12,
         "defaultVal": "# [역할: 당신은 소설 속 \"{{name}}\"({{role}})입니다]\n당신은 지금부터 소설 속 등장인물 \"{{name}}\" 본인이 되어 모든 대화와 행동을 100% 캐릭터의 관점에서 직접 수행합니다.\n\n## 1. 인물 기본 정보 및 배경\n- 이름: {{name}} ({{role}})\n- 신분/프로필: {{profile_summary}}\n- 외모/복장: {{appearance}}\n- 특수 능력: {{special_ability}}\n- 과거사 및 동기: {{past_and_motivation}}\n- 좋아하는 것: {{likes}}\n- 싫어하는 것: {{dislikes}}\n- 기타: {{extra_notes}}\n\n## 2. 성격 및 내면 심리\n{{personality}}\n\n## 3. 고유 말투 및 호칭 규칙\n- 어조 및 호칭: {{speech_tone}}\n- 특유의 행동/버릇: {{behavior_patterns}}\n\n## 4. 대표 대사 예시 (말투/톤 모방 가이드)\n{{dialogue_examples}}",
-        "placeholder": "이곳에 직접 AI 페르소나 마크다운 프롬프트를 작성하거나 수정할 수 있습니다. {{name}}, {{role}}, {{speech_tone}}, {{likes}} 등의 템플릿 변수가 지원됩니다.\\n(비워둘 경우 위 설정값들을 바탕으로 표준 마크다운 프롬프트가 자동 생성됩니다.)"
+        "placeholder": "이곳에 직접 AI 페르소나 마크다운 프롬프트를 작성하거나 수정할 수 있습니다. {{name}}, {{role}}, {{speech_tone}}, {{likes}} 등의 템플릿 변수가 지원됩니다."
       }
     ],
     "portsConfig": {
@@ -232,7 +214,7 @@
         }
       ]
     },
-    "code": "const dialogueList = (input.dialogue_examples || '').split('\\n').map(s => s.trim()).filter(Boolean);\nconst habitList = (input.behavior_patterns || '').split('\\n').map(s => s.trim()).filter(Boolean);\nconst likesList = (input.likes || '').split('\\n').map(s => s.trim()).filter(Boolean);\nconst dislikesList = (input.dislikes || '').split('\\n').map(s => s.trim()).filter(Boolean);\n\nconst loreJson = {\n  name: input.name || '미정',\n  role: input.role || '등장인물',\n  profile: input.profile_summary || '',\n  appearance: input.appearance || '',\n  special_ability: input.special_ability || '',\n  preferences: {\n    likes: likesList,\n    dislikes: dislikesList\n  },\n  past_background_and_motivation: input.past_and_motivation || '',\n  speech_style: {\n    tone: input.speech_tone || '',\n    examples: dialogueList\n  },\n  personality: { description: input.personality || '' },\n  behavior_patterns: { common_habits: habitList },\n  extra_notes: input.extra_notes || ''\n};\n\nconst vars = {\n  name: input.name || '미정',\n  role: input.role || '등장인물',\n  profile_summary: input.profile_summary || '',\n  profile: input.profile_summary || '',\n  appearance: input.appearance || '',\n  special_ability: input.special_ability || '',\n  likes: likesList.join(', '),\n  dislikes: dislikesList.join(', '),\n  past_and_motivation: input.past_and_motivation || '',\n  speech_tone: input.speech_tone || '',\n  dialogue_examples: dialogueList.map(d => '- ' + d).join('\\n'),\n  personality: input.personality || '',\n  behavior_patterns: habitList.join(', '),\n  extra_notes: input.extra_notes || ''\n};\n\nfunction renderTemplate(tpl, data) {\n  return tpl.replace(/\\{\\{\\s*(\\w+)\\s*\\}\\}|\\{\\s*(\\w+)\\s*\\}/g, (match, p1, p2) => {\n    const k = p1 || p2;\n    return data[k] !== undefined ? data[k] : match;\n  });\n}\n\nlet rawTemplate = (input.custom_persona_md || '').trim();\n\nif (!rawTemplate) {\n  rawTemplate = `# [역할: 당신은 소설 속 '${input.name || '인물'}'(${input.role || '등장인물'})입니다]\n당신은 지금부터 소설 속 등장인물 '${input.name || '인물'}' 본인이 되어 모든 대화와 행동을 100% 캐릭터의 관점에서 직접 수행합니다.\n\n## 1. 인물 기본 정보 및 배경\n- 이름: {{name}} ({{role}})\n- 신분/프로필: {{profile_summary}}\n- 외모/복장: {{appearance}}\n- 특수 능력: {{special_ability}}\n- 과거사 및 동기: {{past_and_motivation}}\n- 좋아하는 것: {{likes}}\n- 싫어하는 것: {{dislikes}}\n- 기타: {{extra_notes}}\n\n## 2. 성격 및 내면 심리\n{{personality}}\n\n## 3. 고유 말투 및 호칭 규칙\n- 어조 및 호칭: {{speech_tone}}\n- 특유의 행동/버릇: {{behavior_patterns}}\n\n## 4. 대표 대사 예시 (말투/톤 모방 가이드)\n{{dialogue_examples}}`;\n}\n\nconst personaMd = renderTemplate(rawTemplate, vars);\n\nreturn {\n  '등장인물 데이터': {\n    lore: loreJson,\n    persona_md: personaMd,\n    list: [loreJson, personaMd]\n  }\n};"
+    "code": "const nameRoleRaw = input.name_role || input.name || '';\nlet charName = '';\nlet charRole = '';\nif (nameRoleRaw.includes('/')) {\n  const parts = nameRoleRaw.split('/');\n  charName = parts[0].trim();\n  charRole = parts.slice(1).join('/').trim();\n} else {\n  charName = nameRoleRaw.trim();\n  charRole = (input.role || '').trim();\n}\ncharName = charName || '미정';\ncharRole = charRole || '등장인물';\n\nconst prefRaw = input.preferences || '';\nlet likesRaw = input.likes || '';\nlet dislikesRaw = input.dislikes || '';\nif (prefRaw.includes('/')) {\n  const parts = prefRaw.split('/');\n  likesRaw = parts[0].trim();\n  dislikesRaw = parts.slice(1).join('/').trim();\n} else if (prefRaw) {\n  likesRaw = prefRaw.trim();\n}\nconst likesList = likesRaw.split(/[\\n,]+/).map(s => s.trim()).filter(Boolean);\nconst dislikesList = dislikesRaw.split(/[\\n,]+/).map(s => s.trim()).filter(Boolean);\n\nconst dialogueList = (input.dialogue_examples || '').split('\\n').map(s => s.trim()).filter(Boolean);\nconst habitList = (input.behavior_patterns || '').split('\\n').map(s => s.trim()).filter(Boolean);\n\nconst loreJson = {\n  name: charName,\n  role: charRole,\n  profile: input.profile_summary || '',\n  appearance: input.appearance || '',\n  special_ability: input.special_ability || '',\n  preferences: {\n    likes: likesList,\n    dislikes: dislikesList\n  },\n  past_background_and_motivation: input.past_and_motivation || '',\n  speech_style: {\n    tone: input.speech_tone || '',\n    examples: dialogueList\n  },\n  personality: { description: input.personality || '' },\n  behavior_patterns: { common_habits: habitList },\n  extra_notes: input.extra_notes || ''\n};\n\nconst vars = {\n  name: charName,\n  role: charRole,\n  profile_summary: input.profile_summary || '',\n  profile: input.profile_summary || '',\n  appearance: input.appearance || '',\n  special_ability: input.special_ability || '',\n  likes: likesList.join(', ') || likesRaw,\n  dislikes: dislikesList.join(', ') || dislikesRaw,\n  past_and_motivation: input.past_and_motivation || '',\n  speech_tone: input.speech_tone || '',\n  dialogue_examples: dialogueList.map(d => '- ' + d).join('\\n'),\n  personality: input.personality || '',\n  behavior_patterns: habitList.join(', '),\n  extra_notes: input.extra_notes || ''\n};\n\nfunction renderTemplate(tpl, data) {\n  return tpl.replace(/\\{\\{\\s*(\\w+)\\s*\\}\\}|\\{\\s*(\\w+)\\s*\\}/g, (match, p1, p2) => {\n    const k = p1 || p2;\n    return data[k] !== undefined ? data[k] : match;\n  });\n}\n\nlet rawTemplate = (input.custom_persona_md || '').trim();\n\nif (!rawTemplate) {\n  rawTemplate = `# [역할: 당신은 소설 속 \"${charName}\"(${charRole})입니다]\n당신은 지금부터 소설 속 등장인물 \"${charName}\" 본인이 되어 모든 대화와 행동을 100% 캐릭터의 관점에서 직접 수행합니다.\n\n## 1. 인물 기본 정보 및 배경\n- 이름: {{name}} ({{role}})\n- 신분/프로필: {{profile_summary}}\n- 외모/복장: {{appearance}}\n- 특수 능력: {{special_ability}}\n- 과거사 및 동기: {{past_and_motivation}}\n- 좋아하는 것: {{likes}}\n- 싫어하는 것: {{dislikes}}\n- 기타: {{extra_notes}}\n\n## 2. 성격 및 내면 심리\n{{personality}}\n\n## 3. 고유 말투 및 호칭 규칙\n- 어조 및 호칭: {{speech_tone}}\n- 특유의 행동/버릇: {{behavior_patterns}}\n\n## 4. 대표 대사 예시 (말투/톤 모방 가이드)\n{{dialogue_examples}}`;\n}\n\nconst personaMd = renderTemplate(rawTemplate, vars);\n\nreturn {\n  '등장인물 데이터': {\n    lore: loreJson,\n    persona_md: personaMd,\n    list: [loreJson, personaMd]\n  }\n};"
   },
   {
     "schemaVersion": "2.0",
