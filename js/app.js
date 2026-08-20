@@ -100,6 +100,12 @@ async function initProjectSession(projectId) {
             console.log(`[AppInitializer] 🎨 4. 원고 위젯 글자색/배경색 최종 동기화 완료`);
         }
 
+        // 5. 회차 관리자 동기화 (현재 작업 회차 및 타임라인 이력)
+        if (window.episodeManager) {
+            await window.episodeManager.loadProjectEpisode(projectId);
+            console.log(`[AppInitializer] 📖 5. 프로젝트 회차 정보 로드 완료`);
+        }
+
         console.log(`[AppInitializer] ✅ 프로젝트 세션 통합 초기화 완수!`);
     } catch (err) {
         console.error(`[AppInitializer] ❌ 프로젝트 세션 초기화 중 오류 발생:`, err);
@@ -139,20 +145,6 @@ document.addEventListener('click', (e) => {
     if (backBtn) {
         e.preventDefault();
         goBackToProjects();
-    }
-
-    const zenBtn = e.target.closest('#zenModeBtn');
-    if (zenBtn) {
-        e.preventDefault();
-        document.body.classList.toggle('zen-mode');
-        
-        const isZen = document.body.classList.contains('zen-mode');
-        zenBtn.innerHTML = isZen ? '🧘 몰입 중...' : '🧘 몰입 모드';
-        
-        // 몰입 모드 진입 시 현재 활성 창이 있다면 중앙으로 이동 (선택 사항)
-        if (isZen && window.windowManager && window.windowManager.activeWindowId) {
-            window.windowManager.moveWindowToViewCenter(window.windowManager.activeWindowId);
-        }
     }
 });
 

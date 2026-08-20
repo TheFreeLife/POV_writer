@@ -14,6 +14,8 @@ class NodeModel {
         this.description = fileData.description || '';
         this.windowState = fileData.windowState || { x: 100, y: 100, width: 440, height: 360, collapsed: false, zIndex: 10 };
         this.icon = fileData.icon || '📄';
+        this.createdAt = fileData.createdAt || Date.now();
+        this.updatedAt = fileData.updatedAt || Date.now();
     }
 
     /** 위젯 입력 데이터 객체 반환 */
@@ -41,7 +43,9 @@ class NodeModel {
             portsConfig: this.portsConfig,
             description: this.description,
             windowState: this.windowState,
-            icon: this.icon
+            icon: this.icon,
+            createdAt: this.createdAt,
+            updatedAt: this.updatedAt
         };
     }
 }

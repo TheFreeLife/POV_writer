@@ -111,6 +111,127 @@
     color: var(--color-text-tertiary);
 }
 
+/* 회차 조절 및 이력 버튼 스타일 */
+.episode-control-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--color-bg-secondary);
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    padding: 2px 4px;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.episode-control-wrapper:hover {
+    border-color: rgba(0, 255, 204, 0.4);
+}
+
+.episode-stepper {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+}
+
+.episode-step-btn {
+    background: transparent;
+    border: none;
+    color: var(--color-text-secondary);
+    width: 22px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: all 0.15s ease;
+}
+
+.episode-step-btn:hover {
+    background: var(--color-surface-hover);
+    color: #00ffcc;
+}
+
+.episode-step-btn:active {
+    transform: scale(0.92);
+}
+
+.episode-display-box {
+    display: flex;
+    align-items: center;
+    padding: 0 4px;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--color-text-primary);
+}
+
+.episode-label {
+    font-size: 11px;
+    color: var(--color-text-tertiary);
+    margin-right: 3px;
+    font-weight: normal;
+}
+
+.episode-number-input {
+    width: 44px;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    color: #00ffcc;
+    font-size: 14px;
+    font-weight: 800;
+    text-align: center;
+    padding: 2px 0;
+    font-family: inherit;
+    -moz-appearance: textfield;
+}
+
+.episode-number-input::-webkit-outer-spin-button,
+.episode-number-input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+.episode-number-input:hover {
+    background: var(--color-surface-hover);
+}
+
+.episode-number-input:focus {
+    background: var(--color-bg-primary);
+    border-color: #00ffcc;
+    outline: none;
+    box-shadow: 0 0 6px rgba(0, 255, 204, 0.3);
+}
+
+.episode-unit {
+    font-size: 11px;
+    color: var(--color-text-tertiary);
+    margin-left: 2px;
+    font-weight: normal;
+}
+
+.episode-history-btn {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: var(--color-text-secondary);
+    font-size: 11px;
+    font-weight: 600;
+    padding: 3px 8px;
+    border-radius: 6px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    transition: all 0.2s ease;
+}
+
+.episode-history-btn:hover {
+    background: rgba(0, 255, 204, 0.15);
+    color: #00ffcc;
+    border-color: rgba(0, 255, 204, 0.4);
+}
+
 .auto-save-indicator {
     font-size: 12px;
     color: var(--color-accent-success);
@@ -950,6 +1071,12 @@
     display: flex;
     align-items: center;
     gap: 4px;
+}
+
+.stat-item.stat-created-date {
+    color: var(--color-text-secondary);
+    font-size: 11px;
+    margin-right: 4px;
 }
 
 .stat-item.total {

@@ -93,6 +93,20 @@
           <span>프로젝트</span>
         </button>
         <div class="editor-header-title" id="currentProjectName">프로젝트 이름</div>
+
+        <!-- 현재 회차 조절 및 이력 버튼 -->
+        <div class="episode-control-wrapper" id="episodeControlWrapper" title="현재 작업 중인 회차 조절">
+          <div class="episode-stepper">
+            <button class="episode-step-btn" id="episodePrevBtn" title="이전 회차 (1화 감소)">◀</button>
+            <div class="episode-display-box">
+              <span class="episode-label">제</span>
+              <input type="number" id="currentEpisodeInput" class="episode-number-input" min="1" max="9999" value="1" title="클릭하여 직접 회차 번호를 입력할 수 있습니다">
+              <span class="episode-unit">화</span>
+            </div>
+            <button class="episode-step-btn" id="episodeNextBtn" title="다음 회차 (1화 증가)">▶</button>
+          </div>
+          <button class="episode-history-btn" id="episodeHistoryBtn" title="회차 변경 일시 및 진행 타임라인 확인">🕒 회차 기록</button>
+        </div>
       </div>
       <div class="flex gap-md items-center">
         <span id="autoSaveIndicator" class="auto-save-indicator"></span>
@@ -130,9 +144,6 @@
             </label>
           </div>
         </div>
-
-        <button class="btn btn-secondary" id="zenModeBtn" title="몰입 모드 (사이드바 숨기기)">🧘 몰입 모드</button>
-        <button class="btn btn-secondary" id="saveBtn">💾 저장</button>
       </div>
     </header>
 
@@ -1256,6 +1267,39 @@ return { 총합, 랭크 };</pre>
     </div>
   </div>
 
+  <!-- 회차 변경 이력 및 타임라인 모달 -->
+  <div id="episodeHistoryModal" class="modal-overlay hidden">
+    <div class="modal" style="max-width: 560px; position: relative;">
+      <div class="modal-header"
+        style="border-bottom: 1px solid var(--color-border); padding-bottom: 15px; margin-bottom: 15px;">
+        <h2 class="modal-title" style="font-size: 18px; font-weight: 700; display: flex; align-items: center; gap: 8px;">
+          <span>🕒</span> 회차 진행 이력 타임라인
+        </h2>
+        <button id="closeEpisodeHistoryModalBtn"
+          style="position: absolute; top: 12px; right: 12px; width: 30px; height: 32px; display: flex; align-items: center; justify-content: center; background: transparent; border: none; font-size: 20px; color: var(--color-text-tertiary); cursor: pointer; transition: color 0.2s; opacity: 0.6; line-height: 1;">✕</button>
+      </div>
+      <div class="modal-body" style="max-height: 460px; overflow-y: auto; padding-right: 4px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; padding: 12px 16px; background: var(--color-bg-primary); border-radius: 8px; border: 1px solid var(--color-border);">
+          <div>
+            <div style="font-size: 11px; color: var(--color-text-tertiary); margin-bottom: 2px;">현재 작업 중인 회차</div>
+            <div style="font-size: 18px; font-weight: 800; color: #00ffcc;" id="modalCurrentEpisodeText">제 1화</div>
+          </div>
+          <div style="font-size: 12px; color: var(--color-text-secondary); text-align: right;" id="modalTotalEpisodeCount">
+            총 1개 기록
+          </div>
+        </div>
+
+        <div id="episodeTimelineList" style="display: flex; flex-direction: column; gap: 8px;">
+          <!-- 타임라인 아이템들이 동적으로 렌더링됩니다 -->
+        </div>
+      </div>
+      <div class="modal-footer" style="display: flex; justify-content: space-between; align-items: center; margin-top: 15px; padding-top: 15px; border-top: 1px solid var(--color-border);">
+        <button class="btn btn-secondary" id="clearEpisodeHistoryBtn" style="font-size: 11px; color: var(--color-accent-danger); border-color: rgba(248,81,73,0.3);">🗑️ 이력 초기화</button>
+        <button class="btn btn-primary" id="closeEpisodeHistoryModalBtn2">닫기</button>
+      </div>
+    </div>
+  </div>
+
   <!-- JavaScript 모듈 -->
   <script src="js/ai-api.js"></script>
   <script src="js/storage.js"></script>
@@ -1266,6 +1310,7 @@ return { 총합, 랭크 };</pre>
   <script src="js/node-manager.js"></script>
   <script src="js/window-manager.js"></script>
   <script src="js/node-engine.js"></script>
+  <script src="js/episode-manager.js"></script>
 
   <script src="js/project-manager.js"></script>
   <script src="js/tools-panel.js"></script>

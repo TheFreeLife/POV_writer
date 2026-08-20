@@ -121,11 +121,6 @@ class WindowManager {
             }
         });
 
-        // 상단 헤더 저장 버튼
-        document.getElementById('saveBtn')?.addEventListener('click', () => {
-            this.saveActiveWindow();
-        });
-
         // 캔버스 그룹 영역 추가 버튼
         document.getElementById('addCanvasRegionBtn')?.addEventListener('click', () => {
             this.addCanvasRegion();
@@ -1111,10 +1106,14 @@ class WindowManager {
             win.style.boxShadow = `0 4px 20px rgba(0,0,0,0.3), 0 0 12px ${accentColor}44`;
         }
 
+        const createdDate = new Date(file.createdAt || Date.now());
+        const formattedDate = `${createdDate.getFullYear()}.${String(createdDate.getMonth() + 1).padStart(2, '0')}.${String(createdDate.getDate()).padStart(2, '0')}`;
+        const fullDateTime = createdDate.toLocaleString('ko-KR');
+
         win.innerHTML = `
             <div class="node-ports-wrapper-left">${inputsHtml}</div>
             <div class="node-ports-wrapper-right">${outputsHtml}</div>
-            <div class="window-titlebar" data-file-id="${file.id}" style="${accentColor ? `border-top: 4px solid ${accentColor}; background: linear-gradient(180deg, ${accentColor}25 0%, ${accentColor}08 80%, var(--color-surface-2) 100%);` : ''}">
+            <div class="window-titlebar" data-file-id="${file.id}" title="생성일: ${fullDateTime}" style="${accentColor ? `border-top: 4px solid ${accentColor}; background: linear-gradient(180deg, ${accentColor}25 0%, ${accentColor}08 80%, var(--color-surface-2) 100%);` : ''}">
                 <div class="window-titlebar-left">
                     ${iconHtml}
                     <span class="window-titlebar-name">${this.escapeHtml(parsed.cleanName)}</span>
@@ -1133,6 +1132,7 @@ class WindowManager {
             ${!isImage ? `
             <div class="window-statusbar">
                 <div class="window-status-left" data-stats="${file.id}">
+                    <span class="stat-item stat-created-date" title="생성일시: ${fullDateTime}" style="cursor:help; opacity:0.8; font-size:11px;">📅 ${formattedDate}</span>
                     <span class="stat-item total">0자</span>
                     <span class="stat-item nospace">(공백제외 0)</span>
                     <span class="stat-item sentences">0문장</span>
@@ -1143,7 +1143,16 @@ class WindowManager {
                     <span class="window-status-saved" data-saved="${file.id}"></span>
                 </div>
             </div>
-            ` : ''}
+            ` : `
+            <div class="window-statusbar">
+                <div class="window-status-left">
+                    <span class="stat-item stat-created-date" title="생성일시: ${fullDateTime}" style="cursor:help; opacity:0.8; font-size:11px;">📅 ${formattedDate}</span>
+                </div>
+                <div class="window-status-right">
+                    <span class="window-status-saved" data-saved="${file.id}"></span>
+                </div>
+            </div>
+            `}
             <div class="window-edge edge-n" data-dir="n"></div>
             <div class="window-edge edge-s" data-dir="s"></div>
             <div class="window-edge edge-e" data-dir="e"></div>
@@ -1209,7 +1218,7 @@ class WindowManager {
      */
     updateHighlighter(fileId) {
         const info = this.windows.get(fileId);
-        if (!info || !info.backdrop) return;
+        if (!info || !info.backdrop || !info.textarea) return;
 
         let text = info.textarea.value;
         if (!text) {
@@ -2761,7 +2770,7 @@ class WindowManager {
         for (let i = 0; i < fileIds.length; i++) {
             const info = this.windows.get(fileIds[i]);
             if (info) {
-                let content = info.textarea.value;
+                let content = info.textarea ? info.textarea.value : (info.file?.content || '');
                 if (i === 0) content = content.trimStart();
                 
                 mergedContent += content;
@@ -2815,7 +2824,7 @@ class WindowManager {
     getActiveText() {
         if (!this.activeWindowId) return '';
         const info = this.windows.get(this.activeWindowId);
-        return info ? info.textarea.value : '';
+        return info ? (info.textarea ? info.textarea.value : (info.file?.content || '')) : '';
     }
 
     /**
@@ -3121,10 +3130,11 @@ class WindowManager {
                 item.className = 'version-item';
                 item.style.cssText = 'display:flex; justify-content:space-between; align-items:center; padding:12px; background:var(--color-surface-2); border:1px solid var(--color-border); border-radius:8px; margin-bottom:4px; transition:all 0.2s;';
                 
+                const charCount = typeof v.content === 'string' ? v.content.length : JSON.stringify(v.content || '').length;
                 item.innerHTML = `
                     <div style="flex:1;">
                         <div style="font-size:13px; font-weight:600; color:var(--color-text-primary); margin-bottom:2px;">${this.escapeHtml(v.name)}</div>
-                        <div style="font-size:11px; color:var(--color-text-tertiary);">${new Date(v.createdAt).toLocaleString()} (${v.content.length}자)</div>
+                        <div style="font-size:11px; color:var(--color-text-tertiary);">${new Date(v.createdAt).toLocaleString()} (${charCount}자)</div>
                     </div>
                     <div style="display:flex; gap:6px;">
                         <button class="btn btn-secondary" data-action="restore" style="padding:4px 8px; font-size:11px; height:28px;">되돌리기</button>
@@ -3146,7 +3156,7 @@ class WindowManager {
         const info = this.windows.get(fileId);
         if (!info) return;
 
-        const content = info.textarea.value;
+        const content = info.textarea ? info.textarea.value : (info.file?.content || '');
         const name = prompt('스냅샷 이름을 입력하세요 (비워두면 현재 시간으로 저장):');
         if (name === null) return; // 취소
 
@@ -3164,11 +3174,24 @@ class WindowManager {
         if (!confirm(`"${version.name}" 버전으로 본문을 되돌릴까요?\n(현재 작성 중인 내용은 사라지므로 미리 스냅샷을 저장하는 것을 추천합니다.)`)) return;
 
         const info = this.windows.get(fileId);
-        if (!info || !info.textarea) return;
+        if (!info) return;
 
-        info.textarea.value = version.content;
-        this.onTextChange(fileId, version.content);
-        this.updateHighlighter(fileId);
+        if (info.textarea) {
+            info.textarea.value = version.content;
+            this.onTextChange(fileId, version.content);
+            this.updateHighlighter(fileId);
+        } else {
+            // 커스텀 위젯/설정 기반 노드인 경우
+            info.file.content = version.content;
+            await storage.updateFile(fileId, { content: version.content });
+            const container = info.element?.querySelector('.custom-node-body') || info.element?.querySelector('.window-body');
+            if (container) {
+                const existingWrapper = container.querySelector('.custom-node-widgets-wrapper');
+                if (existingWrapper) existingWrapper.remove();
+            }
+            this.refreshNodeUI(fileId);
+            this.notifyNodeChanged(fileId, 'contentChange');
+        }
         
         document.getElementById('versionModal').classList.add('hidden');
         window.showToast?.('선택한 버전으로 복구되었습니다.');
