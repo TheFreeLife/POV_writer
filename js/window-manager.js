@@ -136,9 +136,11 @@ class WindowManager {
         document.getElementById('cancelMergeBtn')?.addEventListener('click', () => this.hideMergeModal());
         document.getElementById('confirmMergeBtn')?.addEventListener('click', () => this.confirmMerge());
 
-        // 버전 히스토리 모달 버튼
-        document.getElementById('closeVersionModal')?.addEventListener('click', () => document.getElementById('versionModal').classList.add('hidden'));
-        document.getElementById('cancelVersionBtn')?.addEventListener('click', () => document.getElementById('versionModal').classList.add('hidden'));
+        // 노드 타임라인 모달 버튼
+        document.getElementById('closeNodeTimelineModal')?.addEventListener('click', () => this.hideNodeTimelineModal());
+        document.getElementById('closeNodeTimelineModal2')?.addEventListener('click', () => this.hideNodeTimelineModal());
+        document.getElementById('closeVersionModal')?.addEventListener('click', () => this.hideNodeTimelineModal());
+        document.getElementById('cancelVersionBtn')?.addEventListener('click', () => this.hideNodeTimelineModal());
 
         // 노드 핀/포트 수정 모달 버튼
         document.getElementById('closeNodePortEditModal')?.addEventListener('click', () => this.hideNodePortEditModal());
@@ -1139,7 +1141,7 @@ class WindowManager {
                     <span class="stat-item paragraphs">0단락</span>
                 </div>
                 <div class="window-status-right">
-                    <button class="window-status-btn" data-action="version" title="버전 관리(스냅샷)" style="background:transparent; border:none; color:inherit; cursor:pointer; font-size:12px; padding:0 4px; opacity:0.7;">🕒</button>
+                    <button class="window-status-btn" data-action="timeline" title="노드 타임라인" style="background:transparent; border:none; color:inherit; cursor:pointer; font-size:12px; padding:0 4px; opacity:0.7;">⏳</button>
                     <span class="window-status-saved" data-saved="${file.id}"></span>
                 </div>
             </div>
@@ -1149,6 +1151,7 @@ class WindowManager {
                     <span class="stat-item stat-created-date" title="생성일시: ${fullDateTime}" style="cursor:help; opacity:0.8; font-size:11px;">📅 ${formattedDate}</span>
                 </div>
                 <div class="window-status-right">
+                    <button class="window-status-btn" data-action="timeline" title="노드 타임라인" style="background:transparent; border:none; color:inherit; cursor:pointer; font-size:12px; padding:0 4px; opacity:0.7;">⏳</button>
                     <span class="window-status-saved" data-saved="${file.id}"></span>
                 </div>
             </div>
@@ -1349,7 +1352,7 @@ class WindowManager {
             btn.addEventListener('click', (e) => {
                 e.stopPropagation();
                 const action = btn.dataset.action;
-                if (action === 'version') this.showVersionHistory(fileId);
+                if (action === 'timeline' || action === 'version') this.showNodeTimeline(fileId);
             });
         });
 
@@ -3105,85 +3108,542 @@ class WindowManager {
         }
     }
 
+    // ===================================
+    // 노드 타임라인 (Node Timeline) 및 A vs B 비교 시스템
+    // ===================================
+
     /**
-     * 버전 히스토리 표시
+     * 회차 변경 시 프로젝트 내 모든 노드의 현재 상태를 타임라인 체크포인트로 일괄 자동 생성
      */
-    async showVersionHistory(fileId) {
-        const modal = document.getElementById('versionModal');
-        const list = document.getElementById('versionList');
-        const saveBtn = document.getElementById('saveSnapshotBtn');
-        if (!modal || !list) return;
+    async createAutoCheckpointForAllNodes(prevEpisode, newEpisode) {
+        if (!window.currentProjectId || !window.storage) return;
 
-        // 저장 버튼 이벤트 교체
-        const newSaveBtn = saveBtn.cloneNode(true);
-        saveBtn.parentNode.replaceChild(newSaveBtn, saveBtn);
-        newSaveBtn.addEventListener('click', () => this.saveVersionSnapshot(fileId));
+        try {
+            const files = await storage.getProjectFiles(window.currentProjectId);
+            for (const file of files) {
+                if (file.type !== 'file') continue;
+                const info = this.windows.get(file.id);
+                let currentContent = info ? (info.textarea ? info.textarea.value : (info.file?.content || '')) : (file.content || '');
 
-        const versions = await storage.getFileVersions(fileId);
-        list.innerHTML = '';
-
-        if (versions.length === 0) {
-            list.innerHTML = '<div style="text-align:center; padding:20px; color:var(--color-text-tertiary); font-size:13px;">저장된 스냅샷이 없습니다.</div>';
-        } else {
-            versions.forEach(v => {
-                const item = document.createElement('div');
-                item.className = 'version-item';
-                item.style.cssText = 'display:flex; justify-content:space-between; align-items:center; padding:12px; background:var(--color-surface-2); border:1px solid var(--color-border); border-radius:8px; margin-bottom:4px; transition:all 0.2s;';
-                
-                const charCount = typeof v.content === 'string' ? v.content.length : JSON.stringify(v.content || '').length;
-                item.innerHTML = `
-                    <div style="flex:1;">
-                        <div style="font-size:13px; font-weight:600; color:var(--color-text-primary); margin-bottom:2px;">${this.escapeHtml(v.name)}</div>
-                        <div style="font-size:11px; color:var(--color-text-tertiary);">${new Date(v.createdAt).toLocaleString()} (${charCount}자)</div>
-                    </div>
-                    <div style="display:flex; gap:6px;">
-                        <button class="btn btn-secondary" data-action="restore" style="padding:4px 8px; font-size:11px; height:28px;">되돌리기</button>
-                        <button class="btn btn-icon" data-action="delete" style="width:28px; height:28px; font-size:12px; color:var(--color-text-muted);">✕</button>
-                    </div>
-                `;
-
-                item.querySelector('[data-action="restore"]').onclick = () => this.restoreVersion(fileId, v);
-                item.querySelector('[data-action="delete"]').onclick = () => this.deleteVersion(fileId, v.id);
-                
-                list.appendChild(item);
-            });
+                await storage.createVersion({
+                    fileId: file.id,
+                    name: `[제 ${prevEpisode}화 완료 시점]`,
+                    content: currentContent,
+                    memo: `제 ${prevEpisode}화 ➔ 제 ${newEpisode}화 전환 시점 자동 기록`,
+                    episode: prevEpisode,
+                    tag: `제 ${prevEpisode}화`,
+                    triggerType: 'episode_change'
+                });
+            }
+        } catch (err) {
+            console.error('[WindowManager] 회차별 타임라인 자동 체크포인트 생성 실패:', err);
         }
+    }
+
+    /**
+     * 노드 타임라인 모달 표시 (2열 분할 뷰 + A vs B Diff 뷰어)
+     */
+    async showNodeTimeline(fileId) {
+        const modal = document.getElementById('nodeTimelineModal') || document.getElementById('versionModal');
+        if (!modal) return;
+
+        this._currentTimelineFileId = fileId;
+        this._currentTimelineFilter = 'all';
+        this._activeTimelineTab = 'single'; // 'single' | 'compare'
+
+        const info = this.getWindowInfo(fileId);
+        const file = info?.file || await storage.getFile(fileId);
+        const fileName = file ? file.name : '노드';
+
+        const nameEl = document.getElementById('timelineNodeName');
+        if (nameEl) nameEl.textContent = fileName;
+
+        // 탭 버튼 바인딩
+        const tabSingleBtn = document.getElementById('tabSingleViewBtn');
+        const tabCompareBtn = document.getElementById('tabCompareViewBtn');
+        const singleView = document.getElementById('timelineSingleView');
+        const compareView = document.getElementById('timelineCompareView');
+
+        if (tabSingleBtn && tabCompareBtn) {
+            tabSingleBtn.onclick = () => {
+                this._activeTimelineTab = 'single';
+                tabSingleBtn.classList.add('active');
+                tabCompareBtn.classList.remove('active');
+                singleView?.classList.remove('hidden');
+                compareView?.classList.add('hidden');
+            };
+
+            tabCompareBtn.onclick = () => {
+                this._activeTimelineTab = 'compare';
+                tabCompareBtn.classList.add('active');
+                tabSingleBtn.classList.remove('active');
+                compareView?.classList.remove('hidden');
+                singleView?.classList.add('hidden');
+                this.updateTimelineCompareView(fileId);
+            };
+        }
+
+        // 체크포인트 기록 버튼 바인딩
+        const saveBtn = document.getElementById('saveTimelineCheckpointBtn');
+        if (saveBtn) {
+            saveBtn.onclick = () => this.saveTimelineCheckpoint(fileId);
+        }
+
+        // 필터 버튼 바인딩
+        modal.querySelectorAll('.timeline-filter-btn').forEach(btn => {
+            btn.onclick = () => {
+                modal.querySelectorAll('.timeline-filter-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                this._currentTimelineFilter = btn.dataset.filter || 'all';
+                this.renderTimelineCheckpointList(fileId);
+            };
+        });
+
+        // 렌더링 시작
+        await this.renderTimelineCheckpointList(fileId);
 
         modal.classList.remove('hidden');
     }
 
-    async saveVersionSnapshot(fileId) {
+    /** 호환성 유지를 위한 별칭 */
+    async showVersionHistory(fileId) {
+        return this.showNodeTimeline(fileId);
+    }
+
+    hideNodeTimelineModal() {
+        const modal = document.getElementById('nodeTimelineModal') || document.getElementById('versionModal');
+        if (modal) modal.classList.add('hidden');
+    }
+
+    /**
+     * 타임라인 체크포인트 목록 렌더링
+     */
+    async renderTimelineCheckpointList(fileId) {
+        const list = document.getElementById('timelineCheckpointList') || document.getElementById('versionList');
+        if (!list) return;
+
+        const allVersions = await storage.getFileVersions(fileId);
+        this._timelineVersions = allVersions || [];
+
+        // 필터링 적용
+        let filtered = this._timelineVersions;
+        if (this._currentTimelineFilter === 'episode') {
+            filtered = filtered.filter(v => v.triggerType === 'episode_change' || v.episode);
+        } else if (this._currentTimelineFilter === 'manual') {
+            filtered = filtered.filter(v => v.triggerType === 'manual' || !v.triggerType);
+        } else if (this._currentTimelineFilter === 'backup') {
+            filtered = filtered.filter(v => v.triggerType === 'rollback_backup');
+        }
+
+        list.innerHTML = '';
+
+        if (filtered.length === 0) {
+            list.innerHTML = '<div style="text-align:center; padding:30px 10px; color:var(--color-text-tertiary); font-size:12px;">기록된 타임라인 체크포인트가 없습니다.</div>';
+            this.renderTimelineSingleView(null, fileId);
+            return;
+        }
+
+        filtered.forEach((v, idx) => {
+            const item = document.createElement('div');
+            item.className = `timeline-item-card${idx === 0 ? ' selected' : ''}`;
+            item.dataset.checkpointId = v.id;
+
+            const charCount = typeof v.content === 'string' ? v.content.length : JSON.stringify(v.content || '').length;
+            const dateStr = new Date(v.createdAt).toLocaleString('ko-KR', {
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+
+            // 태그 배지 생성
+            let badgeClass = 'manual';
+            let badgeText = '수동 기록';
+            if (v.triggerType === 'episode_change' || v.episode) {
+                badgeClass = 'episode';
+                badgeText = v.tag || `제 ${v.episode || 1}화 완료`;
+            } else if (v.triggerType === 'rollback_backup') {
+                badgeClass = 'backup';
+                badgeText = '복구 전 백업';
+            }
+
+            item.innerHTML = `
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <span class="timeline-tag-badge ${badgeClass}">${this.escapeHtml(badgeText)}</span>
+                    <span style="font-size:10px; color:var(--color-text-tertiary);">${dateStr}</span>
+                </div>
+                <div style="font-size:12px; font-weight:700; color:var(--color-text-primary); margin-top:2px;">
+                    ${this.escapeHtml(v.name)}
+                </div>
+                <div style="display:flex; justify-content:space-between; align-items:center; font-size:11px; color:var(--color-text-secondary); margin-top:2px;">
+                    <span>${charCount.toLocaleString()}자</span>
+                    <button class="btn btn-icon" data-action="delete" title="이 체크포인트 삭제" style="width:22px; height:22px; font-size:11px; color:var(--color-text-muted); opacity:0.6;">✕</button>
+                </div>
+                ${v.memo ? `<div style="font-size:10px; color:var(--color-text-tertiary); background:rgba(0,0,0,0.2); padding:3px 6px; border-radius:4px; margin-top:2px;">📝 ${this.escapeHtml(v.memo)}</div>` : ''}
+            `;
+
+            // 클릭 시 카드 선택 및 우측 단일 뷰 표시
+            item.onclick = (e) => {
+                if (e.target.closest('[data-action="delete"]')) return;
+                list.querySelectorAll('.timeline-item-card').forEach(c => c.classList.remove('selected'));
+                item.classList.add('selected');
+                this.renderTimelineSingleView(v, fileId);
+            };
+
+            // 삭제 버튼
+            const delBtn = item.querySelector('[data-action="delete"]');
+            if (delBtn) {
+                delBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    this.deleteTimelineCheckpoint(fileId, v.id);
+                };
+            }
+
+            list.appendChild(item);
+        });
+
+        // 첫 번째 선택 항목 표시
+        if (filtered.length > 0) {
+            this.renderTimelineSingleView(filtered[0], fileId);
+        }
+
+        // A vs B 비교 뷰 옵션 갱신
+        this.updateTimelineCompareSelects(fileId);
+    }
+
+    /**
+     * 타임라인 및 Diff 뷰어용 사람이 읽기 편한 텍스트 포맷터
+     * (내부 widgets 스키마, scripts, code 등은 제외하고 실제 본문과 토글/입력값만 추출)
+     */
+    formatContentForDisplay(rawContent, file) {
+        if (!rawContent) return '(내용이 없습니다)';
+        if (typeof rawContent === 'string') {
+            try {
+                const parsed = JSON.parse(rawContent);
+                if (typeof parsed === 'object' && parsed !== null) {
+                    return this._formatJsonContentData(parsed, file);
+                }
+                return rawContent;
+            } catch (e) {
+                // 일반 원고 텍스트
+                return rawContent;
+            }
+        } else if (typeof rawContent === 'object' && rawContent !== null) {
+            return this._formatJsonContentData(rawContent, file);
+        }
+        return String(rawContent);
+    }
+
+    _formatJsonContentData(data, file) {
+        if (!data || typeof data !== 'object') return String(data || '');
+
+        const norm = window.nodeEngine?.normalizeNodeData({ ...(file || {}), content: data });
+        const widgets = norm?.widgets || [];
+        const contentData = norm?.contentData || data;
+
+        let sections = [];
+
+        // 1. 주요 원고 텍스트 (editorVal, content, text 등)가 있는 경우 최상단에 배치
+        const mainText = contentData.editorVal || contentData.content || contentData.text || '';
+        if (typeof mainText === 'string' && mainText.trim()) {
+            sections.push(`📝 [원고 본문]:\n${mainText.trim()}`);
+        }
+
+        // 2. 위젯 기반 포맷팅 (토글 ON/OFF, 수치, 선택지, 텍스트 입력값)
+        if (widgets.length > 0) {
+            let widgetLines = [];
+            widgets.forEach(w => {
+                const k = w.key || w.id || w.label;
+                // 원고 본문 및 실행 중 일시적인 제어 게이트(검수 승인/대기 게이트)는 표시에서 제외
+                if (w.type === 'editor_canvas' || k === 'editorVal' || k === 'content') return;
+                if (w.type === 'approval_gate' || w.type === 'continue_gate' || k === 'isApproved') return;
+
+                const val = contentData[k] !== undefined ? contentData[k] :
+                            (w.label && contentData[w.label] !== undefined ? contentData[w.label] : contentData[w.id]);
+
+                const label = w.label || w.name || k;
+                
+                if (w.type === 'toggle_switch' || w.type === 'toggle' || w.type === 'checkbox' || typeof val === 'boolean') {
+                    const isOn = !!val;
+                    widgetLines.push(`  🔘 ${label}: ${isOn ? '🟢 ON (켜짐)' : '⚪ OFF (꺼짐)'}`);
+                } else if (w.type === 'dropdown_select' || w.type === 'choice_select') {
+                    widgetLines.push(`  🔽 ${label}: ${val || '(선택 안 됨)'}`);
+                } else if (w.type === 'image_canvas') {
+                    widgetLines.push(`  🖼️ ${label}: ${val ? '이미지 첨부됨' : '(없음)'}`);
+                } else if (w.type === 'text_viewer' || w.type === 'raw_data_viewer') {
+                    const displayVal = typeof val === 'object' ? JSON.stringify(val, null, 2) : String(val);
+                    widgetLines.push(`  📄 ${label}: ${displayVal}`);
+                } else if (val !== undefined && val !== null && val !== '') {
+                    const displayVal = typeof val === 'object' ? JSON.stringify(val) : String(val);
+                    widgetLines.push(`  • ${label}: ${displayVal}`);
+                }
+            });
+            if (widgetLines.length > 0) {
+                sections.push(`📌 [입력 및 스위치 설정]:\n${widgetLines.join('\n')}`);
+            }
+        } else {
+            // 위젯 목록이 없는 일반 JSON 데이터인 경우
+            const keys = Object.keys(contentData).filter(k => !['widgets', 'code', 'script', 'portsConfig', 'editorVal', 'content', 'text'].includes(k));
+            if (keys.length > 0) {
+                let dataLines = [];
+                keys.forEach(k => {
+                    const val = contentData[k];
+                    if (typeof val === 'boolean') {
+                        dataLines.push(`  🔘 ${k}: ${val ? '🟢 ON (켜짐)' : '⚪ OFF (꺼짐)'}`);
+                    } else if (val !== undefined && val !== null && val !== '') {
+                        const displayVal = typeof val === 'object' ? JSON.stringify(val) : String(val);
+                        dataLines.push(`  • ${k}: ${displayVal}`);
+                    }
+                });
+                if (dataLines.length > 0) {
+                    sections.push(`📌 [데이터 항목]:\n${dataLines.join('\n')}`);
+                }
+            }
+        }
+
+        return sections.length > 0 ? sections.join('\n\n') : '(내용이 비어있습니다)';
+    }
+
+    /**
+     * 우측 단일 시점 뷰어 렌더링
+     */
+    renderTimelineSingleView(checkpoint, fileId) {
+        const titleEl = document.getElementById('singleViewTitle');
+        const metaEl = document.getElementById('singleViewMeta');
+        const contentEl = document.getElementById('singleViewContent');
+        const restoreBtn = document.getElementById('restoreTimelineBtn');
+
+        if (!checkpoint) {
+            if (titleEl) titleEl.textContent = '선택된 체크포인트 없음';
+            if (metaEl) metaEl.textContent = '-';
+            if (contentEl) contentEl.textContent = '좌측 목록에서 체크포인트를 선택하거나 [📸 현재 시점 기록] 버튼을 눌러 새 체크포인트를 저장하세요.';
+            if (restoreBtn) restoreBtn.style.display = 'none';
+            return;
+        }
+
+        const info = this.getWindowInfo(fileId);
+        const file = info?.file || { id: fileId };
+
+        const formattedText = this.formatContentForDisplay(checkpoint.content, file);
+        const charCount = formattedText.length;
+        const fullDateStr = new Date(checkpoint.createdAt).toLocaleString('ko-KR');
+
+        if (titleEl) titleEl.textContent = checkpoint.name;
+        if (metaEl) metaEl.textContent = `📅 ${fullDateStr} · 본문 분량: ${charCount.toLocaleString()}자 ${checkpoint.memo ? `· 메모: ${checkpoint.memo}` : ''}`;
+
+        if (contentEl) contentEl.textContent = formattedText || '(내용이 비어있습니다)';
+        
+        if (restoreBtn) {
+            restoreBtn.style.display = 'inline-flex';
+            restoreBtn.onclick = () => this.restoreTimelineCheckpoint(fileId, checkpoint);
+        }
+    }
+
+    /**
+     * A vs B 비교 뷰 셀렉트 박스 옵션 갱신
+     */
+    updateTimelineCompareSelects(fileId) {
+        const selectA = document.getElementById('compareSelectA');
+        const selectB = document.getElementById('compareSelectB');
+        if (!selectA || !selectB) return;
+
+        const info = this.getWindowInfo(fileId);
+        const currentContent = info ? (info.textarea ? info.textarea.value : (info.file?.content || '')) : '';
+        const currentFormatted = this.formatContentForDisplay(currentContent, info?.file);
+
+        const optionsHtml = [
+            `<option value="__CURRENT__">⚡ [현재 작업 중인 본문] (${currentFormatted.length}자)</option>`,
+            ...(this._timelineVersions || []).map(v => {
+                const len = this.formatContentForDisplay(v.content, info?.file).length;
+                return `<option value="${v.id}">${this.escapeHtml(v.name)} (${len}자)</option>`;
+            })
+        ].join('');
+
+        selectA.innerHTML = optionsHtml;
+        selectB.innerHTML = optionsHtml;
+
+        // 기본값: B는 [현재 작업 본문], A는 [가장 최근 타임라인 체크포인트]
+        if (this._timelineVersions && this._timelineVersions.length > 0) {
+            selectA.value = this._timelineVersions[0].id;
+        } else {
+            selectA.value = '__CURRENT__';
+        }
+        selectB.value = '__CURRENT__';
+
+        selectA.onchange = () => this.updateTimelineCompareView(fileId);
+        selectB.onchange = () => this.updateTimelineCompareView(fileId);
+    }
+
+    /**
+     * A vs B Diff 비교 결과 연산 및 렌더링
+     */
+    updateTimelineCompareView(fileId) {
+        const selectA = document.getElementById('compareSelectA');
+        const selectB = document.getElementById('compareSelectB');
+        const statsEl = document.getElementById('diffStatsText');
+        const resultEl = document.getElementById('diffResultContent');
+        if (!selectA || !selectB || !resultEl) return;
+
+        const info = this.getWindowInfo(fileId);
+        const file = info?.file || { id: fileId };
+        const currentRaw = info ? (info.textarea ? info.textarea.value : (info.file?.content || '')) : '';
+
+        const getContentByVal = (val) => {
+            if (val === '__CURRENT__') return this.formatContentForDisplay(currentRaw, file);
+            const found = (this._timelineVersions || []).find(v => v.id === val);
+            return found ? this.formatContentForDisplay(found.content, file) : '';
+        };
+
+        const textA = getContentByVal(selectA.value);
+        const textB = getContentByVal(selectB.value);
+
+        const lenA = textA.length;
+        const lenB = textB.length;
+        const diffLen = lenB - lenA;
+        const diffSign = diffLen > 0 ? `+${diffLen.toLocaleString()}` : `${diffLen.toLocaleString()}`;
+
+        if (statsEl) {
+            statsEl.innerHTML = `
+                <span>기준 A: <b>${lenA.toLocaleString()}자</b> ➔ 비교 B: <b>${lenB.toLocaleString()}자</b> (변동: <b style="color:${diffLen >= 0 ? '#00ffcc' : '#ff7b72'};">${diffSign}자</b>)</span>
+            `;
+        }
+
+        // 정밀 LCS (Longest Common Subsequence) 기반 Diff 연산
+        const linesA = textA.split('\n');
+        const linesB = textB.split('\n');
+
+        const diffChunks = this.computeLcsDiff(linesA, linesB);
+
+        let diffHtml = '';
+        let addedCount = 0;
+        let removedCount = 0;
+
+        diffChunks.forEach(chunk => {
+            const text = chunk.text;
+            if (chunk.type === 'same') {
+                if (!text.trim()) {
+                    diffHtml += '<div style="height:8px;"></div>';
+                } else {
+                    diffHtml += `<div class="diff-block same">${this.escapeHtml(text)}</div>`;
+                }
+            } else if (chunk.type === 'added') {
+                addedCount++;
+                diffHtml += `<div class="diff-block added"><b>+ </b>${this.escapeHtml(text)}</div>`;
+            } else if (chunk.type === 'removed') {
+                removedCount++;
+                diffHtml += `<div class="diff-block removed"><b>- </b>${this.escapeHtml(text)}</div>`;
+            }
+        });
+
+        if (diffChunks.length === 0 || (addedCount === 0 && removedCount === 0)) {
+            diffHtml = '<div style="text-align:center; padding:30px; color:var(--color-text-tertiary); font-size:13px;">✅ 두 시점의 본문 내용이 완전히 동일합니다.</div>';
+        }
+
+        resultEl.innerHTML = diffHtml;
+    }
+
+    /**
+     * 표준 LCS Diff 비교 알고리즘 (문장/단락 순서 정밀 정렬)
+     */
+    computeLcsDiff(linesA, linesB) {
+        const N = linesA.length;
+        const M = linesB.length;
+
+        // DP 테이블 생성
+        const dp = Array.from({ length: N + 1 }, () => new Int32Array(M + 1));
+        for (let i = 1; i <= N; i++) {
+            for (let j = 1; j <= M; j++) {
+                if (linesA[i - 1] === linesB[j - 1]) {
+                    dp[i][j] = dp[i - 1][j - 1] + 1;
+                } else {
+                    dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1]);
+                }
+            }
+        }
+
+        // 역추적으로 Diff 순서 복원
+        let i = N;
+        let j = M;
+        const diff = [];
+
+        while (i > 0 || j > 0) {
+            if (i > 0 && j > 0 && linesA[i - 1] === linesB[j - 1]) {
+                diff.unshift({ type: 'same', text: linesA[i - 1] });
+                i--;
+                j--;
+            } else if (j > 0 && (i === 0 || dp[i][j - 1] >= dp[i - 1][j])) {
+                diff.unshift({ type: 'added', text: linesB[j - 1] });
+                j--;
+            } else if (i > 0 && (j === 0 || dp[i][j - 1] < dp[i - 1][j])) {
+                diff.unshift({ type: 'removed', text: linesA[i - 1] });
+                i--;
+            }
+        }
+
+        return diff;
+    }
+
+    /**
+     * 수동 타임라인 체크포인트 저장
+     */
+    async saveTimelineCheckpoint(fileId) {
         const info = this.windows.get(fileId);
         if (!info) return;
 
         const content = info.textarea ? info.textarea.value : (info.file?.content || '');
-        const name = prompt('스냅샷 이름을 입력하세요 (비워두면 현재 시간으로 저장):');
+        const name = prompt('체크포인트 이름을 입력하세요 (비워두면 현재 시간으로 저장):');
         if (name === null) return; // 취소
+
+        const memo = prompt('기억해둘 메모를 입력하세요 (선택 사항):') || '';
 
         await storage.createVersion({
             fileId,
             name: name.trim() || null,
-            content
+            content,
+            memo: memo.trim(),
+            triggerType: 'manual',
+            tag: '수동 기록'
         });
 
-        window.showToast?.('새 스냅샷이 저장되었습니다.');
-        this.showVersionHistory(fileId); // 목록 갱신
+        window.showToast?.('새 타임라인 체크포인트가 저장되었습니다. ✨');
+        this.renderTimelineCheckpointList(fileId); // 목록 갱신
     }
 
-    async restoreVersion(fileId, version) {
-        if (!confirm(`"${version.name}" 버전으로 본문을 되돌릴까요?\n(현재 작성 중인 내용은 사라지므로 미리 스냅샷을 저장하는 것을 추천합니다.)`)) return;
+    /**
+     * 특정 시점으로 안전 복구 (롤백 전 현재 상태 자동 백업)
+     */
+    async restoreTimelineCheckpoint(fileId, checkpoint) {
+        const confirmMsg = `"${checkpoint.name}" 시점으로 본문을 되돌릴까요?\n\n` +
+            `🛡️ 안전 복구: 현재 작성 중인 상태는 '[복구 직전 상태 백업]'으로 타임라인에 자동 보관되어 언제든 다시 되돌릴 수 있습니다.`;
+
+        if (!confirm(confirmMsg)) return;
 
         const info = this.windows.get(fileId);
         if (!info) return;
 
+        const currentContent = info.textarea ? info.textarea.value : (info.file?.content || '');
+
+        // 🌟 1. 복구 직전 현재 본문 내용 자동 안전 백업!
+        if (currentContent && currentContent !== checkpoint.content) {
+            await storage.createVersion({
+                fileId,
+                name: `[복구 직전 상태 백업]`,
+                content: currentContent,
+                memo: `"${checkpoint.name}" 버전으로 복구하기 직전의 현재 본문 자동 백업`,
+                triggerType: 'rollback_backup',
+                tag: '복구 전 백업'
+            });
+        }
+
+        // 🌟 2. 과거 체크포인트 내용으로 복원
         if (info.textarea) {
-            info.textarea.value = version.content;
-            this.onTextChange(fileId, version.content);
+            info.textarea.value = checkpoint.content;
+            this.onTextChange(fileId, checkpoint.content);
             this.updateHighlighter(fileId);
         } else {
             // 커스텀 위젯/설정 기반 노드인 경우
-            info.file.content = version.content;
-            await storage.updateFile(fileId, { content: version.content });
+            info.file.content = checkpoint.content;
+            await storage.updateFile(fileId, { content: checkpoint.content });
             const container = info.element?.querySelector('.custom-node-body') || info.element?.querySelector('.window-body');
             if (container) {
                 const existingWrapper = container.querySelector('.custom-node-widgets-wrapper');
@@ -3192,15 +3652,19 @@ class WindowManager {
             this.refreshNodeUI(fileId);
             this.notifyNodeChanged(fileId, 'contentChange');
         }
-        
-        document.getElementById('versionModal').classList.add('hidden');
-        window.showToast?.('선택한 버전으로 복구되었습니다.');
+
+        this.hideNodeTimelineModal();
+        window.showToast?.(`"${checkpoint.name}" 시점으로 안전하게 복구되었습니다. (직전 상태 자동 백업 완료)`);
     }
 
-    async deleteVersion(fileId, versionId) {
-        if (!confirm('이 스냅샷을 삭제할까요?')) return;
-        await storage.deleteVersion(versionId);
-        this.showVersionHistory(fileId);
+    /**
+     * 타임라인 체크포인트 삭제
+     */
+    async deleteTimelineCheckpoint(fileId, checkpointId) {
+        if (!confirm('이 타임라인 체크포인트를 삭제할까요?')) return;
+        await storage.deleteVersion(checkpointId);
+        this.renderTimelineCheckpointList(fileId);
+        window.showToast?.('체크포인트가 삭제되었습니다.');
     }
 
     /**

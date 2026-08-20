@@ -660,11 +660,17 @@ class StorageManager {
 
   // 버전(스냅샷) 관리 메서드
   async createVersion(version) {
+    const charCount = typeof version.content === 'string' ? version.content.length : JSON.stringify(version.content || '').length;
     const newVersion = {
       id: this.generateId(),
       fileId: version.fileId,
-      name: version.name || `${new Date().toLocaleString()} 스냅샷`,
+      name: version.name || `${new Date().toLocaleString()} 체크포인트`,
       content: version.content,
+      memo: version.memo || '',
+      episode: version.episode || null,
+      tag: version.tag || null,
+      triggerType: version.triggerType || 'manual', // manual, episode_change, rollback_backup
+      charCount: charCount,
       createdAt: Date.now()
     };
     await this._transaction([VERSIONS_STORE], 'readwrite', (tx) => {
@@ -689,6 +695,26 @@ class StorageManager {
   async deleteVersion(id) {
     await this._transaction([VERSIONS_STORE], 'readwrite', (tx) => {
       tx.objectStore(VERSIONS_STORE).delete(id);
+    });
+  }
+
+  async clearProjectVersions(projectId) {
+    if (!projectId) return;
+    const files = await this.getProjectFiles(projectId);
+    const fileIdSet = new Set(files.map(f => String(f.id)));
+
+    await this._transaction([VERSIONS_STORE], 'readwrite', (tx) => {
+      const store = tx.objectStore(VERSIONS_STORE);
+      const req = store.openCursor();
+      req.onsuccess = (e) => {
+        const cursor = e.target.result;
+        if (cursor) {
+          if (fileIdSet.has(String(cursor.value.fileId))) {
+            cursor.delete();
+          }
+          cursor.continue();
+        }
+      };
     });
   }
 

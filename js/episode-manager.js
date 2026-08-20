@@ -157,8 +157,13 @@ class EpisodeManager {
                 episodeHistory: this.history
             });
 
+            // 🌟 회차 변경 시 프로젝트 내 모든 노드의 현재 상태를 타임라인 체크포인트로 자동 기록!
+            if (window.windowManager) {
+                await window.windowManager.createAutoCheckpointForAllNodes(prevEpisode, newEpisode);
+            }
+
             this.updateHeaderUI();
-            window.showToast?.(`📖 현재 작업 회차가 '제 ${newEpisode}화'로 변경되었습니다.`);
+            window.showToast?.(`📖 작업 회차가 '제 ${newEpisode}화'로 변경되었습니다. (노드 타임라인 자동 기록 완료 ✨)`);
 
             // 모달이 열려있다면 갱신
             if (this.modal && !this.modal.classList.contains('hidden')) {
@@ -290,10 +295,14 @@ class EpisodeManager {
     }
 
     /**
-     * 이력 전체 초기화
+     * 이력 전체 초기화 (회차 이력 + 프로젝트 내 모든 노드 타임라인 일괄 삭제)
      */
     async clearHistory() {
-        if (!confirm('현재 프로젝트의 모든 회차 진행 이력을 초기화하고 현재 회차만 남길까요?')) return;
+        const warningMsg = '⚠️ [경고: 영구 삭제 주의]\n\n' +
+            '회차 진행 이력과 함께 현재 프로젝트 내 "모든 노드의 타임라인(버전 기록)"이 영구적으로 삭제되고 현재 상태로 초기화됩니다.\n\n' +
+            '정말로 모든 회차 및 노드 타임라인 이력을 초기화할까요?';
+
+        if (!confirm(warningMsg)) return;
         const projectId = this.currentProjectId || window.currentProjectId;
         if (!projectId) return;
 
@@ -302,15 +311,26 @@ class EpisodeManager {
             episode: this.currentEpisode,
             prevEpisode: null,
             timestamp: Date.now(),
-            note: '이력 초기화'
+            note: '이력 전체 초기화'
         }];
 
-        await storage.updateProject(projectId, {
-            episodeHistory: this.history
-        });
+        try {
+            // 1. 프로젝트 회차 이력 초기화
+            await storage.updateProject(projectId, {
+                episodeHistory: this.history
+            });
 
-        this.renderHistoryTimeline();
-        window.showToast?.('회차 이력이 초기화되었습니다.');
+            // 2. 🌟 프로젝트 내 모든 노드의 타임라인 기록 일괄 삭제
+            if (storage.clearProjectVersions) {
+                await storage.clearProjectVersions(projectId);
+            }
+
+            this.renderHistoryTimeline();
+            window.showToast?.('회차 이력 및 모든 노드의 타임라인 기록이 초기화되었습니다.');
+        } catch (err) {
+            console.error('[EpisodeManager] 이력 초기화 실패:', err);
+            alert('이력 초기화 중 오류가 발생했습니다.');
+        }
     }
 
     escapeHtml(str) {
