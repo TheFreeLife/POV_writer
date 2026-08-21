@@ -151,6 +151,11 @@ class NodeManager {
             parentId: targetFile.parentId || null,
             content: currentContent,
             template: targetFile.template || 'custom_node',
+            presetId: targetFile.presetId || (typeof targetFile.contentData === 'object' ? targetFile.contentData?.presetId : null) || null,
+            nodeType: targetFile.nodeType || 'general',
+            category: targetFile.category || 'general',
+            code: targetFile.code || '',
+            isCustomNode: targetFile.isCustomNode,
             portsConfig: targetFile.portsConfig ? JSON.parse(JSON.stringify(targetFile.portsConfig)) : null,
             description: targetFile.description || '',
             windowState: newWindowState

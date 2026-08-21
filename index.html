@@ -112,6 +112,10 @@
         <span id="autoSaveIndicator" class="auto-save-indicator"></span>
         <button class="btn btn-secondary" id="addCanvasRegionBtn" title="캔버스에 그룹 영역 추가">🔲 영역 추가</button>
         <button class="btn btn-secondary" id="toggleNodeGuideBtn" title="화면 밖 노드 위치를 가장자리에 표시 (토글)">🧭 노드 레이더</button>
+        <button class="btn btn-secondary" id="syncAllNodesBtn" title="캔버스의 모든 노드를 최신 프리셋(코드/포트/위젯)으로 일괄 동기화 (작성 데이터 100% 보존)" style="gap: 4px;">
+          <span>🔄</span>
+          <span>전체 동기화</span>
+        </button>
 
         <div style="position: relative;">
           <button id="toggleGraphExecMenuBtn" class="btn btn-primary" title="노드 그래프 실행 제어 메뉴"
@@ -135,6 +139,10 @@
             <button id="stopGraphExecBtn" class="btn btn-danger btn-sm"
               style="width: 100%; justify-content: flex-start; gap: 8px; font-weight: 700; background: rgba(231,76,60,0.15); color: #ff6b6b; border: 1px solid rgba(231,76,60,0.4);">
               <span>🛑</span> 모든 실행 중단
+            </button>
+            <button id="popSyncAllNodesBtn" class="btn btn-secondary btn-sm"
+              style="width: 100%; justify-content: flex-start; gap: 8px; font-weight: 600;">
+              <span>🔄</span> 전체 노드 프리셋 동기화
             </button>
             <div style="height: 1px; background: var(--color-border); margin: 2px 0;"></div>
             <label

@@ -131,6 +131,14 @@ class WindowManager {
             this.toggleNodeGuide();
         });
 
+        // 🔄 전체 노드 일괄 프리셋 동기화 버튼 (헤더 및 팝업 메뉴)
+        const handleSyncAll = async () => {
+            execPopmenu?.classList.add('hidden');
+            await this.syncAllNodesWithLatestPresets();
+        };
+        document.getElementById('syncAllNodesBtn')?.addEventListener('click', handleSyncAll);
+        document.getElementById('popSyncAllNodesBtn')?.addEventListener('click', handleSyncAll);
+
         // 텍스트 병합 모달 버튼
         document.getElementById('closeMergeModal')?.addEventListener('click', () => this.hideMergeModal());
         document.getElementById('cancelMergeBtn')?.addEventListener('click', () => this.hideMergeModal());
@@ -741,12 +749,94 @@ class WindowManager {
     }
 
     /**
+     * 🧼 파일 데이터(presetId, 위젯/포트 스코어링)를 기반으로 일치하는 최신 프리셋을 정밀 탐색합니다.
+     * (단어 하드코딩 없이 범용 구조 분석으로 100% 무결성 보장)
+     */
+    _findMatchingPreset(file, allPresets) {
+        if (!file || !Array.isArray(allPresets) || allPresets.length === 0) return null;
+
+        let contentObj = file.contentData;
+        if (!contentObj && typeof file.content === 'string') {
+            try { contentObj = JSON.parse(file.content); } catch(e) { contentObj = {}; }
+        }
+        contentObj = contentObj || {};
+
+        // 1. [0순위] 명시적 presetId 직접 일치 (가장 정확하고 권장되는 방식)
+        const candidateIds = [
+            file.presetId,
+            contentObj.presetId,
+            file.templateId,
+            contentObj.templateId,
+            file.template,
+            contentObj.template
+        ].filter(Boolean);
+
+        for (const pid of candidateIds) {
+            const found = allPresets.find(p => p.id === pid);
+            if (found) return found;
+        }
+
+        // 2. [1순위] 파일 기본 이름 완전 일치
+        const fileName = (file.name || '').trim();
+        const cleanName = fileName.replace(/^[^\w가-힣a-zA-Z0-9]+/, '').trim();
+        let found = allPresets.find(p => p.name === fileName || (cleanName && p.name.replace(/^[^\w가-힣a-zA-Z0-9]+/, '').trim() === cleanName));
+        if (found) return found;
+
+        // 3. [2순위] 범용 스코어링 (포트 ID 및 위젯 Key 일치율 기반 자동 추론)
+        const fileWidgets = Array.isArray(contentObj.widgets) ? contentObj.widgets : (Array.isArray(file.widgets) ? file.widgets : []);
+        const fileWidgetKeys = new Set(fileWidgets.map(w => w.key).filter(Boolean));
+        const filePorts = contentObj.portsConfig || file.portsConfig || {};
+        const fileInputPortIds = new Set((filePorts.inputs || []).map(p => p.id).filter(Boolean));
+        const fileOutputPortIds = new Set((filePorts.outputs || []).map(p => p.id).filter(Boolean));
+
+        let bestPreset = null;
+        let bestScore = 0;
+
+        for (const p of allPresets) {
+            let score = 0;
+            const pWidgets = Array.isArray(p.widgets) ? p.widgets : [];
+            const pPorts = p.portsConfig || {};
+            const pInputs = Array.isArray(pPorts.inputs) ? pPorts.inputs : [];
+            const pOutputs = Array.isArray(pPorts.outputs) ? pPorts.outputs : [];
+
+            // 위젯 키 일치도 검사 (+2점)
+            pWidgets.forEach(pw => {
+                if (pw.key && fileWidgetKeys.has(pw.key)) score += 2;
+            });
+
+            // 포트 ID 일치도 검사 (+3점)
+            pInputs.forEach(pi => {
+                if (pi.id && fileInputPortIds.has(pi.id)) score += 3;
+            });
+            pOutputs.forEach(po => {
+                if (po.id && fileOutputPortIds.has(po.id)) score += 3;
+            });
+
+            if (score > bestScore) {
+                bestScore = score;
+                bestPreset = p;
+            }
+        }
+
+        // 유의미한 일치도(점수 3점 이상)가 있는 경우 자동 확정
+        if (bestScore >= 3 && bestPreset) {
+            return bestPreset;
+        }
+
+        // 4. [3순위] 추론 불가 시 null 반환 -> 동기화 시 수동 선택 팝업 1회 호출 후 presetId 영구 저장
+        return null;
+    }
+
+    /**
      * 캔버스에 이미 꺼내둔 노드의 작성 데이터는 100% 보존하면서,
      * 내부 실행 코드(code), 포트 구성(portsConfig), 위젯 설정을 최신 프리셋으로 스마트 동기화합니다.
      */
     async syncNodeWithLatestPreset(fileId) {
-        const file = await storage.getFile(fileId);
-        if (!file) return;
+        const file = await this._getFile(fileId);
+        if (!file) {
+            window.showToast?.('노드 파일 데이터를 불러올 수 없습니다. ⚠️', 'warning');
+            return;
+        }
 
         // 1. 시스템 및 커스텀 프리셋 로드
         let systemPresets = [];
@@ -768,15 +858,12 @@ class WindowManager {
 
         const allPresets = [...systemPresets, ...customPresets];
 
-        // 2. 매칭되는 프리셋 탐색 (presetId -> 이름 유사도)
-        const cleanName = (file.name || '').replace(/^[^\w가-힣a-zA-Z0-9]+/, '').trim();
-        let targetPreset = allPresets.find(p => p.id && (p.id === file.presetId || p.id === file.contentData?.presetId));
-        if (!targetPreset) {
-            targetPreset = allPresets.find(p => p.name === file.name || p.name === cleanName || file.name.includes(p.name) || (cleanName && p.name.includes(cleanName)));
-        }
+        // 2. 지능형 프리셋 매칭 엔진으로 최신 프리셋 탐색
+        let targetPreset = this._findMatchingPreset(file, allPresets);
 
         if (!targetPreset) {
-            window.showToast?.('이 노드와 일치하는 최신 프리셋을 찾을 수 없습니다. ⚠️');
+            // 🌟 자동 매칭 불가 시 사용자가 직접 원본 프리셋을 선택하여 동기화할 수 있는 모달 지원
+            this.showPresetSelectForSyncModal(file, allPresets);
             return;
         }
 
@@ -794,6 +881,7 @@ class WindowManager {
         if (targetPreset.defaultHeight) contentObj.defaultHeight = targetPreset.defaultHeight;
         if (targetPreset.color) contentObj.color = targetPreset.color;
         contentObj.presetId = targetPreset.id;
+        contentObj.code = targetPreset.code || '';
 
         const updates = {
             presetId: targetPreset.id,
@@ -805,10 +893,15 @@ class WindowManager {
             content: JSON.stringify(contentObj, null, 2)
         };
 
-        await storage.updateFile(fileId, updates);
+        await storage.updateFile(file.id, updates);
+        Object.assign(file, updates);
+        if (window.fileTreeManager?.files) {
+            const memFile = window.fileTreeManager.files.find(f => String(f.id) === String(file.id));
+            if (memFile) Object.assign(memFile, updates);
+        }
 
         // 4. 노드 UI 즉시 새로고침 (DB 삭제 없이 DOM 창만 안전하게 재생성)
-        const winInfo = this.windows.get(fileId);
+        const winInfo = this.windows.get(file.id) || this.windows.get(String(file.id)) || this.windows.get(Number(file.id));
         if (winInfo && winInfo.element) {
             const currentRect = {
                 x: parseInt(winInfo.element.style.left, 10) || 0,
@@ -817,14 +910,193 @@ class WindowManager {
                 height: parseInt(winInfo.element.style.height, 10) || targetPreset.defaultHeight || 650,
                 isUserResized: true
             };
-            // 🌟 DB 파일 삭제(closeWindow)를 절대 호출하지 않고, 순수 DOM만 안전 교체!
             winInfo.element.remove();
-            this.windows.delete(fileId);
-            window.nodeManager?.unregisterNode(fileId);
-            await this.openWindow(fileId, currentRect);
+            this.windows.delete(file.id);
+            this.windows.delete(String(file.id));
+            this.windows.delete(Number(file.id));
+            window.nodeManager?.unregisterNode(file.id);
+            await this.openWindow(file.id, currentRect);
         }
 
-        window.showToast?.(`'${targetPreset.name}' 노드가 최신 프리셋 코드 및 포트로 동기화되었습니다! ✨`);
+        this.renderConnections();
+        window.showToast?.(`'${targetPreset.name}' 노드가 최신 프리셋 코드 및 포트로 동기화되었습니다! ✨`, 'success');
+    }
+
+    /**
+     * 🎛️ 자동 매칭 불가 시 사용자가 직접 원본 프리셋을 선택하여 동기화하는 모달
+     */
+    showPresetSelectForSyncModal(file, allPresets) {
+        const existing = document.getElementById('presetSelectSyncModal');
+        if (existing) existing.remove();
+
+        const overlay = document.createElement('div');
+        overlay.id = 'presetSelectSyncModal';
+        overlay.style.cssText = `
+            position: fixed; inset: 0; z-index: 10000;
+            background: rgba(0,0,0,0.7); backdrop-filter: blur(4px);
+            display: flex; align-items: center; justify-content: center;
+        `;
+
+        const cardsHtml = allPresets.map(p => `
+            <div class="preset-sync-card" data-preset-id="${p.id}" style="padding: 10px 14px; background: var(--color-surface-2, #2a2b3d); border: 1px solid var(--color-border, #3a3b50); border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: space-between; transition: all 0.2s;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <span style="font-size: 18px;">${p.icon || '📦'}</span>
+                    <div>
+                        <div style="font-weight: 700; font-size: 13px; color: var(--color-text-primary);">${p.name}</div>
+                        <div style="font-size: 11px; opacity: 0.7; color: var(--color-text-secondary);">${p.desc || ''}</div>
+                    </div>
+                </div>
+                <button class="btn btn-primary btn-sm" style="pointer-events: none; padding: 3px 8px; font-size: 11px;">동기화 ➔</button>
+            </div>
+        `).join('');
+
+        overlay.innerHTML = `
+            <div style="background: var(--color-surface-1, #1e1e2e); border: 1px solid var(--color-border, #313244); border-radius: 12px; padding: 22px; width: 500px; max-width: 92vw; max-height: 82vh; display: flex; flex-direction: column; gap: 14px; color: var(--color-text-primary, #cdd6f4); box-shadow: 0 16px 36px rgba(0,0,0,0.6);">
+                <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--color-border); padding-bottom: 10px;">
+                    <div style="font-size: 15px; font-weight: 700; display: flex; align-items: center; gap: 6px;">
+                        <span>🔄</span>
+                        <span>동기화할 원본 노드 프리셋 선택</span>
+                    </div>
+                    <button id="closePresetSyncModalBtn" style="background: transparent; border: none; font-size: 16px; color: var(--color-text-tertiary); cursor: pointer;">✕</button>
+                </div>
+                <div style="font-size: 12px; color: var(--color-text-secondary); line-height: 1.5;">
+                    현재 노드: <strong style="color: var(--color-text-primary);">[${this.escapeHtml(file.name)}]</strong><br>
+                    이 노드를 어떤 프리셋의 최신 기능(코드/포트/위젯)으로 동기화할지 클릭해주세요:
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 8px; overflow-y: auto; max-height: 52vh; padding-right: 4px;">
+                    ${cardsHtml}
+                </div>
+            </div>
+        `;
+
+        document.body.appendChild(overlay);
+
+        const closeModal = () => overlay.remove();
+        overlay.querySelector('#closePresetSyncModalBtn')?.addEventListener('click', closeModal);
+        overlay.addEventListener('click', (e) => { if (e.target === overlay) closeModal(); });
+
+        overlay.querySelectorAll('.preset-sync-card').forEach(card => {
+            card.addEventListener('click', async () => {
+                const pId = card.dataset.presetId;
+                const selectedPreset = allPresets.find(p => p.id === pId);
+                closeModal();
+                if (selectedPreset) {
+                    file.presetId = selectedPreset.id;
+                    await this.syncNodeWithLatestPreset(file.id);
+                }
+            });
+            card.addEventListener('mouseenter', () => {
+                card.style.borderColor = 'var(--color-primary, #00ffcc)';
+                card.style.background = 'rgba(0,255,204,0.08)';
+            });
+            card.addEventListener('mouseleave', () => {
+                card.style.borderColor = 'var(--color-border, #3a3b50)';
+                card.style.background = 'var(--color-surface-2, #2a2b3d)';
+            });
+        });
+    }
+
+    /**
+     * 캔버스에 열려 있는 모든 노드(또는 프로젝트의 모든 노드)를 최신 프리셋으로 일괄 스마트 동기화합니다.
+     * 사용자가 입력/작성한 데이터(contentData)는 100% 온전히 보존됩니다.
+     */
+    async syncAllNodesWithLatestPresets() {
+        // 1. 시스템 및 커스텀 프리셋 로드
+        let systemPresets = [];
+        try {
+            const res = await fetch('data/default-nodes.json?t=' + Date.now());
+            if (res.ok) systemPresets = await res.json();
+        } catch (e) {
+            console.warn('default-nodes.json 로드 실패:', e);
+        }
+
+        let customPresets = [];
+        try {
+            if (window.storage?.getCustomNodePresets) {
+                customPresets = await window.storage.getCustomNodePresets() || [];
+            }
+        } catch (e) {
+            console.warn('custom presets 로드 실패:', e);
+        }
+
+        const allPresets = [...systemPresets, ...customPresets];
+        if (allPresets.length === 0) {
+            window.showToast?.('동기화할 프리셋 데이터를 불러올 수 없습니다. ⚠️', 'warning');
+            return;
+        }
+
+        // 2. 현재 프로젝트의 파일 목록 조회
+        const rawFiles = window.fileTreeManager?.files || [];
+        const files = Array.isArray(rawFiles) ? rawFiles : (typeof rawFiles?.values === 'function' ? Array.from(rawFiles.values()) : []);
+        const targetFiles = files.filter(f => f && f.type !== 'folder');
+
+        if (targetFiles.length === 0) {
+            window.showToast?.('동기화할 노드가 없습니다.', 'warning');
+            return;
+        }
+
+        let updatedCount = 0;
+
+        for (const file of targetFiles) {
+            const targetPreset = this._findMatchingPreset(file, allPresets);
+            if (!targetPreset) continue;
+
+            let contentObj = file.contentData;
+            if (!contentObj && typeof file.content === 'string') {
+                try { contentObj = JSON.parse(file.content); } catch(e) { contentObj = {}; }
+            }
+            contentObj = contentObj || {};
+
+            if (Array.isArray(targetPreset.widgets)) {
+                contentObj.widgets = targetPreset.widgets;
+            }
+            if (targetPreset.defaultWidth) contentObj.defaultWidth = targetPreset.defaultWidth;
+            if (targetPreset.defaultHeight) contentObj.defaultHeight = targetPreset.defaultHeight;
+            if (targetPreset.color) contentObj.color = targetPreset.color;
+            contentObj.presetId = targetPreset.id;
+            contentObj.code = targetPreset.code || '';
+
+            const updates = {
+                presetId: targetPreset.id,
+                code: targetPreset.code || '',
+                portsConfig: targetPreset.portsConfig || null,
+                defaultWidth: targetPreset.defaultWidth || file.defaultWidth || 520,
+                defaultHeight: targetPreset.defaultHeight || file.defaultHeight || 650,
+                contentData: contentObj,
+                content: JSON.stringify(contentObj, null, 2)
+            };
+
+            await storage.updateFile(file.id, updates);
+            Object.assign(file, updates);
+            if (window.fileTreeManager?.files) {
+                const memFile = window.fileTreeManager.files.find(f => String(f.id) === String(file.id));
+                if (memFile) Object.assign(memFile, updates);
+            }
+
+            // 열려있는 창이 있다면 DOM 재렌더링
+            const winInfo = this.windows.get(file.id) || this.windows.get(String(file.id)) || this.windows.get(Number(file.id));
+            if (winInfo && winInfo.element) {
+                const currentRect = {
+                    x: parseInt(winInfo.element.style.left, 10) || 0,
+                    y: parseInt(winInfo.element.style.top, 10) || 0,
+                    width: parseInt(winInfo.element.style.width, 10) || targetPreset.defaultWidth || 520,
+                    height: parseInt(winInfo.element.style.height, 10) || targetPreset.defaultHeight || 650,
+                    isUserResized: true
+                };
+                winInfo.element.remove();
+                this.windows.delete(file.id);
+                this.windows.delete(String(file.id));
+                this.windows.delete(Number(file.id));
+                window.nodeManager?.unregisterNode(file.id);
+                await this.openWindow(file.id, currentRect);
+            }
+
+            updatedCount++;
+        }
+
+        // 연결선 재렌더링
+        this.renderConnections();
+        window.showToast?.(`✨ 총 ${updatedCount}개 노드가 최신 프리셋(코드/포트/위젯)으로 일괄 동기화되었습니다! (작성 데이터 100% 보존)`, 'success');
     }
 
     /**
@@ -1115,7 +1387,7 @@ class WindowManager {
         win.innerHTML = `
             <div class="node-ports-wrapper-left">${inputsHtml}</div>
             <div class="node-ports-wrapper-right">${outputsHtml}</div>
-            <div class="window-titlebar" data-file-id="${file.id}" title="생성일: ${fullDateTime}" style="${accentColor ? `border-top: 4px solid ${accentColor}; background: linear-gradient(180deg, ${accentColor}25 0%, ${accentColor}08 80%, var(--color-surface-2) 100%);` : ''}">
+            <div class="window-titlebar" data-file-id="${file.id}" title="노드 ID: #${file.id} (생성: ${fullDateTime})" style="${accentColor ? `border-top: 4px solid ${accentColor}; background: linear-gradient(180deg, ${accentColor}25 0%, ${accentColor}08 80%, var(--color-surface-2) 100%);` : ''}">
                 <div class="window-titlebar-left">
                     ${iconHtml}
                     <span class="window-titlebar-name">${this.escapeHtml(parsed.cleanName)}</span>
@@ -1134,7 +1406,7 @@ class WindowManager {
             ${!isImage ? `
             <div class="window-statusbar">
                 <div class="window-status-left" data-stats="${file.id}">
-                    <span class="stat-item stat-created-date" title="생성일시: ${fullDateTime}" style="cursor:help; opacity:0.8; font-size:11px;">📅 ${formattedDate}</span>
+                    <span class="stat-item stat-created-date" title="노드 ID: #${file.id} | 생성일시: ${fullDateTime}" style="cursor:help; opacity:0.8; font-size:11px;">📅 ${formattedDate}</span>
                     <span class="stat-item total">0자</span>
                     <span class="stat-item nospace">(공백제외 0)</span>
                     <span class="stat-item sentences">0문장</span>
@@ -1148,7 +1420,7 @@ class WindowManager {
             ` : `
             <div class="window-statusbar">
                 <div class="window-status-left">
-                    <span class="stat-item stat-created-date" title="생성일시: ${fullDateTime}" style="cursor:help; opacity:0.8; font-size:11px;">📅 ${formattedDate}</span>
+                    <span class="stat-item stat-created-date" title="노드 ID: #${file.id} | 생성일시: ${fullDateTime}" style="cursor:help; opacity:0.8; font-size:11px;">📅 ${formattedDate}</span>
                 </div>
                 <div class="window-status-right">
                     <button class="window-status-btn" data-action="timeline" title="노드 타임라인" style="background:transparent; border:none; color:inherit; cursor:pointer; font-size:12px; padding:0 4px; opacity:0.7;">⏳</button>

@@ -570,12 +570,63 @@ class FileTreeManager {
     async loadProjectFiles(projectId) {
         this.currentProjectId = projectId;
         this.files = await storage.getProjectFiles(projectId);
+
+        // 🌟 레거시 노드 presetId 자동 복원 및 영구 마이그레이션
+        await this.migrateMissingPresetIds(this.files);
+
         this.renderFileTree();
         this.setupRootDropZone();
         
         // 하이퍼링크 정보 갱신 (비동기)
         if (window.windowManager && window.windowManager.updateAllHighlighters) {
             window.windowManager.updateAllHighlighters();
+        }
+    }
+
+    /**
+     * 🛡️ presetId가 누락된 기존 노드들을 자동 식별하여 올바른 presetId를 영구 주입합니다.
+     */
+    async migrateMissingPresetIds(files) {
+        if (!Array.isArray(files) || files.length === 0) return;
+        const targetFiles = files.filter(f => f && f.type !== 'folder' && !f.presetId);
+        if (targetFiles.length === 0) return;
+
+        let systemPresets = [];
+        try {
+            const res = await fetch('data/default-nodes.json?t=' + Date.now());
+            if (res.ok) systemPresets = await res.json();
+        } catch (e) {}
+
+        let customPresets = [];
+        try {
+            if (window.storage?.getCustomNodePresets) {
+                customPresets = await window.storage.getCustomNodePresets() || [];
+            }
+        } catch (e) {}
+
+        const allPresets = [...systemPresets, ...customPresets];
+        if (allPresets.length === 0) return;
+
+        for (const file of targetFiles) {
+            let matched = null;
+            if (window.windowManager?._findMatchingPreset) {
+                matched = window.windowManager._findMatchingPreset(file, allPresets);
+            }
+            if (matched && matched.id) {
+                file.presetId = matched.id;
+                let contentObj = {};
+                if (typeof file.content === 'string') {
+                    try { contentObj = JSON.parse(file.content); } catch (e) {}
+                } else if (typeof file.content === 'object' && file.content) {
+                    contentObj = file.content;
+                }
+                contentObj.presetId = matched.id;
+                await storage.updateFile(file.id, {
+                    presetId: matched.id,
+                    content: typeof file.content === 'string' ? JSON.stringify(contentObj, null, 2) : contentObj
+                });
+                console.log(`[AutoMigrate] 🏷️ 노드 [${file.name}] presetId 복원 완료: ${matched.id}`);
+            }
         }
     }
 
@@ -1439,6 +1490,8 @@ class FileTreeManager {
         if (preset.defaultWidth) contentObj.defaultWidth = preset.defaultWidth;
         if (preset.defaultHeight) contentObj.defaultHeight = preset.defaultHeight;
         if (preset.color) contentObj.color = preset.color;
+        contentObj.presetId = preset.id || null;
+        contentObj.templateId = preset.id || null;
 
         const fileData = {
             name: nodeName,

@@ -286,49 +286,155 @@ class NodeEngine {
             }
         }
 
-        // 🌟 1. 선행 부모 노드들로부터 들어온 인풋 데이터 결합 (중복 방지: 부모 노드 ID 기반으로만 결합)
+        // 🌟 1. 선행 부모 노드들로부터 들어온 인풋 데이터 결합 (중복 방지: 부모 노드 ID 기반으로 1회만 결합)
         const inputTexts = [];
         const inputToggles = contentData.inputToggles || {};
         const parents = session?.graph?.parentsMap?.get(String(nodeId)) || [];
+        const parentInputsMap = {};
 
-        if (inputs && typeof inputs === 'object') {
-            const parentKeySet = new Set(parents.map(String));
-            for (const [pId, val] of Object.entries(inputs)) {
-                // 부모 노드 ID가 아닌 포트명/포트ID로 들어온 중복 엔트리는 결합 텍스트에서 제외
-                if (parentKeySet.size > 0 && !parentKeySet.has(String(pId))) {
-                    continue;
+        if (parents && parents.length > 0) {
+            parents.forEach(pId => {
+                const pIdStr = String(pId);
+                const val = inputs ? (inputs[pIdStr] !== undefined ? inputs[pIdStr] : (parentInputs && parentInputs[pIdStr])) : undefined;
+                if (val !== undefined) {
+                    parentInputsMap[pIdStr] = val;
                 }
 
                 // 토글 스위치가 명시적으로 꺼져(false)있는 상위 노드는 제외
-                if (inputToggles[pId] === false) {
-                    console.log(`[NodeEngine] 🚫 상위 노드 [${pId}] 토글 OFF로 출력에서 제외됨`);
-                    continue;
+                if (inputToggles[pIdStr] === false) {
+                    console.log(`[NodeEngine] 🚫 상위 노드 [${pIdStr}] 토글 OFF로 결합 텍스트에서 제외됨`);
+                    return;
                 }
 
                 if (val !== undefined && val !== null && String(val).trim() !== '') {
-                    const textVal = typeof val === 'object' ? (val.output !== undefined ? (typeof val.output === 'object' ? JSON.stringify(val.output, null, 2) : String(val.output)) : (val.text || val.content || val.editorVal || val.val || JSON.stringify(val, null, 2))) : String(val);
-                    if (textVal && textVal.trim() !== '') {
-                        inputTexts.push(textVal);
+                    if (Array.isArray(val)) {
+                        val.forEach(item => {
+                            const textVal = typeof item === 'object' ? (item.output !== undefined ? (typeof item.output === 'object' ? JSON.stringify(item.output, null, 2) : String(item.output)) : (item.text || item.content || item.editorVal || item.val || JSON.stringify(item, null, 2))) : String(item);
+                            if (textVal && textVal.trim() !== '') inputTexts.push(textVal);
+                        });
+                    } else {
+                        const textVal = typeof val === 'object' ? (val.output !== undefined ? (typeof val.output === 'object' ? JSON.stringify(val.output, null, 2) : String(val.output)) : (val.text || val.content || val.editorVal || val.val || JSON.stringify(val, null, 2))) : String(val);
+                        if (textVal && textVal.trim() !== '') {
+                            inputTexts.push(textVal);
+                        }
                     }
                 }
+            });
+        } else if (inputs && typeof inputs === 'object') {
+            // parents가 없는 단독 노드 등의 경우: in_1 또는 단일 인풋만 1회 처리
+            const fallbackVal = inputs['in_1'] || inputs['in_nodes'] || inputs['in_text'] || Object.values(inputs)[0];
+            if (fallbackVal !== undefined && fallbackVal !== null && String(fallbackVal).trim() !== '') {
+                const textVal = typeof fallbackVal === 'object' ? (fallbackVal.output !== undefined ? String(fallbackVal.output) : (fallbackVal.text || fallbackVal.content || JSON.stringify(fallbackVal, null, 2))) : String(fallbackVal);
+                if (textVal && textVal.trim() !== '') inputTexts.push(textVal);
             }
         }
+
         const aggregatedInput = inputTexts.join('\n\n');
         console.log(`[NodeEngine] 📦 노드 [${file.name || nodeId}] 입력 결합 결과:`, aggregatedInput);
 
         // 🌟 2. 노드 동작 코드(연산 스크립트) 및 위젯별 연산 실행
+        const isFilterNode = widgets.some(w => w.type === 'input_source_filter' || w.type === 'dynamic_input_toggles');
         const userCode = file.code || contentData.code || '';
         let outputText = contentData.editorVal || contentData.val || contentData.content || contentData.text || aggregatedInput || '';
         let rawOutput = outputText;
+        const portOutputsMap = {};
 
-        if (userCode) {
+        if (isFilterNode) {
+            // 🎛️ 필터 노드 엔진 레벨 완벽 필터링 연산 (파일 코드 버전과 무관하게 100% 무결성 보장)
+            const allItems = [];
+            const allTexts = [];
+            const selectedItems = [];
+            const selectedTexts = [];
+
+            function harvestItem(pId, val) {
+                if (val === undefined || val === null || val === '') return;
+                const isOff = inputToggles[pId] === false;
+
+                if (Array.isArray(val)) {
+                    val.forEach(sub => harvestItem(pId, sub));
+                } else if (typeof val === 'object') {
+                    let textVal = '';
+                    if (typeof val.output === 'string') {
+                        textVal = val.output;
+                    } else if (typeof val.text === 'string') {
+                        textVal = val.text;
+                    } else if (typeof val.content === 'string') {
+                        textVal = val.content;
+                    } else if (typeof val.editorVal === 'string') {
+                        textVal = val.editorVal;
+                    } else if (typeof val.val === 'string') {
+                        textVal = val.val;
+                    } else {
+                        textVal = JSON.stringify(val, null, 2);
+                    }
+
+                    allItems.push(val);
+                    if (textVal && textVal.trim() !== '') allTexts.push(textVal);
+
+                    if (!isOff) {
+                        selectedItems.push(val);
+                        if (textVal && textVal.trim() !== '') selectedTexts.push(textVal);
+                    }
+                } else {
+                    const textVal = String(val);
+                    allItems.push(val);
+                    if (textVal && textVal.trim() !== '') allTexts.push(textVal);
+
+                    if (!isOff) {
+                        selectedItems.push(val);
+                        if (textVal && textVal.trim() !== '') selectedTexts.push(textVal);
+                    }
+                }
+            }
+
+            // 상위 부모 노드별로 정확히 1회씩만 harvest
+            if (parents && parents.length > 0) {
+                parents.forEach(pId => {
+                    const pIdStr = String(pId);
+                    const pVal = parentInputsMap[pIdStr];
+                    if (pVal !== undefined) harvestItem(pIdStr, pVal);
+                });
+            } else if (inputs) {
+                const inVal = inputs['in_1'] || inputs['in_nodes'] || Object.values(inputs)[0];
+                if (inVal) harvestItem('in_1', inVal);
+            }
+
+            const selectedMergedText = selectedTexts.join('\n\n').trim();
+            const fullMergedText = allTexts.join('\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n');
+
+            outputText = selectedMergedText || '(선택된 데이터가 없습니다. 상단 스위치를 켜주세요.)';
+            rawOutput = outputText;
+
+            const allPassData = allItems.length === 1 ? allItems[0] : allItems;
+            const selectedPassData = selectedItems.length === 1 ? selectedItems[0] : selectedItems;
+
+            portOutputsMap['out_selected'] = outputText;
+            portOutputsMap['🎯 선택된 텍스트'] = outputText;
+
+            portOutputsMap['out_selected_items'] = selectedPassData;
+            portOutputsMap['🗂️ 선택된 원본 배열 (데이터)'] = selectedPassData;
+
+            portOutputsMap['out_all'] = allPassData;
+            portOutputsMap['📦 전체 원본 데이터 (통과)'] = allPassData;
+
+            contentData.displayVal = outputText;
+            contentData.output = outputText;
+            if (winEl) {
+                const preEl = winEl.querySelector('.widget-text-viewer-pre') || winEl.querySelector('pre');
+                if (preEl) preEl.textContent = outputText;
+            }
+
+            console.log(`[NodeEngine] 🎛️ 필터 노드 [${file.name || nodeId}] 연산 완료 (선택: ${selectedItems.length}개 / 전체: ${allItems.length}개)`);
+        } else if (userCode) {
             try {
                 // scriptInput 객체 구성: 위젯들의 key 및 label, 토글 상태(true/false), 포트별 상위 인풋 데이터 바인딩
                 const scriptInput = {
                     ...contentData,
                     ...(typeof inputs === 'object' ? inputs : {}),
                     input: aggregatedInput,
-                    rawInputs: inputs
+                    rawInputs: inputs,
+                    parentInputs: parentInputsMap,
+                    parents: parents
                 };
                 widgets.forEach(w => {
                     const val = contentData[w.key];
@@ -359,20 +465,63 @@ class NodeEngine {
                 }
 
                 rawOutput = scriptResult;
+                const outputPorts = norm.portsConfig?.outputs || [];
+
                 if (scriptResult !== undefined && scriptResult !== null) {
                     if (typeof scriptResult === 'object' && !Array.isArray(scriptResult)) {
-                        // return { '출력핀이름': data } 형태인 경우 내부 데이터 추출
-                        const keys = Object.keys(scriptResult);
-                        const firstVal = Object.values(scriptResult)[0];
-                        rawOutput = firstVal !== undefined ? firstVal : scriptResult;
-                        outputText = typeof rawOutput === 'object' ? JSON.stringify(rawOutput, null, 2) : String(rawOutput);
+                        // return { '출력핀이름': data, 'out_1': data } 형태인 경우 모든 포트별 데이터 보존
+                        Object.entries(scriptResult).forEach(([k, v]) => {
+                            portOutputsMap[k] = v;
+                        });
+
+                        // 포트 설정과 매핑 (ID 및 Name 양방향 바인딩)
+                        outputPorts.forEach((port, idx) => {
+                            let matchedVal = scriptResult[port.name] !== undefined ? scriptResult[port.name] :
+                                             (scriptResult[port.id] !== undefined ? scriptResult[port.id] : undefined);
+                            if (matchedVal === undefined && idx === 0) {
+                                matchedVal = Object.values(scriptResult)[0];
+                            }
+                            if (matchedVal !== undefined) {
+                                portOutputsMap[port.id] = matchedVal;
+                                portOutputsMap[port.name] = matchedVal;
+                            }
+                        });
+
+                        // 기본 대표 출력값 결정 (첫 번째 출력 핀 기준)
+                        const firstPort = outputPorts[0];
+                        let firstPortVal = firstPort ? (portOutputsMap[firstPort.id] || portOutputsMap[firstPort.name]) : Object.values(scriptResult)[0];
+                        let repVal = firstPortVal !== undefined ? firstPortVal : scriptResult;
+
+                        // 🛡️ 스크립트가 scriptInput 전체 객체를 그대로 반환한 경우 (예: return { '전달 데이터': input }), JSON 대신 상위 노드의 실제 입력 텍스트를 출력하도록 정규화
+                        if (repVal === scriptInput || (repVal && typeof repVal === 'object' && repVal.input !== undefined && repVal.rawInputs !== undefined && repVal.parentInputs !== undefined)) {
+                            repVal = aggregatedInput;
+                            if (firstPort) {
+                                portOutputsMap[firstPort.id] = aggregatedInput;
+                                portOutputsMap[firstPort.name] = aggregatedInput;
+                            }
+                        }
+
+                        outputText = typeof repVal === 'object' ? (repVal?.text || JSON.stringify(repVal, null, 2)) : String(repVal);
                     } else if (Array.isArray(scriptResult)) {
                         rawOutput = scriptResult;
                         outputText = JSON.stringify(scriptResult, null, 2);
+                        outputPorts.forEach(port => {
+                            portOutputsMap[port.id] = scriptResult;
+                            portOutputsMap[port.name] = scriptResult;
+                        });
                     } else {
                         rawOutput = scriptResult;
                         outputText = String(scriptResult);
+                        outputPorts.forEach(port => {
+                            portOutputsMap[port.id] = scriptResult;
+                            portOutputsMap[port.name] = scriptResult;
+                        });
                     }
+                } else {
+                    outputPorts.forEach(port => {
+                        portOutputsMap[port.id] = outputText;
+                        portOutputsMap[port.name] = outputText;
+                    });
                 }
 
                 // 스크립트 실행 후 결과 위젯(text_viewer, editor_canvas 등)에 최종 outputText 동기화
@@ -404,6 +553,12 @@ class NodeEngine {
                 window.showToast?.(`노드 [${file.name || nodeId}] 스크립트 오류: ${scriptErr.message}`, 'error');
             }
         } else {
+            const outputPorts = norm.portsConfig?.outputs || [];
+            outputPorts.forEach(port => {
+                portOutputsMap[port.id] = aggregatedInput;
+                portOutputsMap[port.name] = aggregatedInput;
+            });
+
             for (const w of widgets) {
                 if (w.type === 'text_viewer') {
                     const viewerText = aggregatedInput || '(입력 데이터 전달됨)';
@@ -500,6 +655,7 @@ class NodeEngine {
         return {
             output: outputText,
             rawOutput: rawOutput !== undefined ? rawOutput : outputText,
+            portOutputs: portOutputsMap,
             contentData
         };
     }
@@ -525,44 +681,58 @@ class NodeEngine {
             const parents = session.graph.parentsMap.get(nodeId) || [];
             const collectedInputs = {};
             const inputPorts = norm.portsConfig?.inputs || [];
+            const inConns = session.graph.edges.filter(c => String(c.toId) === nodeId);
 
-            // 1) 부모 노드 ID별 매핑 (미실행 노드도 파일 데이터에서 자동 수집)
-            for (const parentId of parents) {
-                this.setConnectionActive(parentId, nodeId, true);
-                let outVal = session.nodeOutputs.get(parentId);
-                if (outVal === undefined) {
-                    const pFile = this._getFile(parentId);
-                    if (pFile) {
-                        const pNorm = this.normalizeNodeData(pFile);
-                        const pContentData = pNorm?.contentData || {};
-                        outVal = pContentData.output || 
-                                 pContentData.editorVal || 
-                                 pContentData.content || 
-                                 pContentData.val || 
-                                 pContentData.persona_md || 
-                                 pFile.content;
-                    }
+            const self = this;
+            function extractParentOutput(parentId, fromPortId) {
+                const portMap = session.nodePortOutputs.get(String(parentId));
+                if (portMap && fromPortId && portMap[fromPortId] !== undefined) {
+                    return portMap[fromPortId];
                 }
-                collectedInputs[parentId] = outVal;
+                const pOut = session.nodeOutputs.get(String(parentId));
+                if (pOut !== undefined) {
+                    if (typeof pOut === 'object' && pOut !== null && fromPortId && pOut[fromPortId] !== undefined) {
+                        return pOut[fromPortId];
+                    }
+                    return pOut;
+                }
+                // 미실행 노드 파일 데이터 fallback
+                const pFile = self._getFile(parentId);
+                if (pFile) {
+                    const pNorm = self.normalizeNodeData(pFile);
+                    const pContentData = pNorm?.contentData || {};
+                    if (fromPortId && pContentData[fromPortId] !== undefined) {
+                        return pContentData[fromPortId];
+                    }
+                    return pContentData.output || 
+                           pContentData.editorVal || 
+                           pContentData.content || 
+                           pContentData.val || 
+                           pContentData.persona_md || 
+                           pFile.content;
+                }
+                return undefined;
             }
 
-            // 2) 포트 핀 ID 및 포트 이름별 매핑 (다중 노드 연결 시 배열로 안전하게 취합)
-            const inConns = session.graph.edges.filter(c => String(c.toId) === nodeId);
-            inConns.forEach(conn => {
-                let parentVal = session.nodeOutputs.get(String(conn.fromId));
-                if (parentVal === undefined) {
-                    const pFile = this._getFile(conn.fromId);
-                    if (pFile) {
-                        const pNorm = this.normalizeNodeData(pFile);
-                        const pContentData = pNorm?.contentData || {};
-                        parentVal = pContentData.output || 
-                                     pContentData.editorVal || 
-                                     pContentData.content || 
-                                     pContentData.val || 
-                                     pContentData.persona_md || 
-                                     pFile.content;
-                    }
+            // 1) 부모 노드 ID별 매핑 (미실행 노드도 파일 데이터에서 자동 수집)
+            const parentInputsMap = {};
+            for (const parentId of parents) {
+                this.setConnectionActive(parentId, nodeId, true);
+                const parentConns = inConns.filter(c => String(c.fromId) === String(parentId));
+                let outVal;
+                if (parentConns.length === 1 && parentConns[0].fromPortId) {
+                    outVal = extractParentOutput(parentId, parentConns[0].fromPortId);
+                } else if (parentConns.length > 1) {
+                    outVal = parentConns.map(c => extractParentOutput(parentId, c.fromPortId));
+                } else {
+                    outVal = extractParentOutput(parentId);
                 }
+                parentInputsMap[parentId] = outVal;
+            }
+
+            // 2) 포트 핀 ID별 매핑 (다중 노드 연결 시 배열로 안전하게 취합)
+            inConns.forEach(conn => {
+                let parentVal = extractParentOutput(conn.fromId, conn.fromPortId);
 
                 if (parentVal !== undefined && parentVal !== null) {
                     const portId = conn.toPortId || 'in_1';
@@ -575,18 +745,30 @@ class NodeEngine {
                     } else {
                         collectedInputs[portId] = [collectedInputs[portId], parentVal];
                     }
+                }
+            });
 
-                    const matchedPort = inputPorts.find(p => p.id === portId);
-                    if (matchedPort && matchedPort.name) {
-                        const pName = matchedPort.name;
-                        if (collectedInputs[pName] === undefined) {
-                            collectedInputs[pName] = parentVal;
-                        } else if (Array.isArray(collectedInputs[pName])) {
-                            collectedInputs[pName].push(parentVal);
-                        } else {
-                            collectedInputs[pName] = [collectedInputs[pName], parentVal];
-                        }
-                    }
+            // 포트 이름 별칭 등록 (Object.entries/keys 순회 시 중복되지 않도록 non-enumerable 등록)
+            inputPorts.forEach(port => {
+                if (port.id && port.name && port.id !== port.name && collectedInputs[port.id] !== undefined) {
+                    Object.defineProperty(collectedInputs, port.name, {
+                        value: collectedInputs[port.id],
+                        enumerable: false,
+                        configurable: true,
+                        writable: true
+                    });
+                }
+            });
+
+            // 부모 노드 ID 별칭 등록 (기존 스크립트 호환용, 단 Object.entries 순회 시 중복 방지 위해 non-enumerable)
+            Object.entries(parentInputsMap).forEach(([pId, pVal]) => {
+                if (collectedInputs[pId] === undefined) {
+                    Object.defineProperty(collectedInputs, pId, {
+                        value: pVal,
+                        enumerable: false,
+                        configurable: true,
+                        writable: true
+                    });
                 }
             });
 
@@ -601,6 +783,7 @@ class NodeEngine {
             // 실행 완료 처리 (하위 노드로 순수 JSON/객체 원형 그대로 무손실 전달!)
             const finalOutputToPass = result.rawOutput !== undefined ? result.rawOutput : result.output;
             session.nodeOutputs.set(nodeId, finalOutputToPass);
+            session.nodePortOutputs.set(nodeId, result.portOutputs || {});
             session.nodeStates.set(nodeId, 'completed');
             this.setNodeState(nodeId, 'completed');
 
@@ -695,6 +878,7 @@ class NodeEngine {
         for (const parentId of parents) {
             this.currentSession.nodeStates.set(parentId, 'idle');
             this.currentSession.nodeOutputs.delete(parentId);
+            this.currentSession.nodePortOutputs?.delete(parentId);
         }
         this.currentSession.inDegreeRemaining.set(nodeId, parents.length);
 
@@ -785,6 +969,7 @@ class NodeEngine {
             graph,
             nodeStates: new Map(),
             nodeOutputs: new Map(),
+            nodePortOutputs: new Map(),
             waitingResolvers: new Map(),
             inDegreeRemaining: new Map(graph.inDegreeMap),
             isAborted: false
