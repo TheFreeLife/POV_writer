@@ -1730,6 +1730,16 @@ class FileTreeManager {
                 <input type="text" class="input widget-key-input" value="${this.escapeHtml(defaultKey)}" placeholder="변수 Key" style="width: 100px; font-size: 11px; font-family: monospace; flex-shrink: 0;" title="코드 작성 시 사용될 변수 Key">
                 <button type="button" class="btn btn-danger btn-xs remove-widget-row-btn" style="width: 22px; flex-shrink: 0; padding: 2px 0; text-align: center;">✕</button>
             `;
+        } else if (type === 'input_source_filter' || type === 'dynamic_input_toggles') {
+            const targetPort = (typeof extraConfig === 'object' && extraConfig?.targetPortId) ? extraConfig.targetPortId : (extraConfig?.portId || '');
+            row.innerHTML = `
+                ${dragHandleHtml}
+                <span style="font-size: 13px; width: 18px; text-align: center; display: inline-block; flex-shrink: 0;" title="연결 노드 선택 목록">${icon}</span>
+                <input type="text" class="input widget-label-input field-name" value="${this.escapeHtml(defaultLabel)}" placeholder="위젯 제목" style="width: 140px; flex-shrink: 0; font-size: 12px; font-weight: bold;">
+                <input type="text" class="input widget-target-port-input" value="${this.escapeHtml(targetPort)}" placeholder="대상 입력 핀 ID (비워둘 시 전체 핀)" style="flex: 2; font-size: 11px; min-width: 0; font-family: monospace;" title="특정 입력 핀에 꽂힌 노드만 선택하려면 해당 핀의 ID(예: in_1, in_char)를 입력하세요. 비워두면 모든 입력 핀을 수집합니다.">
+                <input type="text" class="input widget-key-input" value="${this.escapeHtml(defaultKey)}" placeholder="변수 Key" style="width: 100px; font-size: 11px; font-family: monospace; flex-shrink: 0;" title="코드 작성 시 사용될 변수 Key">
+                <button type="button" class="btn btn-danger btn-xs remove-widget-row-btn" style="width: 22px; flex-shrink: 0; padding: 2px 0; text-align: center;">✕</button>
+            `;
         } else {
             row.innerHTML = `
                 ${dragHandleHtml}
@@ -2290,6 +2300,11 @@ class FileTreeManager {
                 const bIcon = row.querySelector('.widget-icon-input')?.value?.trim() || '▶️';
                 const bAction = row.querySelector('.widget-action-input')?.value?.trim() || 'run_node';
                 widgets.push({ id: `w_${idx + 1}`, type: 'button_action', label: wLabel, key: wKey, icon: bIcon, action: bAction });
+            } else if (wType === 'input_source_filter' || wType === 'dynamic_input_toggles') {
+                const targetPortId = row.querySelector('.widget-target-port-input')?.value?.trim() || '';
+                const widgetObj = { id: `w_${idx + 1}`, type: 'input_source_filter', label: wLabel, key: wKey };
+                if (targetPortId) widgetObj.targetPortId = targetPortId;
+                widgets.push(widgetObj);
             } else if (wType) {
                 const widgetObj = { id: `w_${idx + 1}`, type: wType, label: wLabel, key: wKey, rows: wRows, defaultVal, placeholder };
                 if (options && options.length > 0) widgetObj.options = options;

@@ -660,7 +660,11 @@ class WidgetManager {
         const filterHandler = {
             render: (w, contentData, fileId) => {
                 const connections = window.nodeEngine?._getConnections() || window.windowManager?.nodeConnections || [];
-                const incomingConns = connections.filter(c => String(c.toId) === String(fileId));
+                const targetPort = w.targetPortId || w.portId || w.targetPort;
+                const incomingConns = connections.filter(c => 
+                    String(c.toId) === String(fileId) && 
+                    (!targetPort || targetPort === 'all' || c.toPortId === targetPort || c.toPort === targetPort)
+                );
                 const inputToggles = contentData.inputToggles || {};
 
                 if (incomingConns.length === 0) {
@@ -674,17 +678,21 @@ class WidgetManager {
                     `;
                 }
 
-                // 상위 노드별 토글 리스트 아이템 생성
-                const itemsHtml = incomingConns.map((conn, idx) => {
+                // 상위 직속 연결 노드별 토글 리스트 아이템 생성
+                const itemsHtml = incomingConns.map((conn) => {
                     const parentId = String(conn.fromId);
                     const parentFile = window.nodeEngine?._getFile(parentId);
+                    const pNorm = parentFile ? window.nodeEngine?.normalizeNodeData(parentFile) : null;
                     const parentName = parentFile?.name || `노드 #${parentId.slice(-4)}`;
                     const isChecked = inputToggles[parentId] !== undefined ? !!inputToggles[parentId] : true;
+                    
+                    const cat = parentFile?.category || pNorm?.nodeType || 'general';
+                    const icon = parentFile?.icon || (cat === 'character' ? '👤' : (cat === 'world' ? '🌍' : (cat === 'logic' ? '🎛️' : '📌')));
 
                     return `
                         <div class="dynamic-input-toggle-row" data-parent-id="${this.escapeHtml(parentId)}" style="display: flex; align-items: center; justify-content: space-between; padding: 6px 10px; background: var(--color-bg-primary); border: 1px solid var(--color-border); border-radius: 6px; gap: 8px;">
                             <div style="display: flex; align-items: center; gap: 6px; min-width: 0; flex: 1;">
-                                <span style="font-size: 12px; flex-shrink: 0;">📌</span>
+                                <span style="font-size: 12px; flex-shrink: 0;">${icon}</span>
                                 <span style="font-size: 11px; font-weight: 600; color: var(--color-text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${this.escapeHtml(parentName)}">
                                     ${this.escapeHtml(parentName)}
                                 </span>

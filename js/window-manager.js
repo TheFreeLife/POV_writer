@@ -2105,9 +2105,17 @@ class WindowManager {
         if (typeof content === 'string') {
             textStr = content;
         } else if (typeof content === 'object' && content !== null) {
-            textStr = content.editorVal || content.content || content.text || content.val || '';
+            const rawVal = content.editorVal !== undefined ? content.editorVal :
+                           (content.content !== undefined ? content.content :
+                           (content.text !== undefined ? content.text :
+                           (content.val !== undefined ? content.val : '')));
+            textStr = typeof rawVal === 'string' ? rawVal : (typeof rawVal === 'object' && rawVal !== null ? JSON.stringify(rawVal) : String(rawVal || ''));
         } else {
             textStr = String(content || '');
+        }
+
+        if (typeof textStr !== 'string') {
+            textStr = String(textStr || '');
         }
 
         const total = textStr.length;

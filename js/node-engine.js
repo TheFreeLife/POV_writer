@@ -306,7 +306,10 @@ class NodeEngine {
                 }
 
                 if (val !== undefined && val !== null && String(val).trim() !== '') {
-                    inputTexts.push(typeof val === 'object' ? (val.output || JSON.stringify(val)) : String(val));
+                    const textVal = typeof val === 'object' ? (val.output !== undefined ? (typeof val.output === 'object' ? JSON.stringify(val.output, null, 2) : String(val.output)) : (val.text || val.content || val.editorVal || val.val || JSON.stringify(val, null, 2))) : String(val);
+                    if (textVal && textVal.trim() !== '') {
+                        inputTexts.push(textVal);
+                    }
                 }
             }
         }

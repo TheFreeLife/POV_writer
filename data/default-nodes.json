@@ -415,8 +415,8 @@
     "desc": "여러 상위 노드를 연결하면 각 노드별 선택 스위치가 자동 생성되어, 원하는 데이터만 골라서 다음 노드로 전달하는 범용 필터 노드",
     "category": "logic",
     "color": "#6366f1",
-    "defaultWidth": 460,
-    "defaultHeight": 360,
+    "defaultWidth": 480,
+    "defaultHeight": 520,
     "isDefault": true,
     "promptForName": true,
     "promptForDesc": false,
@@ -425,25 +425,37 @@
         "id": "w_filter_list",
         "type": "input_source_filter",
         "label": "연결된 노드별 데이터 선택"
+      },
+      {
+        "id": "w_results_viewer",
+        "type": "text_viewer",
+        "label": "👁️ 필터링되어 선택된 최종 데이터",
+        "key": "displayVal",
+        "rows": 10
       }
     ],
     "portsConfig": {
       "inputs": [
         {
           "id": "in_1",
-          "name": "다중 입력 데이터",
+          "name": "📥 다중 입력 데이터 (다중 연결)",
           "color": "#6366f1"
         }
       ],
       "outputs": [
         {
-          "id": "out_1",
-          "name": "선택된 데이터",
+          "id": "out_selected",
+          "name": "🎯 선택된 데이터",
           "color": "#6366f1"
+        },
+        {
+          "id": "out_all",
+          "name": "📦 전체 원본 데이터 (통과)",
+          "color": "#06b6d4"
         }
       ]
     },
-    "code": "return { '선택된 데이터': input.input || '(선택된 데이터 없음)' };"
+    "code": "// 1. inputToggles로 필터링된 선택본 텍스트\nconst selectedText = (input.input || '').trim();\n\n// 2. 토글과 무관하게 연결된 모든 상위 노드의 원본 전체 수집 (Pass-Through)\nconst rawInputs = input.rawInputs || {};\nconst allItems = [];\nconst allTexts = [];\n\nfunction harvestRaw(key, val) {\n  if (val === undefined || val === null || val === '') return;\n  if (Array.isArray(val)) {\n    val.forEach((sub, idx) => harvestRaw(`${key}_${idx}`, sub));\n  } else if (typeof val === 'object') {\n    if (val.output !== undefined) {\n      harvestRaw(key, val.output);\n    } else {\n      allItems.push(val);\n      allTexts.push(typeof val.text === 'string' ? val.text : (val.content || val.editorVal || val.val || JSON.stringify(val, null, 2)));\n    }\n  } else {\n    allItems.push({ source: key, text: String(val) });\n    allTexts.push(String(val));\n  }\n}\n\nObject.entries(rawInputs).forEach(([k, v]) => harvestRaw(k, v));\nconst fullText = allTexts.join('\\n\\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\n\\n');\n\nreturn {\n  '🎯 선택된 데이터': selectedText || '(선택된 데이터가 없습니다. 상단 스위치를 켜주세요.)',\n  '📦 전체 원본 데이터 (통과)': allItems.length > 0 ? { items: allItems, text: fullText, count: allItems.length } : fullText\n};"
   },
   {
     "schemaVersion": "2.0",
