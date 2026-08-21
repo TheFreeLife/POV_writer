@@ -445,8 +445,13 @@
       "outputs": [
         {
           "id": "out_selected",
-          "name": "🎯 선택된 데이터",
+          "name": "🎯 선택된 텍스트",
           "color": "#6366f1"
+        },
+        {
+          "id": "out_selected_items",
+          "name": "🗂️ 선택된 원본 배열 (데이터)",
+          "color": "#a855f7"
         },
         {
           "id": "out_all",
@@ -455,7 +460,7 @@
         }
       ]
     },
-    "code": "// 1. inputToggles로 필터링된 선택본 텍스트\nconst selectedText = (input.input || '').trim();\n\n// 2. 토글과 무관하게 연결된 모든 상위 노드의 원본 전체 수집 (Pass-Through)\nconst rawInputs = input.rawInputs || {};\nconst allItems = [];\nconst allTexts = [];\n\nfunction harvestRaw(key, val) {\n  if (val === undefined || val === null || val === '') return;\n  if (Array.isArray(val)) {\n    val.forEach((sub, idx) => harvestRaw(`${key}_${idx}`, sub));\n  } else if (typeof val === 'object') {\n    if (val.output !== undefined) {\n      harvestRaw(key, val.output);\n    } else {\n      allItems.push(val);\n      allTexts.push(typeof val.text === 'string' ? val.text : (val.content || val.editorVal || val.val || JSON.stringify(val, null, 2)));\n    }\n  } else {\n    allItems.push({ source: key, text: String(val) });\n    allTexts.push(String(val));\n  }\n}\n\nObject.entries(rawInputs).forEach(([k, v]) => harvestRaw(k, v));\nconst fullText = allTexts.join('\\n\\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\n\\n');\n\nreturn {\n  '🎯 선택된 데이터': selectedText || '(선택된 데이터가 없습니다. 상단 스위치를 켜주세요.)',\n  '📦 전체 원본 데이터 (통과)': allItems.length > 0 ? { items: allItems, text: fullText, count: allItems.length } : fullText\n};"
+    "code": "// 1. inputToggles 상태 확인\nconst inputToggles = input.inputToggles || {};\nconst rawInputs = input.rawInputs || {};\n\n// 2. 전체 상위 노드 및 스위치 ON된 선택 상위 노드 분류 수집\nconst allItems = [];\nconst allTexts = [];\nconst selectedItems = [];\nconst selectedTexts = [];\n\nfunction harvest(key, val) {\n  if (val === undefined || val === null || val === '') return;\n  \n  const isOff = inputToggles[key] === false;\n  \n  if (Array.isArray(val)) {\n    val.forEach((sub, idx) => harvest(`${key}_${idx}`, sub));\n  } else if (typeof val === 'object') {\n    if (val.output !== undefined) {\n      harvest(key, val.output);\n    } else {\n      const textVal = typeof val.text === 'string' ? val.text : (val.content || val.editorVal || val.val || JSON.stringify(val, null, 2));\n      allItems.push(val);\n      allTexts.push(textVal);\n      if (!isOff) {\n        selectedItems.push(val);\n        selectedTexts.push(textVal);\n      }\n    }\n  } else {\n    const textVal = String(val);\n    const obj = { source: key, text: textVal };\n    allItems.push(obj);\n    allTexts.push(textVal);\n    if (!isOff) {\n      selectedItems.push(obj);\n      selectedTexts.push(textVal);\n    }\n  }\n}\n\nObject.entries(rawInputs).forEach(([k, v]) => harvest(k, v));\n\nconst selectedMergedText = (input.input || selectedTexts.join('\\n\\n')).trim();\nconst fullMergedText = allTexts.join('\\n\\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\n\\n');\n\nreturn {\n  '🎯 선택된 텍스트': selectedMergedText || '(선택된 데이터가 없습니다. 상단 스위치를 켜주세요.)',\n  '🗂️ 선택된 원본 배열 (데이터)': {\n    count: selectedItems.length,\n    items: selectedItems,\n    structured: selectedItems,\n    text: selectedMergedText\n  },\n  '📦 전체 원본 데이터 (통과)': {\n    count: allItems.length,\n    items: allItems,\n    structured: allItems,\n    text: fullMergedText\n  }\n};"
   },
   {
     "schemaVersion": "2.0",
