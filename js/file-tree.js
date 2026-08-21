@@ -981,10 +981,11 @@ class FileTreeManager {
         await this.renderCustomNodePresets();
     }
 
-    async showNodeSelectModal() {
+    async showNodeSelectModal(targetFolderId = null) {
         const modal = document.getElementById('nodeSelectModal');
         if (!modal) return;
 
+        this.targetFolderId = targetFolderId;
         await this.checkAndPromptSchemaUpgrade();
         await this.renderCustomNodePresets();
         modal.classList.remove('hidden');
@@ -2379,7 +2380,8 @@ class FileTreeManager {
                 return;
             }
 
-            const siblings = (this.files || []).filter(f => !f.parentId);
+            const targetParentId = fileData.parentId !== undefined ? fileData.parentId : (this.targetFolderId || null);
+            const siblings = (this.files || []).filter(f => f.parentId === targetParentId);
             const maxOrder = siblings.length > 0 ? Math.max(...siblings.map(f => f.order || 0)) : -1;
 
             const dataToCreate = {
@@ -2391,11 +2393,13 @@ class FileTreeManager {
                 isCustomNode: fileData.isCustomNode !== undefined ? !!fileData.isCustomNode : true,
                 portsConfig: fileData.portsConfig || null,
                 template: fileData.template || fileData.defaultTemplate || 'custom_node',
-                parentId: null,
+                parentId: targetParentId,
                 order: maxOrder + 1,
                 defaultWidth: fileData.defaultWidth || 520,
                 defaultHeight: fileData.defaultHeight || 650
             };
+
+            this.targetFolderId = null; // 사용 후 초기화
 
             const created = window.nodeManager ? await window.nodeManager.createNode(dataToCreate) : await storage.createFile(dataToCreate);
 
@@ -2676,16 +2680,7 @@ class FileTreeManager {
 
         menu.innerHTML = `
             ${file.type === 'folder' ? `
-                <div class="context-menu-item has-submenu" id="ctx-new-file-group">
-                    <div style="display: flex; align-items: center; gap: 10px;">
-                        <span class="context-menu-icon">➕</span> 새 노드 추가
-                    </div>
-                    <div class="context-submenu">
-                        <div class="context-menu-item" id="ctx-new-file-text"><span class="context-menu-icon">📄</span> 소설 / 원고 노드</div>
-                        <div class="context-menu-item" id="ctx-new-file-image"><span class="context-menu-icon">🖼️</span> 이미지 노드</div>
-                        <div class="context-menu-item" id="ctx-open-wizard"><span class="context-menu-icon">✨</span> 커스텀 노드 정의...</div>
-                    </div>
-                </div>
+                <div class="context-menu-item" id="ctx-new-node-direct"><span class="context-menu-icon">➕</span> 새 노드 추가...</div>
                 <div class="context-menu-item" id="ctx-new-folder"><span class="context-menu-icon">📁</span> 새 폴더</div>
                 <div class="context-menu-divider"></div>
                 <div class="context-menu-item" id="ctx-folder-stats"><span class="context-menu-icon">📊</span> 통계</div>
@@ -2706,9 +2701,10 @@ class FileTreeManager {
             menu.classList.add('hidden');
             window.nodeEngine?.notifyPreparing();
         });
-        document.getElementById('ctx-new-file-text')?.addEventListener('click', () => this.showNewItemModal('file', file.id));
-        document.getElementById('ctx-new-file-image')?.addEventListener('click', () => this.showNewImageModal());
-        document.getElementById('ctx-open-wizard')?.addEventListener('click', () => this.showNodeSelectModal());
+        document.getElementById('ctx-new-node-direct')?.addEventListener('click', () => {
+            menu.classList.add('hidden');
+            this.showNodeSelectModal(file.id);
+        });
         
         document.getElementById('ctx-new-folder')?.addEventListener('click', () => this.showNewItemModal('folder', file.id));
         document.getElementById('ctx-folder-stats')?.addEventListener('click', () => this.showFolderStatsModal(file));
@@ -3001,25 +2997,17 @@ class FileTreeManager {
         if (!menu) return;
 
         menu.innerHTML = `
-            <div class="context-menu-item has-submenu" id="ctx-root-new-file-group">
-                <div style="display: flex; align-items: center; gap: 10px;">
-                    <span class="context-menu-icon">➕</span> 새 노드 추가
-                </div>
-                <div class="context-submenu">
-                    <div class="context-menu-item" id="ctx-root-new-file-text"><span class="context-menu-icon">📄</span> 소설 / 원고 노드</div>
-                    <div class="context-menu-item" id="ctx-root-new-file-image"><span class="context-menu-icon">🖼️</span> 이미지 노드</div>
-                    <div class="context-menu-item" id="ctx-root-open-wizard"><span class="context-menu-icon">✨</span> 커스텀 노드 정의...</div>
-                </div>
-            </div>
+            <div class="context-menu-item" id="ctx-root-new-node-direct"><span class="context-menu-icon">➕</span> 새 노드 추가...</div>
             <div class="context-menu-item" id="ctx-root-new-folder"><span class="context-menu-icon">📁</span> 새 폴더</div>
         `;
         menu.style.left = `${e.pageX}px`;
         menu.style.top = `${e.pageY}px`;
         menu.classList.remove('hidden');
 
-        document.getElementById('ctx-root-new-file-text')?.addEventListener('click', () => this.showNewItemModal('file', null));
-        document.getElementById('ctx-root-new-file-image')?.addEventListener('click', () => this.showNewImageModal());
-        document.getElementById('ctx-root-open-wizard')?.addEventListener('click', () => this.showNodeSelectModal());
+        document.getElementById('ctx-root-new-node-direct')?.addEventListener('click', () => {
+            menu.classList.add('hidden');
+            this.showNodeSelectModal(null);
+        });
         document.getElementById('ctx-root-new-folder')?.addEventListener('click', () => this.showNewItemModal('folder', null));
     }
 
