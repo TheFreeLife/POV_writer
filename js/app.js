@@ -106,6 +106,9 @@ async function initProjectSession(projectId) {
             console.log(`[AppInitializer] 📖 5. 프로젝트 회차 정보 로드 완료`);
         }
 
+        // 6. On-Demand RAG 시스템 준비 완료 (노드 실행 시점에만 즉시 인덱싱)
+        console.log(`[AppInitializer] 🧠 6. On-Demand JIT RAG 시스템 대기 완료`);
+
         console.log(`[AppInitializer] ✅ 프로젝트 세션 통합 초기화 완수!`);
     } catch (err) {
         console.error(`[AppInitializer] ❌ 프로젝트 세션 초기화 중 오류 발생:`, err);

@@ -1612,7 +1612,7 @@ class FileTreeManager {
         document.getElementById('wizardTabContentCode')?.classList.toggle('hidden', tabName !== 'code');
     }
 
-    addWizardWidgetRow(type, label = '', key = '', rows = 1, defaultVal = '', placeholder = '', options = null) {
+    addWizardWidgetRow(type, label = '', key = '', rows = 1, defaultVal = '', placeholder = '', options = null, extraConfig = {}) {
         const list = document.getElementById('wizardWidgetLayoutList');
         if (!list) return;
 
@@ -1620,10 +1620,13 @@ class FileTreeManager {
             'section_header': '📌',
             'input_text': '📝',
             'dropdown_select': '🔽',
+            'slider': '🎚️',
+            'range_slider': '🎚️',
             'text_viewer': '👁️',
             'raw_data_viewer': '🧬',
             'approval_gate': '✅',
             'continue_gate': '▶️',
+            'button_action': '🔘',
             'toggle_switch': '🔘',
             'input_source_filter': '🎛️',
             'dynamic_input_toggles': '🎛️',
@@ -1636,10 +1639,13 @@ class FileTreeManager {
             'section_header': '섹션 구분 헤더',
             'input_text': '텍스트 입력창',
             'dropdown_select': '드롭다운',
+            'slider': '슬라이드바 (수치 조절)',
+            'range_slider': '슬라이드바',
             'text_viewer': '텍스트 뷰어 (출력)',
             'raw_data_viewer': '원형 데이터 뷰어',
             'approval_gate': '검수 승인 게이트',
             'continue_gate': '진행 확인 게이트',
+            'button_action': '액션 실행 버튼',
             'toggle_switch': '스위치 토글',
             'input_source_filter': '연결 노드 선택 목록',
             'dynamic_input_toggles': '연결 노드 선택 목록',
@@ -1655,6 +1661,7 @@ class FileTreeManager {
         const showRowsOption = ['input_text', 'editor_canvas', 'text_viewer', 'raw_data_viewer'].includes(type);
         const hasInputs = ['input_text', 'editor_canvas', 'toggle_switch'].includes(type);
         const isDropdown = type === 'dropdown_select';
+        const isSlider = type === 'slider' || type === 'range_slider';
         const isSectionHeader = type === 'section_header';
         const optionsStr = Array.isArray(options) ? options.join(', ') : (options || defaultVal || '옵션 1, 옵션 2, 옵션 3');
 
@@ -1683,6 +1690,46 @@ class FileTreeManager {
             colorPicker?.addEventListener('input', () => {
                 if (labelInputEl) labelInputEl.style.borderLeftColor = colorPicker.value;
             });
+        } else if (isSlider) {
+            const minVal = extraConfig?.min !== undefined ? extraConfig.min : 1;
+            const maxVal = extraConfig?.max !== undefined ? extraConfig.max : 100;
+            const stepVal = extraConfig?.step !== undefined ? extraConfig.step : 1;
+            const unitVal = extraConfig?.unit !== undefined ? extraConfig.unit : '';
+            const defaultNumVal = defaultVal !== '' && !isNaN(Number(defaultVal)) ? Number(defaultVal) : (extraConfig?.defaultVal !== undefined ? extraConfig.defaultVal : minVal);
+
+            row.innerHTML = `
+                ${dragHandleHtml}
+                <span style="font-size: 13px; width: 18px; text-align: center; display: inline-block; flex-shrink: 0;" title="슬라이드바 (수치 조절)">${icon}</span>
+                <input type="text" class="input widget-label-input field-name" value="${this.escapeHtml(defaultLabel)}" placeholder="항목 제목 (예: 수치 조절)" style="width: 140px; flex-shrink: 0; font-size: 12px;">
+                <div style="display: flex; align-items: center; gap: 4px; flex: 2; min-width: 0; background: var(--color-bg-primary); padding: 2px 6px; border-radius: 6px; border: 1px solid var(--color-border);">
+                    <span style="font-size: 10px; color: var(--color-text-tertiary);">최소</span>
+                    <input type="number" class="input widget-min-input" value="${minVal}" style="width: 38px; font-size: 11px; padding: 2px 2px; text-align: center; border: 1px solid var(--color-border); border-radius: 4px;" title="최소값 (min)">
+                    <span style="font-size: 10px; color: var(--color-text-tertiary);">최대</span>
+                    <input type="number" class="input widget-max-input" value="${maxVal}" style="width: 44px; font-size: 11px; padding: 2px 2px; text-align: center; border: 1px solid var(--color-border); border-radius: 4px;" title="최대값 (max)">
+                    <span style="font-size: 10px; color: var(--color-text-tertiary);">간격</span>
+                    <input type="number" class="input widget-step-input" value="${stepVal}" style="width: 34px; font-size: 11px; padding: 2px 2px; text-align: center; border: 1px solid var(--color-border); border-radius: 4px;" title="단계 간격 (step)">
+                    <span style="font-size: 10px; color: var(--color-text-tertiary);">단위</span>
+                    <input type="text" class="input widget-unit-input" value="${this.escapeHtml(unitVal)}" placeholder="개/자" style="width: 36px; font-size: 11px; padding: 2px 2px; text-align: center; border: 1px solid var(--color-border); border-radius: 4px;" title="단위 기호 (예: 개, 자, %, 회)">
+                    <span style="font-size: 10px; color: var(--color-text-tertiary);">기본</span>
+                    <input type="number" class="input widget-default-input" value="${defaultNumVal}" style="width: 38px; font-size: 11px; padding: 2px 2px; text-align: center; border: 1px solid var(--color-border); border-radius: 4px;" title="기본 시작값 (defaultVal)">
+                </div>
+                <input type="text" class="input widget-key-input" value="${this.escapeHtml(defaultKey)}" placeholder="변수 Key" style="width: 100px; font-size: 11px; font-family: monospace; flex-shrink: 0;" title="코드 작성 시 사용될 변수 Key">
+                <button type="button" class="btn btn-danger btn-xs remove-widget-row-btn" style="width: 22px; flex-shrink: 0; padding: 2px 0; text-align: center;">✕</button>
+            `;
+        } else if (type === 'button_action') {
+            const btnIcon = (typeof extraConfig === 'object' && extraConfig?.icon) ? extraConfig.icon : '▶️';
+            const btnLabel = label || '노드 실행';
+            const btnAction = (typeof extraConfig === 'object' && extraConfig?.action) ? extraConfig.action : 'run_node';
+
+            row.innerHTML = `
+                ${dragHandleHtml}
+                <span style="font-size: 13px; width: 18px; text-align: center; display: inline-block; flex-shrink: 0;" title="액션 실행 버튼">${icon}</span>
+                <input type="text" class="input widget-label-input field-name" value="${this.escapeHtml(btnLabel)}" placeholder="버튼 문구 (예: 검색 실행)" style="width: 140px; flex-shrink: 0; font-size: 12px; font-weight: bold;">
+                <input type="text" class="input widget-icon-input" value="${this.escapeHtml(btnIcon)}" placeholder="아이콘" style="width: 40px; text-align: center; font-size: 12px; flex-shrink: 0;" title="버튼에 표시될 아이콘 이모지">
+                <input type="text" class="input widget-action-input" value="${this.escapeHtml(btnAction)}" placeholder="액션 (기본: run_node)" style="flex: 2; font-size: 11px; min-width: 0;" title="실행할 동작 (기본값: run_node)">
+                <input type="text" class="input widget-key-input" value="${this.escapeHtml(defaultKey)}" placeholder="변수 Key" style="width: 100px; font-size: 11px; font-family: monospace; flex-shrink: 0;" title="코드 작성 시 사용될 변수 Key">
+                <button type="button" class="btn btn-danger btn-xs remove-widget-row-btn" style="width: 22px; flex-shrink: 0; padding: 2px 0; text-align: center;">✕</button>
+            `;
         } else {
             row.innerHTML = `
                 ${dragHandleHtml}
@@ -1836,7 +1883,16 @@ class FileTreeManager {
         if (widgetList) {
             widgetList.innerHTML = '';
             if (Array.isArray(presetToEdit?.widgets) && presetToEdit.widgets.length > 0) {
-                presetToEdit.widgets.forEach(w => this.addWizardWidgetRow(w.type, w.label, w.key, w.rows, w.defaultVal || w.color, w.placeholder || w.desc, w.options || { color: w.color, desc: w.desc }));
+                presetToEdit.widgets.forEach(w => this.addWizardWidgetRow(
+                    w.type, 
+                    w.label, 
+                    w.key, 
+                    w.rows, 
+                    w.defaultVal || w.color, 
+                    w.placeholder || w.desc, 
+                    w.options || { color: w.color, desc: w.desc },
+                    { min: w.min, max: w.max, step: w.step, unit: w.unit, defaultVal: w.defaultVal }
+                ));
             }
         }
 
@@ -2222,6 +2278,18 @@ class FileTreeManager {
                 const wColor = row.querySelector('.widget-color-input')?.value || '#38bdf8';
                 const wDesc = row.querySelector('.widget-desc-input')?.value.trim() || '';
                 widgets.push({ id: `sec_${idx + 1}`, type: 'section_header', label: wLabel, icon: '📌', color: wColor, desc: wDesc });
+            } else if (wType === 'slider' || wType === 'range_slider') {
+                const min = Number(row.querySelector('.widget-min-input')?.value ?? 1);
+                const max = Number(row.querySelector('.widget-max-input')?.value ?? 100);
+                const step = Number(row.querySelector('.widget-step-input')?.value ?? 1);
+                const unit = row.querySelector('.widget-unit-input')?.value?.trim() || '';
+                const defaultNum = row.querySelector('.widget-default-input')?.value;
+                const defaultVal = defaultNum !== undefined && defaultNum !== '' && !isNaN(Number(defaultNum)) ? Number(defaultNum) : min;
+                widgets.push({ id: `w_${idx + 1}`, type: 'slider', label: wLabel, key: wKey, min, max, step, unit, defaultVal });
+            } else if (wType === 'button_action') {
+                const bIcon = row.querySelector('.widget-icon-input')?.value?.trim() || '▶️';
+                const bAction = row.querySelector('.widget-action-input')?.value?.trim() || 'run_node';
+                widgets.push({ id: `w_${idx + 1}`, type: 'button_action', label: wLabel, key: wKey, icon: bIcon, action: bAction });
             } else if (wType) {
                 const widgetObj = { id: `w_${idx + 1}`, type: wType, label: wLabel, key: wKey, rows: wRows, defaultVal, placeholder };
                 if (options && options.length > 0) widgetObj.options = options;

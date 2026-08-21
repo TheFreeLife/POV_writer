@@ -302,7 +302,7 @@
           <button class="tools-tab" data-tab="tools">도구</button>
           <button class="tools-tab" data-tab="memos">메모</button>
           <button class="tools-tab" data-tab="search">검색</button>
-          <button class="tools-tab" data-tab="settings">원고 설정</button>
+          <button class="tools-tab" data-tab="settings">환경 설정</button>
         </div>
         <div class="tools-content" id="toolsContent">
           <!-- 도구 탭 내용이 동적으로 생성됩니다 -->
@@ -672,6 +672,8 @@
                   class="widget-plus-icon">+</span> 📝 텍스트 입력창</button>
               <button type="button" class="btn btn-secondary btn-xs add-widget-btn"
                 data-widget-type="dropdown_select"><span class="widget-plus-icon">+</span> 🔽 드롭다운</button>
+              <button type="button" class="btn btn-secondary btn-xs add-widget-btn"
+                data-widget-type="slider"><span class="widget-plus-icon">+</span> 🎚️ 슬라이드바</button>
               <button type="button" class="btn btn-secondary btn-xs add-widget-btn" data-widget-type="text_viewer"><span
                   class="widget-plus-icon">+</span> 👁️ 텍스트 뷰어 (출력)</button>
               <button type="button" class="btn btn-secondary btn-xs add-widget-btn"
@@ -680,6 +682,8 @@
                 data-widget-type="approval_gate"><span class="widget-plus-icon">+</span> ✋ 검수 승인 게이트</button>
               <button type="button" class="btn btn-secondary btn-xs add-widget-btn"
                 data-widget-type="continue_gate"><span class="widget-plus-icon">+</span> ▶️ 진행 확인 게이트</button>
+              <button type="button" class="btn btn-secondary btn-xs add-widget-btn"
+                data-widget-type="button_action"><span class="widget-plus-icon">+</span> 🔘 액션 실행 버튼</button>
               <button type="button" class="btn btn-secondary btn-xs add-widget-btn"
                 data-widget-type="toggle_switch"><span class="widget-plus-icon">+</span> 🔘 스위치 토글</button>
               <button type="button" class="btn btn-secondary btn-xs add-widget-btn"
@@ -1372,6 +1376,7 @@ return { 총합, 랭크 };</pre>
   </div>
 
   <!-- JavaScript 모듈 -->
+  <script src="js/rag-engine.js"></script>
   <script src="js/ai-api.js"></script>
   <script src="js/storage.js"></script>
   <script src="js/backup-manager.js"></script>

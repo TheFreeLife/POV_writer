@@ -313,69 +313,7 @@ class NodeEngine {
         const aggregatedInput = inputTexts.join('\n\n');
         console.log(`[NodeEngine] 📦 노드 [${file.name || nodeId}] 입력 결합 결과:`, aggregatedInput);
 
-        // 🌟 2. 위젯별 연산 및 데이터 반영
-        let hasApprovalGate = false;
-        let isApproved = !!contentData.isApproved;
-        let hasContinueGate = false;
-        let isContinued = !!contentData.isContinued;
-
-        for (const w of widgets) {
-            if (w.type === 'approval_gate') {
-                hasApprovalGate = true;
-            }
-            if (w.type === 'continue_gate') {
-                hasContinueGate = true;
-            }
-            if (w.type === 'text_viewer') {
-                const viewerText = aggregatedInput || '(입력 데이터 전달됨)';
-                contentData[w.key || 'displayVal'] = viewerText;
-                contentData.output = aggregatedInput;
-
-                // DOM 실시간 즉각 반영
-                if (winEl) {
-                    const preEl = winEl.querySelector('.widget-text-viewer-pre') || winEl.querySelector('pre');
-                    if (preEl) preEl.textContent = viewerText;
-                }
-            }
-        }
-
-        // 텍스트/원고 에디터 노드에 인풋 자동 반영 (비어있거나 전달값이 있을 때)
-        if (aggregatedInput && !contentData.editorVal && !contentData.val) {
-            if (norm.nodeType === 'manuscript') {
-                contentData.editorVal = aggregatedInput;
-            }
-        }
-
-        file.content = contentData;
-
-        // WindowManager의 메모리상 윈도우 객체도 동기화
-        const winInfo = window.windowManager?.getWindowInfo?.(nodeId);
-        if (winInfo && winInfo.file) {
-            winInfo.file.content = contentData;
-        }
-
-        await window.storage?.saveFile?.(file);
-        window.windowManager?.refreshNodeUI?.(nodeId);
-
-        // 🌟 3. 사용자 검수/입력/흐름제어 대기가 필요한 경우
-        const needsApprovalWait = hasApprovalGate && !isApproved;
-        const needsContinueWait = hasContinueGate && !isContinued;
-
-        if (needsApprovalWait || needsContinueWait) {
-            const waitReason = needsApprovalWait ? '사용자 승인 대기' : '사용자 계속 진행 확인 대기';
-            console.log(`[NodeEngine] ⏸️ 노드 [${file.name || nodeId}] ${waitReason} 시작`);
-            this.setNodeState(nodeId, 'waiting');
-
-            // 대기 Promise 등록
-            await new Promise((resolve, reject) => {
-                session.waitingResolvers.set(String(nodeId), { resolve, reject });
-            });
-
-            console.log(`[NodeEngine] ▶️ 노드 [${file.name || nodeId}] 확인 완료로 실행 재개`);
-            this.setNodeState(nodeId, 'running');
-        }
-
-        // 🌟 4. 노드 동작 코드(연산 스크립트) 실행
+        // 🌟 2. 노드 동작 코드(연산 스크립트) 및 위젯별 연산 실행
         const userCode = file.code || contentData.code || '';
         let outputText = contentData.editorVal || contentData.val || contentData.content || contentData.text || aggregatedInput || '';
         let rawOutput = outputText;
@@ -463,12 +401,28 @@ class NodeEngine {
                 window.showToast?.(`노드 [${file.name || nodeId}] 스크립트 오류: ${scriptErr.message}`, 'error');
             }
         } else {
-            if (widgets.some(w => w.type === 'text_viewer') && aggregatedInput) {
-                outputText = aggregatedInput;
+            for (const w of widgets) {
+                if (w.type === 'text_viewer') {
+                    const viewerText = aggregatedInput || '(입력 데이터 전달됨)';
+                    contentData[w.key || 'displayVal'] = viewerText;
+                    contentData.output = aggregatedInput;
+                    outputText = aggregatedInput;
+
+                    if (winEl) {
+                        const preEl = winEl.querySelector('.widget-text-viewer-pre') || winEl.querySelector('pre');
+                        if (preEl) preEl.textContent = viewerText;
+                    }
+                }
+            }
+            if (aggregatedInput && !contentData.editorVal && !contentData.val) {
+                if (norm.nodeType === 'manuscript') {
+                    contentData.editorVal = aggregatedInput;
+                    outputText = aggregatedInput;
+                }
             }
         }
 
-        // 🌟 5. raw_data_viewer 위젯이 있는 노드의 경우, 상위 노드의 정형화된 데이터 구조(노드명, 타입, 출력값, 위젯 데이터)를 JSON으로 바인딩
+        // 🌟 3. raw_data_viewer 위젯이 있는 노드의 경우, 상위 노드의 정형화된 데이터 구조(노드명, 타입, 출력값, 위젯 데이터)를 JSON으로 바인딩
         if (widgets.some(w => w.type === 'raw_data_viewer')) {
             const rawNodeMap = {};
             const parents = session?.graph?.parentsMap?.get(String(nodeId)) || [];
@@ -489,14 +443,54 @@ class NodeEngine {
             contentData.rawInputs = rawNodeMap;
         }
 
-        // 실행 결과 최종 저장 및 화면 즉시 차분 갱신 (1회 실행 즉시 반영!)
+        // 실행 결과를 UI 및 DB에 즉시 렌더링 & 저장 (화면에 결과가 뜬 상태로 만듦)
         file.content = contentData;
-        const winInfoFinal = window.windowManager?.getWindowInfo?.(nodeId);
-        if (winInfoFinal && winInfoFinal.file) {
-            winInfoFinal.file.content = contentData;
+        const winInfo = window.windowManager?.getWindowInfo?.(nodeId);
+        if (winInfo && winInfo.file) {
+            winInfo.file.content = contentData;
         }
         await window.storage?.saveFile?.(file);
         window.windowManager?.refreshNodeUI?.(nodeId);
+
+        // 🌟 4. 연산 완료 후 결과가 화면에 뜬 상태에서, 사용자 승인/계속 진행 대기 처리
+        const hasApprovalGate = widgets.some(w => w.type === 'approval_gate');
+        const isApproved = !!contentData.isApproved;
+        const hasContinueGate = widgets.some(w => w.type === 'continue_gate');
+        const isContinued = !!contentData.isContinued;
+
+        const needsApprovalWait = hasApprovalGate && !isApproved;
+        const needsContinueWait = hasContinueGate && !isContinued;
+
+        if (needsApprovalWait || needsContinueWait) {
+            const waitReason = needsApprovalWait ? '사용자 승인 대기' : '사용자 계속 진행 확인 대기';
+            console.log(`[NodeEngine] ⏸️ 노드 [${file.name || nodeId}] ${waitReason} 시작 (연산 결과 렌더링 완료됨)`);
+            this.setNodeState(nodeId, 'waiting');
+
+            // 대기 Promise 등록 (사용자가 결과를 검토하고 승인/계속 버튼을 누를 때까지 대기)
+            const customResolution = await new Promise((resolve, reject) => {
+                session.waitingResolvers.set(String(nodeId), { resolve, reject });
+            });
+
+            console.log(`[NodeEngine] ▶️ 노드 [${file.name || nodeId}] 확인 완료로 다음 노드로 전달 재개`);
+            this.setNodeState(nodeId, 'running');
+
+            // 대기 중 사용자가 에디터에서 직접 수정한 내용이 있다면 최신 반영
+            if (winEl) {
+                const updatedTa = winEl.querySelector('.widget-editor-textarea') || winEl.querySelector('textarea');
+                if (updatedTa && updatedTa.value) {
+                    outputText = updatedTa.value;
+                    if (typeof rawOutput === 'object' && rawOutput !== null) {
+                        try {
+                            rawOutput = JSON.parse(updatedTa.value);
+                        } catch (e) {
+                            rawOutput = updatedTa.value;
+                        }
+                    } else {
+                        rawOutput = updatedTa.value;
+                    }
+                }
+            }
+        }
 
         console.log(`[NodeEngine] 📤 노드 [${file.name || nodeId}] 최종 출력값:`, outputText);
 
@@ -725,6 +719,13 @@ class NodeEngine {
         }
 
         return await this._runExecutionPipeline([targetNodeId], '단일 엔드포인트');
+    }
+
+    /**
+     * 단일 노드 즉시 실행 (runTargetNode 별칭)
+     */
+    async evaluateSingleNode(targetNodeId) {
+        return await this.runTargetNode(targetNodeId);
     }
 
     /**

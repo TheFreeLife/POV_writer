@@ -2641,3 +2641,45 @@ input[type="number"] {
     color: var(--color-text-secondary);
     border-left: 3px solid transparent;
 }
+
+/* ==========================================================================
+   RAG (Retrieval-Augmented Generation) 실시간 인출 하이라이트 & 배지
+   ========================================================================== */
+@keyframes ragGlowPulse {
+    0% {
+        box-shadow: 0 0 0 rgba(168, 85, 247, 0);
+        border-color: var(--color-border);
+    }
+    30% {
+        box-shadow: 0 0 30px rgba(168, 85, 247, 0.85), 0 0 12px #a855f7;
+        border-color: #a855f7;
+        transform: scale(1.015);
+    }
+    70% {
+        box-shadow: 0 0 20px rgba(168, 85, 247, 0.6), 0 0 8px #a855f7;
+        border-color: #a855f7;
+    }
+    100% {
+        box-shadow: 0 0 0 rgba(168, 85, 247, 0);
+        border-color: var(--color-border);
+        transform: scale(1);
+    }
+}
+
+.editor-window.rag-retrieved-glow {
+    animation: ragGlowPulse 2.4s ease-in-out;
+    z-index: 600 !important;
+}
+
+.rag-active-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 10px;
+    font-weight: 700;
+    color: #a855f7;
+    background: rgba(168, 85, 247, 0.12);
+    border: 1px solid rgba(168, 85, 247, 0.3);
+    padding: 2px 6px;
+    border-radius: 4px;
+}

@@ -66,7 +66,7 @@
     "category": "character",
     "color": "#8b5cf6",
     "defaultWidth": 540,
-    "defaultHeight": 840,
+    "defaultHeight": 980,
     "isDefault": true,
     "promptForName": true,
     "promptForDesc": false,
@@ -145,10 +145,28 @@
       {
         "id": "sec_lore",
         "type": "section_header",
-        "label": "인물 로어북 (Lorebook - 키워드 트리거)",
+        "label": "인물 로어북 (Lorebook & Knowledge)",
         "icon": "📚",
         "color": "#38bdf8",
-        "desc": "능력, 취향, 과거사, 소지품 등 상황별 호출 지식"
+        "desc": "지식, 기억, 능력, 과거사 등 상황별 호출 지식"
+      },
+      {
+        "id": "w_knowledge",
+        "type": "input_text",
+        "label": "보유 지식 & 전문 정보 (Knowledge)",
+        "key": "knowledge",
+        "rows": 3,
+        "defaultVal": "",
+        "placeholder": "인물이 알고 있는 전문 지식, 정보, 학문, 비밀 설정 등\\n예: 고대 엘프어 해독 가능, 황실 마법 연구소 내부 구조, 암시장 유통망 파악"
+      },
+      {
+        "id": "w_memories",
+        "type": "input_text",
+        "label": "주요 기억 & 과거 사건 경험 (Memories)",
+        "key": "memories",
+        "rows": 3,
+        "defaultVal": "",
+        "placeholder": "인물의 중요한 개인적 기억, 사건 경험, 트라우마\\n예: 10년 전 '붉은 밤의 학살' 현장 목격, 스승에게 검을 물려받던 순간의 기억"
       },
       {
         "id": "w_ability",
@@ -214,7 +232,7 @@
         }
       ]
     },
-    "code": "// 1) 이름 / 역할 파싱\nconst nameRoleRaw = input.name_role || input.name || '';\nlet charName = '';\nlet charRole = '';\nif (nameRoleRaw.includes('/')) {\n  const parts = nameRoleRaw.split('/');\n  charName = parts[0].trim();\n  charRole = parts.slice(1).join('/').trim();\n} else {\n  charName = nameRoleRaw.trim();\n  charRole = (input.role || '').trim();\n}\ncharName = charName || '미정';\ncharRole = charRole || '등장인물';\n\n// 2) 호불호 파싱\nconst prefRaw = input.preferences || '';\nlet likesRaw = input.likes || '';\nlet dislikesRaw = input.dislikes || '';\nif (prefRaw.includes('/')) {\n  const parts = prefRaw.split('/');\n  likesRaw = parts[0].trim();\n  dislikesRaw = parts.slice(1).join('/').trim();\n} else if (prefRaw) {\n  likesRaw = prefRaw.trim();\n}\nconst likesList = likesRaw.split(/[\\n,]+/).map(s => s.trim()).filter(Boolean);\nconst dislikesList = dislikesRaw.split(/[\\n,]+/).map(s => s.trim()).filter(Boolean);\n\n// 3) 대사 및 버릇 파싱\nconst dialogueList = (input.dialogue_examples || '').split('\\n').map(s => s.trim()).filter(Boolean);\nconst habitList = (input.behavior_patterns || '').split('\\n').map(s => s.trim()).filter(Boolean);\n\n// 4) 로어 전체 JSON (소설 JSON 빌더 호환)\nconst loreJson = {\n  name: charName,\n  role: charRole,\n  profile: input.profile_summary || '',\n  appearance: input.appearance || '',\n  special_ability: input.special_ability || '',\n  preferences: {\n    likes: likesList,\n    dislikes: dislikesList\n  },\n  past_background_and_motivation: input.past_and_motivation || '',\n  speech_style: {\n    tone: input.speech_tone || '',\n    examples: dialogueList\n  },\n  personality: { description: input.personality || '' },\n  behavior_patterns: { common_habits: habitList },\n  extra_notes: input.extra_notes || ''\n};\n\n// 5) 🌟 키워드 트리거용 동적 로어북 엔트리 자동 생성\nfunction extractKeywords(text) {\n  if (!text) return [];\n  const list = text.split(/[,/\\n]+/).map(s => s.trim().replace(/^[•\\-*\\d.]+\\s*/, '')).filter(s => s.length >= 2);\n  const words = [];\n  for (const item of list) {\n    words.push(item);\n    item.split(/\\s+/).forEach(w => {\n      const clean = w.replace(/[^\\w가-힣]/g, '');\n      if (clean.length >= 2 && clean.length <= 10) words.push(clean);\n    });\n  }\n  return Array.from(new Set(words));\n}\n\nconst dynamicLorebookEntries = [\n  {\n    id: `${charName}_ability`,\n    title: `${charName}의 특수 능력 및 기술`,\n    keys: [charName + ' 능력', charName + ' 스킬', '능력', '스킬', '마법', '전투', ...extractKeywords(input.special_ability)],\n    content: `${charName}의 특수 능력: ${input.special_ability || '없음'}`\n  },\n  {\n    id: `${charName}_preferences`,\n    title: `${charName}의 취향 및 호불호`,\n    keys: [charName + ' 취향', '좋아하는', '싫어하는', '음식', ...likesList, ...dislikesList],\n    content: `${charName}의 호불호: 좋아하는 것(${likesList.join(', ') || likesRaw || '없음'}) / 싫어하는 것(${dislikesList.join(', ') || dislikesRaw || '없음'})`\n  },\n  {\n    id: `${charName}_past`,\n    title: `${charName}의 과거사 및 비밀/동기`,\n    keys: [charName + ' 과거', charName + ' 비밀', '과거', '비밀', '동기', '트라우마', ...extractKeywords(input.past_and_motivation)],\n    content: `${charName}의 과거사 및 행동 동기: ${input.past_and_motivation || '없음'}`\n  },\n  {\n    id: `${charName}_extra`,\n    title: `${charName}의 소지품 및 특이사항`,\n    keys: [charName + ' 소지품', '소지품', '가방', '장검', '약점', ...extractKeywords(input.extra_notes)],\n    content: `${charName}의 기타 설정/소지품: ${input.extra_notes || '없음'}`\n  }\n].filter(entry => entry.content && !entry.content.endsWith('없음'));\n\n// 6) 마크다운 변수 치환\nconst vars = {\n  name: charName,\n  role: charRole,\n  profile_summary: input.profile_summary || '',\n  profile: input.profile_summary || '',\n  appearance: input.appearance || '',\n  special_ability: input.special_ability || '',\n  likes: likesList.join(', ') || likesRaw,\n  dislikes: dislikesList.join(', ') || dislikesRaw,\n  past_and_motivation: input.past_and_motivation || '',\n  speech_tone: input.speech_tone || '',\n  dialogue_examples: dialogueList.map(d => '- ' + d).join('\\n'),\n  personality: input.personality || '',\n  behavior_patterns: habitList.join(', '),\n  extra_notes: input.extra_notes || ''\n};\n\nfunction renderTemplate(tpl, data) {\n  return tpl.replace(/\\{\\{\\s*(\\w+)\\s*\\}\\}|\\{\\s*(\\w+)\\s*\\}/g, (match, p1, p2) => {\n    const k = p1 || p2;\n    return data[k] !== undefined ? data[k] : match;\n  });\n}\n\nlet rawTemplate = (input.custom_persona_md || '').trim();\n\nif (!rawTemplate) {\n  rawTemplate = `# [역할: 당신은 소설 속 \"${charName}\"(${charRole})입니다]\n당신은 지금부터 소설 속 등장인물 \"${charName}\" 본인이 되어 모든 대화와 행동을 100% 캐릭터의 관점에서 직접 수행합니다.\n\n## 1. 인물 기본 정체성 (Core Identity)\n- 이름: {{name}} ({{role}})\n- 신분/프로필: {{profile_summary}}\n- 외모/복장: {{appearance}}\n\n## 2. 성격 및 내면 심리 (Personality)\n{{personality}}\n\n## 3. 고유 말투 및 호칭 규칙 (Speech Tone)\n- 어조 및 호칭: {{speech_tone}}\n- 특유의 행동/버릇: {{behavior_patterns}}\n\n## 4. 대표 대사 예시 (말투/톤 모방 가이드)\n{{dialogue_examples}}`;\n}\n\nconst personaMd = renderTemplate(rawTemplate, vars);\n\nreturn {\n  '등장인물 데이터': {\n    lore: loreJson,\n    persona_md: personaMd,\n    lorebook_entries: dynamicLorebookEntries,\n    list: [loreJson, personaMd, dynamicLorebookEntries]\n  }\n};"
+    "code": "// 1) 이름 / 역할 파싱\nconst nameRoleRaw = input.name_role || input.name || '';\nlet charName = '';\nlet charRole = '';\nif (nameRoleRaw.includes('/')) {\n  const parts = nameRoleRaw.split('/');\n  charName = parts[0].trim();\n  charRole = parts.slice(1).join('/').trim();\n} else {\n  charName = nameRoleRaw.trim();\n  charRole = (input.role || '').trim();\n}\ncharName = charName || '미정';\ncharRole = charRole || '등장인물';\n\n// 2) 호불호 파싱\nconst prefRaw = input.preferences || '';\nlet likesRaw = input.likes || '';\nlet dislikesRaw = input.dislikes || '';\nif (prefRaw.includes('/')) {\n  const parts = prefRaw.split('/');\n  likesRaw = parts[0].trim();\n  dislikesRaw = parts.slice(1).join('/').trim();\n} else if (prefRaw) {\n  likesRaw = prefRaw.trim();\n}\nconst likesList = likesRaw.split(/[\\n,]+/).map(s => s.trim()).filter(Boolean);\nconst dislikesList = dislikesRaw.split(/[\\n,]+/).map(s => s.trim()).filter(Boolean);\n\n// 3) 대사 및 버릇 파싱\nconst dialogueList = (input.dialogue_examples || '').split('\\n').map(s => s.trim()).filter(Boolean);\nconst habitList = (input.behavior_patterns || '').split('\\n').map(s => s.trim()).filter(Boolean);\n\n// 4) 로어 전체 JSON 구조화\nconst loreJson = {\n  name: charName,\n  role: charRole,\n  profile: input.profile_summary || '',\n  appearance: input.appearance || '',\n  personality: { description: input.personality || '' },\n  speech_style: {\n    tone: input.speech_tone || '',\n    examples: dialogueList\n  },\n  behavior_patterns: { common_habits: habitList },\n  knowledge: input.knowledge || '',\n  memories: input.memories || '',\n  special_ability: input.special_ability || '',\n  preferences: {\n    likes: likesList,\n    dislikes: dislikesList\n  },\n  past_background_and_motivation: input.past_and_motivation || '',\n  extra_notes: input.extra_notes || ''\n};\n\n// 5) 마크다운 변수 치환\nconst vars = {\n  name: charName,\n  role: charRole,\n  profile_summary: input.profile_summary || '',\n  profile: input.profile_summary || '',\n  appearance: input.appearance || '',\n  personality: input.personality || '',\n  speech_tone: input.speech_tone || '',\n  dialogue_examples: dialogueList.map(d => '- ' + d).join('\\n'),\n  behavior_patterns: habitList.join(', '),\n  knowledge: input.knowledge || '',\n  memories: input.memories || '',\n  special_ability: input.special_ability || '',\n  likes: likesList.join(', ') || likesRaw,\n  dislikes: dislikesList.join(', ') || dislikesRaw,\n  past_and_motivation: input.past_and_motivation || '',\n  extra_notes: input.extra_notes || ''\n};\n\nfunction renderTemplate(tpl, data) {\n  return tpl.replace(/\\{\\{\\s*(\\w+)\\s*\\}\\}|\\{\\s*(\\w+)\\s*\\}/g, (match, p1, p2) => {\n    const k = p1 || p2;\n    return data[k] !== undefined ? data[k] : match;\n  });\n}\n\nlet rawTemplate = (input.custom_persona_md || '').trim();\n\nif (!rawTemplate) {\n  rawTemplate = '# [역할: 당신은 소설 속 \"' + charName + '\"(' + charRole + ')입니다]\\n당신은 지금부터 소설 속 등장인물 \"' + charName + '\" 본인이 되어 모든 대화와 행동을 100% 캐릭터의 관점에서 직접 수행합니다.\\n\\n## 1. 인물 기본 정체성 (Core Identity)\\n- 이름: {{name}} ({{role}})\\n- 신분/프로필: {{profile_summary}}\\n- 외모/복장: {{appearance}}\\n\\n## 2. 성격 및 내면 심리 (Personality)\\n{{personality}}\\n\\n## 3. 고유 말투 및 호칭 규칙 (Speech Tone)\\n- 어조 및 호칭: {{speech_tone}}\\n- 특유의 행동/버릇: {{behavior_patterns}}\\n\\n## 4. 대표 대사 예시 (말투/톤 모방 가이드)\\n{{dialogue_examples}}';\n}\n\nconst personaMd = renderTemplate(rawTemplate, vars);\n\nreturn {\n  '등장인물 데이터': {\n    name: charName,\n    role: charRole,\n    lore: loreJson,\n    persona_md: personaMd\n  }\n};"
   },
   {
     "schemaVersion": "2.0",
@@ -733,7 +751,7 @@
         }
       ]
     },
-    "code": "// 세계관 배경 텍스트에서 단락/소제목별 로어북 엔트리 자동 추출\nconst bgLore = (input.background_lore || '').trim();\nconst entries = [];\nif (bgLore) {\n  const sections = bgLore.split(/\\n(?=##|\\n\\n)/).map(s => s.trim()).filter(Boolean);\n  sections.forEach((sec, idx) => {\n    const titleMatch = sec.match(/^#+\\s*\\[?([^\\]\\n]+)\\]?/);\n    const title = titleMatch ? titleMatch[1].trim() : `${input.title ? input.title + ' ' : ''}세계관 설정 #${idx + 1}`;\n    const keyCandidates = sec.split(/[,/\\n]+/).map(s => s.trim().replace(/^[•\\-*\\d.]+\\s*/, '')).filter(s => s.length >= 2);\n    const words = [title];\n    keyCandidates.slice(0, 10).forEach(w => {\n      const clean = w.replace(/[^\\w가-힣]/g, '');\n      if (clean.length >= 2 && clean.length <= 10) words.push(clean);\n    });\n    entries.push({\n      id: `world_lore_${idx + 1}`,\n      title: `[세계관] ${title}`,\n      keys: Array.from(new Set(words)),\n      content: sec\n    });\n  });\n}\n\nreturn {\n  '세계관 데이터': {\n    title: input.title || '',\n    tags: input.tags || input.genre || '',\n    logline: input.logline || '',\n    background_lore: bgLore,\n    lorebook_entries: entries\n  }\n};"
+    "code": "const bgLore = (input.background_lore || '').trim();\nreturn {\n  '세계관 데이터': {\n    title: input.title || '',\n    tags: input.tags || input.genre || '',\n    logline: input.logline || '',\n    background_lore: bgLore\n  }\n};"
   },
   {
     "schemaVersion": "2.0",
@@ -801,7 +819,7 @@
         }
       ]
     },
-    "code": "const term = (input.term || '').trim();\nconst desc = (input.desc || '').trim();\nconst type = input.type || '기타';\nconst customKeys = (input.keywords || '').split(/[,/\\n]+/).map(s => s.trim()).filter(Boolean);\nconst keys = Array.from(new Set([term, ...customKeys].filter(Boolean)));\n\nconst entries = term ? [{\n  id: `noun_${term}`,\n  title: `[${type}] ${term}`,\n  keys: keys.length > 0 ? keys : [term],\n  content: `${term} (${type}): ${desc || '설정 내용 없음'}`\n}] : [];\n\nreturn {\n  '고유명사 데이터': {\n    type: type,\n    term: term,\n    desc: desc,\n    keywords: input.keywords || '',\n    lorebook_entries: entries\n  }\n};"
+    "code": "const term = (input.term || '').trim();\nconst desc = (input.desc || '').trim();\nconst type = input.type || '고유명사';\n\nreturn {\n  '고유명사 데이터': {\n    type: type,\n    term: term,\n    desc: desc,\n    keywords: input.keywords || ''\n  }\n};"
   },
   {
     "schemaVersion": "2.0",
@@ -988,7 +1006,7 @@
         }
       ]
     },
-    "code": "const hookId = input.hook_id || '복선';\nconst truth = input.hidden_truth || '';\nconst clue = input.observable_clue || '';\nconst stage = input.reveal_stage || '';\n\nfunction extractKeywords(text) {\n  if (!text) return [];\n  const list = text.split(/[,/\\n]+/).map(s => s.trim().replace(/^[•\\-*\\d.]+\\s*/, '')).filter(s => s.length >= 2);\n  const words = [];\n  for (const item of list) {\n    words.push(item);\n    item.split(/\\s+/).forEach(w => {\n      const clean = w.replace(/[^\\w가-힣]/g, '');\n      if (clean.length >= 2 && clean.length <= 10) words.push(clean);\n    });\n  }\n  return Array.from(new Set(words));\n}\n\nconst keys = Array.from(new Set([hookId, ...extractKeywords(clue + ' ' + truth)].filter(Boolean)));\n\nconst entry = (truth || clue) ? [{\n  id: `hook_${hookId}`,\n  title: `[복선 단서] ${hookId}`,\n  keys: keys,\n  content: `복선 연출 단서(${clue || '단서 없음'}) -> [은폐된 진실(조기 누설 금지)]: ${truth || '미정'}`\n}] : [];\n\nreturn {\n  '복선 데이터': {\n    hook_id: hookId,\n    hidden_truth: truth,\n    observable_clue: clue,\n    reveal_stage: stage,\n    active_hooks: [\n      {\n        id: hookId,\n        hidden_truth: truth,\n        observable_clue: clue,\n        reveal_stage: stage\n      }\n    ],\n    lorebook_entries: entry\n  }\n};"
+    "code": "const hookId = input.hook_id || '복선';\nconst truth = input.hidden_truth || '';\nconst clue = input.observable_clue || '';\nconst stage = input.reveal_stage || '';\n\nreturn {\n  '복선 데이터': {\n    hook_id: hookId,\n    hidden_truth: truth,\n    observable_clue: clue,\n    reveal_stage: stage\n  }\n};"
   },
   {
     "schemaVersion": "2.0",
@@ -1257,8 +1275,8 @@
         },
         {
           "id": "in_lore",
-          "name": "📚 추가 로어북 (선택)",
-          "color": "#eab308"
+          "name": "📚 로어북 & RAG 지식 패키지 (선택)",
+          "color": "#a855f7"
         }
       ],
       "outputs": [
@@ -1274,7 +1292,7 @@
         }
       ]
     },
-    "code": "// 1. AI 환경 설정 수신 (AI 설정 노드 직결)\nconst aiConfigRaw = inputs['⚡ AI 환경 설정 (필수)'] || inputs['in_ai_config'] || inputs['AI 환경 설정'] || {};\nconst aiConfig = {\n  provider: aiConfigRaw.provider || 'Google (Gemini)',\n  model: aiConfigRaw.model || 'gemini-3.6-flash',\n  apiKey: aiConfigRaw.apiKey || '',\n  temperature: parseFloat(aiConfigRaw.temperature) || 0.8,\n  endpoint: aiConfigRaw.endpoint || ''\n};\n\nif (!aiConfig.apiKey) {\n  return {\n    '📜 완성된 씬 대본': '[AI 생성 오류: API Key가 설정되지 않았습니다. [AI 설정 노드]를 연결하고 API Key를 입력해 주세요.]',\n    '🧬 대본 JSON 데이터': { error: 'API Key Missing', turns: [] }\n  };\n}\n\n// 2. 입력 데이터 수집 및 안전한 정규화 (연결된 모든 실제 캐릭터 수집)\nfunction extractCharacters(raw) {\n  const list = [];\n  function dig(item) {\n    if (!item) return;\n    if (Array.isArray(item)) {\n      item.forEach(dig);\n    } else if (typeof item === 'object') {\n      if (item.persona_md || item.lore) {\n        list.push({\n          name: item.lore?.name || item.name || '인물 ' + (list.length + 1),\n          role: item.lore?.role || item.role || '등장인물',\n          persona_md: item.persona_md || '',\n          lorebook_entries: item.lorebook_entries || [],\n          lore: item.lore || item\n        });\n      } else if (item['등장인물 데이터']) {\n        dig(item['등장인물 데이터']);\n      } else {\n        Object.values(item).forEach(v => {\n          if (v && typeof v === 'object' && (v.persona_md || v.lore)) dig(v);\n        });\n      }\n    }\n  }\n  dig(raw);\n  return list;\n}\n\nconst charInput = inputs['👥 등장인물 데이터 (필수)'] || inputs['in_characters'] || inputs['등장인물 데이터'] || inputs;\nconst charactersList = extractCharacters(charInput);\n\nif (charactersList.length === 0) {\n  return {\n    '📜 완성된 씬 대본': '[AI 생성 오류: 등장인물 노드가 연결되지 않았습니다. 👥 포트에 등장인물 노드를 연결해 주세요.]',\n    '🧬 대본 JSON 데이터': { error: 'Characters Missing', turns: [] }\n  };\n}\n\n// 씬 상황 텍스트 추출\nlet sceneContext = '';\nconst rawScene = inputs['🎬 씬 상황 & 대화 목표 (필수)'] || inputs['in_scene'] || inputs['씬 상황 & 대화 목표'];\nif (typeof rawScene === 'string') {\n  sceneContext = rawScene.trim();\n} else if (rawScene && typeof rawScene === 'object') {\n  sceneContext = rawScene.content || rawScene.desc || rawScene.summary || JSON.stringify(rawScene);\n}\nif (!sceneContext) {\n  sceneContext = '인물들이 마주쳐 현재 상황과 목표를 두고 대화를 시작한다.';\n}\n\nconst directorNotes = (input.director_notes || '').trim();\nconst formatTemplate = (input.script_format_template || '').trim();\nconst totalTurns = Math.max(2, Math.min(30, parseInt(input.turn_count, 10) || 6));\n\n// 3. 키워드 트리거 로어 스캐너 (인물/고유명사/세계관/복선/허브 전방위 심층 추출)\nconst extraLoreRaw = inputs['📚 추가 로어북 (선택)'] || inputs['in_lore'] || [];\nconst allLorebookEntries = [];\n\nfunction extractLorebooks(item) {\n  if (!item) return;\n  if (Array.isArray(item)) {\n    item.forEach(extractLorebooks);\n  } else if (typeof item === 'object') {\n    if (item.keys && item.content) {\n      allLorebookEntries.push(item);\n    } else if (item.lorebook_entries && Array.isArray(item.lorebook_entries)) {\n      item.lorebook_entries.forEach(extractLorebooks);\n    } else {\n      Object.values(item).forEach(v => {\n        if (v && typeof v === 'object') extractLorebooks(v);\n      });\n    }\n  }\n}\n\ncharactersList.forEach(c => {\n  if (Array.isArray(c.lorebook_entries)) allLorebookEntries.push(...c.lorebook_entries);\n});\nextractLorebooks(extraLoreRaw);\n\nfunction scanTriggeredLores(text) {\n  const matched = [];\n  const lowerText = text.toLowerCase();\n  for (const entry of allLorebookEntries) {\n    if (!entry.keys || !entry.content) continue;\n    const isHit = entry.keys.some(k => k && lowerText.includes(k.toLowerCase()));\n    if (isHit) matched.push(`[${entry.title || entry.id}]: ${entry.content}`);\n  }\n  return Array.from(new Set(matched));\n}\n\n// 4. 독립된 캐릭터 에이전트 클래스\nclass CharacterAgent {\n  constructor(charData, aiEnv) {\n    this.name = charData.name;\n    this.role = charData.role;\n    this.persona_md = charData.persona_md;\n    this.lorebook = charData.lorebook_entries || [];\n    this.aiEnv = aiEnv;\n  }\n\n  // 턴 생성 (100% 실시간 LLM 호출)\n  async actTurn(turnIndex, sceneText, visibleHistory, triggeredLores, dirNotes, otherAgents, fmtTemplate) {\n    const target = otherAgents[0] || { name: '상대방' };\n\n    const systemPrompt = `${this.persona_md}\n\n# [현재 씬 상황 및 대화 목표]\n${sceneText}\n${dirNotes ? `\\n[공통 연출 지침]: ${dirNotes}` : ''}\n${triggeredLores.length > 0 ? `\\n[대화 중 감지된 배경 로어 지식]:\\n${triggeredLores.join('\\n')}` : ''}\n\n# [대본 출력 양식 지침]\n${fmtTemplate || `너는 \"${this.name}\"이다. 상대의 말에 반응하여 (행동), [속마음], \"대사\" 양식을 엄수하여 이번 1턴만 작성하라.`}`;\n\n    const userPrompt = `[직전까지의 대화 및 행동 기록]:\\n${visibleHistory || '(대화 시작)'}\\n\\n너는 \"${this.name}\"(${this.role})이다. 상대방(${target.name})에게 반응하여 다음 1턴을 작성하라.`;\n\n    const reply = await window.aiApi.call(this.aiEnv, systemPrompt, userPrompt);\n    \n    // 정규식 스마트 파싱\n    const actionMatch = reply.match(/\\(([^)]+)\\)/);\n    const thoughtMatch = reply.match(/\\[속마음:?([^\\]]+)\\]|\\[([^\\]]+)\\]/);\n    const speechMatch = reply.match(/\"([^\"]+)\"|“([^”]+)”/);\n\n    return {\n      action: actionMatch ? actionMatch[1].trim() : '',\n      thought: thoughtMatch ? (thoughtMatch[1] || thoughtMatch[2]).replace(/^속마음:?\\s*/, '').trim() : '',\n      speech: speechMatch ? (speechMatch[1] || speechMatch[2]).trim() : reply.replace(/\\([^)]+\\)|\\[[^\\]]+\\]/g, '').trim()\n    };\n  }\n}\n\n// 5. 에이전트 인스턴스 N개 동적 생성\nconst agents = charactersList.map(c => new CharacterAgent(c, aiConfig));\n\n// 6. 다자간 핑퐁 대본 생성 루프\nconst turnsLog = [];\n\nfor (let turn = 1; turn <= totalTurns; turn++) {\n  const currentAgent = agents[(turn - 1) % agents.length];\n  const otherAgents = agents.filter(a => a.name !== currentAgent.name);\n\n  // 상대방 속마음 가리기 필터링 적용\n  const visibleHistoryForCurrent = turnsLog.map(item => {\n    if (item.speaker === currentAgent.name) {\n      return `${item.speaker}:\\n(${item.action})\\n[속마음: ${item.thought}]\\n${item.speech}`;\n    } else {\n      return `${item.speaker}:\\n(${item.action})\\n${item.speech}`;\n    }\n  }).join('\\n\\n');\n\n  // 키워드 로어 스캔\n  const triggeredLores = scanTriggeredLores(visibleHistoryForCurrent + '\\n' + sceneContext);\n\n  // 이번 턴 에이전트 연기 수행\n  const turnResult = await currentAgent.actTurn(\n    turn,\n    sceneContext,\n    visibleHistoryForCurrent,\n    triggeredLores,\n    directorNotes,\n    otherAgents,\n    formatTemplate\n  );\n\n  turnsLog.push({\n    turn: turn,\n    speaker: currentAgent.name,\n    role: currentAgent.role,\n    action: turnResult.action,\n    thought: turnResult.thought,\n    speech: turnResult.speech\n  });\n}\n\n// 7. 완결형 대본집 텍스트 조합\nconst scriptLines = [];\nscriptLines.push(`[도입 배경 지문]`);\nscriptLines.push(sceneContext);\nscriptLines.push(`\\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\n`);\n\nturnsLog.forEach((t, idx) => {\n  scriptLines.push(`${t.speaker}:`);\n  if (t.action) scriptLines.push(`(${t.action})`);\n  if (t.thought) scriptLines.push(`[속마음: ${t.thought}]`);\n  scriptLines.push(`${t.speech}`);\n\n  if (idx === Math.floor(totalTurns / 2) - 1 && totalTurns >= 4) {\n    scriptLines.push(`\\n[상황/설명 서술 지문: 인물들 사이의 팽팽한 긴장감 속에 주변 공기가 차갑게 가라앉는다.]\\n`);\n  } else if (idx < turnsLog.length - 1) {\n    scriptLines.push('');\n  }\n});\n\nscriptLines.push(`\\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\n`);\nscriptLines.push(`[마무리 전환 지문]`);\nscriptLines.push(`대화가 일단락되며 팽팽했던 긴장감이 서서히 잦아든다. 각자의 의도와 결단을 품은 채, 다음 국면으로 이어지려 하고 있었다.`);\n\nconst fullScriptText = scriptLines.join('\\n');\n\n// 8. 최종 출력\nreturn {\n  '📜 완성된 씬 대본': fullScriptText,\n  '🧬 대본 JSON 데이터': {\n    scene_intro: sceneContext,\n    director_notes: directorNotes,\n    turns: turnsLog,\n    scene_outro: '대화가 일단락되며 팽팽했던 긴장감이 서서히 잦아든다. 각자의 의도와 결단을 품은 채, 다음 국면으로 이어지려 하고 있었다.',\n    ai_config_used: {\n      provider: aiConfig.provider,\n      model: aiConfig.model\n    }\n  }\n};"
+    "code": "// 1. AI 환경 설정 수신 (AI 설정 노드 직결)\nconst aiConfigRaw = inputs['⚡ AI 환경 설정 (필수)'] || inputs['in_ai_config'] || inputs['AI 환경 설정'] || {};\nconst aiConfig = {\n  provider: aiConfigRaw.provider || 'Google (Gemini)',\n  model: aiConfigRaw.model || 'gemini-3.6-flash',\n  apiKey: aiConfigRaw.apiKey || '',\n  temperature: parseFloat(aiConfigRaw.temperature) || 0.8,\n  endpoint: aiConfigRaw.endpoint || ''\n};\n\nif (!aiConfig.apiKey) {\n  return {\n    '📜 완성된 씬 대본': '[AI 생성 오류: API Key가 설정되지 않았습니다. [AI 설정 노드]를 연결하고 API Key를 입력해 주세요.]',\n    '🧬 대본 JSON 데이터': { error: 'API Key Missing', turns: [] }\n  };\n}\n\n// 2. 입력 데이터 수집 및 안전한 정규화\nfunction extractCharacters(raw) {\n  const list = [];\n  function dig(item) {\n    if (!item) return;\n    if (Array.isArray(item)) {\n      item.forEach(dig);\n    } else if (typeof item === 'object') {\n      if (item.persona_md || item.lore) {\n        list.push({\n          name: item.lore?.name || item.name || '인물 ' + (list.length + 1),\n          role: item.lore?.role || item.role || '등장인물',\n          persona_md: item.persona_md || '',\n          lore: item.lore || item\n        });\n      } else if (item['등장인물 데이터']) {\n        dig(item['등장인물 데이터']);\n      } else {\n        Object.values(item).forEach(v => {\n          if (v && typeof v === 'object' && (v.persona_md || v.lore)) dig(v);\n        });\n      }\n    }\n  }\n  dig(raw);\n  return list;\n}\n\nconst charInput = inputs['👥 등장인물 데이터 (필수)'] || inputs['in_characters'] || inputs['등장인물 데이터'] || inputs;\nconst charactersList = extractCharacters(charInput);\n\nif (charactersList.length === 0) {\n  return {\n    '📜 완성된 씬 대본': '[AI 생성 오류: 등장인물 노드가 연결되지 않았습니다. 👥 포트에 등장인물 노드를 연결해 주세요.]',\n    '🧬 대본 JSON 데이터': { error: 'Characters Missing', turns: [] }\n  };\n}\n\n// 씬 상황 텍스트 추출\nlet sceneContext = '';\nconst rawScene = inputs['🎬 씬 상황 & 대화 목표 (필수)'] || inputs['in_scene'] || inputs['씬 상황 & 대화 목표'];\nif (typeof rawScene === 'string') {\n  sceneContext = rawScene.trim();\n} else if (rawScene && typeof rawScene === 'object') {\n  sceneContext = rawScene.content || rawScene.desc || rawScene.summary || JSON.stringify(rawScene);\n}\nif (!sceneContext) {\n  sceneContext = '인물들이 마주쳐 현재 상황과 목표를 두고 대화를 시작한다.';\n}\n\nconst directorNotes = (input.director_notes || '').trim();\nconst formatTemplate = (input.script_format_template || '').trim();\nconst totalTurns = Math.max(2, Math.min(30, parseInt(input.turn_count, 10) || 6));\n\n// 3. RAG 벡터 지식 패키지 수신\nconst extraLoreRaw = inputs['📚 로어북 & RAG 지식 패키지 (선택)'] || inputs['in_lore'] || inputs['📚 추가 로어북 (선택)'];\nlet ragPackage = null;\nif (extraLoreRaw && typeof extraLoreRaw === 'object') {\n  if (extraLoreRaw.package_name === 'LoreVectorPackage' || extraLoreRaw['🧠 RAG 지식 패키지 (벡터 색인)']) {\n    ragPackage = extraLoreRaw.package_name === 'LoreVectorPackage' ? extraLoreRaw : extraLoreRaw['🧠 RAG 지식 패키지 (벡터 색인)'];\n  } else {\n    ragPackage = extraLoreRaw;\n  }\n}\n\n// 4. 독립된 캐릭터 에이전트 클래스\nclass CharacterAgent {\n  constructor(charData, aiEnv) {\n    this.name = charData.name;\n    this.role = charData.role;\n    this.persona_md = charData.persona_md;\n    this.aiEnv = aiEnv;\n  }\n\n  async actTurn(turnIndex, sceneText, visibleHistory, triggeredLores, dirNotes, otherAgents, fmtTemplate) {\n    const target = otherAgents[0] || { name: '상대방' };\n\n    const systemPrompt = `${this.persona_md}\n\n# [현재 씬 상황 및 대화 목표]\n${sceneText}\n${dirNotes ? `\\n[공통 연출 지침]: ${dirNotes}` : ''}\n${triggeredLores.length > 0 ? `\\n[대화 중 감지된 배경 로어 지식]:\\n${triggeredLores.join('\\n')}` : ''}\n\n# [대본 출력 양식 지침]\n${fmtTemplate || `너는 \"${this.name}\"이다. 상대의 말에 반응하여 (행동), [속마음], \"대사\" 양식을 엄수하여 이번 1턴만 작성하라.`}`;\n\n    const userPrompt = `[직전까지의 대화 및 행동 기록]:\\n${visibleHistory || '(대화 시작)'}\\n\\n너는 \"${this.name}\"(${this.role})이다. 상대방(${target.name})에게 반응하여 다음 1턴을 작성하라.`;\n\n    const reply = await window.aiApi.call(this.aiEnv, systemPrompt, userPrompt);\n    \n    const actionMatch = reply.match(/\\(([^)]+)\\)/);\n    const thoughtMatch = reply.match(/\\[속마음:?([^\\]]+)\\]|\\[([^\\]]+)\\]/);\n    const speechMatch = reply.match(/\"([^\"]+)\"|“([^”]+)”/);\n\n    return {\n      action: actionMatch ? actionMatch[1].trim() : '',\n      thought: thoughtMatch ? (thoughtMatch[1] || thoughtMatch[2]).replace(/^속마음:?\\s*/, '').trim() : '',\n      speech: speechMatch ? (speechMatch[1] || speechMatch[2]).trim() : reply.replace(/\\([^)]+\\)|\\[[^\\]]+\\]/g, '').trim()\n    };\n  }\n}\n\n// 5. 에이전트 인스턴스 생성\nconst agents = charactersList.map(c => new CharacterAgent(c, aiConfig));\n\n// 6. 다자간 핑퐁 대본 생성 루프\nconst turnsLog = [];\n\nfor (let turn = 1; turn <= totalTurns; turn++) {\n  const currentAgent = agents[(turn - 1) % agents.length];\n  const otherAgents = agents.filter(a => a.name !== currentAgent.name);\n\n  const visibleHistoryForCurrent = turnsLog.map(item => {\n    if (item.speaker === currentAgent.name) {\n      return `${item.speaker}:\\n(${item.action})\\n[속마음: ${item.thought}]\\n${item.speech}`;\n    } else {\n      return `${item.speaker}:\\n(${item.action})\\n${item.speech}`;\n    }\n  }).join('\\n\\n');\n\n  // 🌟 실시간 온디맨드 RAG 지식 인출 (시점 격리 적용)\n  let triggeredLores = [];\n  const currentTurnContext = visibleHistoryForCurrent + '\\n' + sceneContext;\n\n  if (ragPackage && window.ragEngine) {\n    const searchRes = await window.ragEngine.searchVectorPackage(ragPackage, {\n      query: currentTurnContext,\n      characterContext: currentAgent.name,\n      topK: ragPackage.defaultTopK || 3,\n      maxChars: ragPackage.defaultMaxChars || 1000,\n      domainFilter: ragPackage.domainFilter || 'all'\n    });\n    triggeredLores = searchRes.results.map(r => `[${r.title}]: ${r.content}`);\n  }\n\n  const turnResult = await currentAgent.actTurn(\n    turn,\n    sceneContext,\n    visibleHistoryForCurrent,\n    triggeredLores,\n    directorNotes,\n    otherAgents,\n    formatTemplate\n  );\n\n  turnsLog.push({\n    turn: turn,\n    speaker: currentAgent.name,\n    role: currentAgent.role,\n    action: turnResult.action,\n    thought: turnResult.thought,\n    speech: turnResult.speech\n  });\n}\n\n// 7. 완결형 대본집 텍스트 조합\nconst scriptLines = [];\nscriptLines.push(`[도입 배경 지문]`);\nscriptLines.push(sceneContext);\nscriptLines.push(`\\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\n`);\n\nturnsLog.forEach((t, idx) => {\n  scriptLines.push(`${t.speaker}:`);\n  if (t.action) scriptLines.push(`(${t.action})`);\n  if (t.thought) scriptLines.push(`[속마음: ${t.thought}]`);\n  scriptLines.push(`${t.speech}`);\n\n  if (idx === Math.floor(totalTurns / 2) - 1 && totalTurns >= 4) {\n    scriptLines.push(`\\n[상황/설명 서술 지문: 인물들 사이의 팽팽한 긴장감 속에 주변 공기가 차갑게 가라앉는다.]\\n`);\n  } else if (idx < turnsLog.length - 1) {\n    scriptLines.push('');\n  }\n});\n\nscriptLines.push(`\\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\n`);\nscriptLines.push(`[마무리 전환 지문]`);\nscriptLines.push(`대화가 일단락되며 팽팽했던 긴장감이 서서히 잦아든다. 각자의 의도와 결단을 품은 채, 다음 국면으로 이어지려 하고 있었다.`);\n\nconst fullScriptText = scriptLines.join('\\n');\n\n// 8. 최종 출력\nreturn {\n  '📜 완성된 씬 대본': fullScriptText,\n  '🧬 대본 JSON 데이터': {\n    scene_intro: sceneContext,\n    director_notes: directorNotes,\n    turns: turnsLog,\n    scene_outro: '대화가 일단락되며 팽팽했던 긴장감이 서서히 잦아든다.',\n    ai_config_used: {\n      provider: aiConfig.provider,\n      model: aiConfig.model\n    }\n  }\n};"
   },
   {
     "id": "preset_sys_scenario_planner",
@@ -1351,13 +1369,13 @@
         },
         {
           "id": "in_world",
-          "name": "🌍 세계관 설정 (필수)",
+          "name": "🌍 세계관 설정 (선택)",
           "color": "#3b82f6"
         },
         {
           "id": "in_lore",
-          "name": "📚 로어북 & 복선 사전 (필수)",
-          "color": "#eab308"
+          "name": "📚 로어북 & RAG 지식 (선택)",
+          "color": "#a855f7"
         }
       ],
       "outputs": [
@@ -1373,7 +1391,7 @@
         }
       ]
     },
-    "code": "// 1. AI 환경 설정 수신\nconst aiConfigRaw = inputs['⚡ AI 환경 설정 (필수)'] || inputs['in_ai_config'] || inputs['AI 환경 설정'] || {};\nconst aiConfig = {\n  provider: aiConfigRaw.provider || 'Google (Gemini)',\n  model: aiConfigRaw.model || 'gemini-3.6-flash',\n  apiKey: aiConfigRaw.apiKey || '',\n  temperature: parseFloat(aiConfigRaw.temperature) || 0.7,\n  endpoint: aiConfigRaw.endpoint || ''\n};\n\nif (!aiConfig.apiKey) {\n  return {\n    '🎬 상세 시나리오 (텍스트)': '[AI 생성 오류: API Key가 설정되지 않았습니다. [AI 설정 노드]를 연결하고 API Key를 입력해 주세요.]',\n    '🧬 시나리오 JSON 데이터': { error: 'API Key Missing' }\n  };\n}\n\n// 2. 대략적인 줄거리/아이디어 추출 (필수)\nlet roughPlot = inputs['📝 대략적인 줄거리 / 아이디어 (필수)'] || inputs['in_rough_plot'] || inputs['줄거리'] || '';\nif (roughPlot && typeof roughPlot === 'object') {\n  roughPlot = roughPlot.content || roughPlot.text || roughPlot.summary || JSON.stringify(roughPlot);\n}\nroughPlot = String(roughPlot || '').trim();\nif (!roughPlot) {\n  return {\n    '🎬 상세 시나리오 (텍스트)': '[오류: 대략적인 줄거리 노드가 연결되지 않았습니다. 📝 포트에 줄거리/아이디어를 연결해 주세요.]',\n    '🧬 시나리오 JSON 데이터': { error: 'Rough Plot Missing' }\n  };\n}\n\n// 3. 등장인물 데이터 수집 (필수)\nfunction extractCharacters(raw) {\n  const list = [];\n  function dig(item) {\n    if (!item) return;\n    if (Array.isArray(item)) {\n      item.forEach(dig);\n    } else if (typeof item === 'object') {\n      if (item.persona_md || item.lore) {\n        list.push({\n          name: item.lore?.name || item.name || '인물 ' + (list.length + 1),\n          role: item.lore?.role || item.role || '등장인물',\n          persona_md: item.persona_md || '',\n          lorebook_entries: item.lorebook_entries || []\n        });\n      } else if (item['등장인물 데이터']) {\n        dig(item['등장인물 데이터']);\n      } else {\n        Object.values(item).forEach(v => {\n          if (v && typeof v === 'object' && (v.persona_md || v.lore)) dig(v);\n        });\n      }\n    }\n  }\n  dig(raw);\n  return list;\n}\nconst charInput = inputs['👥 등장인물 데이터 (필수)'] || inputs['in_characters'] || [];\nconst charactersList = extractCharacters(charInput);\nif (charactersList.length === 0) {\n  return {\n    '🎬 상세 시나리오 (텍스트)': '[오류: 등장인물 노드가 연결되지 않았습니다. 👥 포트에 등장인물 노드를 연결해 주세요.]',\n    '🧬 시나리오 JSON 데이터': { error: 'Characters Missing' }\n  };\n}\n\n// 4. 🌍 세계관 설정 데이터 수집 (필수)\nlet worldText = '';\nconst rawWorld = inputs['🌍 세계관 설정 (필수)'] || inputs['in_world'] || inputs['세계관 설정'] || '';\nif (typeof rawWorld === 'string') {\n  worldText = rawWorld.trim();\n} else if (rawWorld && typeof rawWorld === 'object') {\n  if (rawWorld.background_lore) {\n    worldText = `[소설 제목]: ${rawWorld.title || '미정'}\\n[로그라인]: ${rawWorld.logline || ''}\\n[배경 로어]:\\n${rawWorld.background_lore}`;\n  } else if (rawWorld['📜 통합된 텍스트 / 마크다운']) {\n    worldText = rawWorld['📜 통합된 텍스트 / 마크다운'];\n  } else {\n    worldText = rawWorld.content || rawWorld.text || rawWorld.desc || JSON.stringify(rawWorld, null, 2);\n  }\n}\nif (!worldText) {\n  return {\n    '🎬 상세 시나리오 (텍스트)': '[오류: 세계관 설정 노드가 연결되지 않았습니다. 🌍 포트에 [소설 정보 & 세계관 설정 노드]를 연결해 주세요.]',\n    '🧬 시나리오 JSON 데이터': { error: 'World Settings Missing' }\n  };\n}\n\n// 5. 📚 로어북 & 복선 사전 데이터 수집 (필수)\nlet loreText = '';\nconst rawLore = inputs['📚 로어북 & 복선 사전 (필수)'] || inputs['in_lore'] || inputs['in_world_lore'] || '';\nif (typeof rawLore === 'string') {\n  loreText = rawLore.trim();\n} else if (rawLore && typeof rawLore === 'object') {\n  if (Array.isArray(rawLore.lorebook_entries) && rawLore.lorebook_entries.length > 0) {\n    loreText = rawLore.lorebook_entries.map(e => `### ${e.title}\\n${e.content}`).join('\\n\\n');\n  } else if (Array.isArray(rawLore)) {\n    loreText = rawLore.map(e => e.title ? `### ${e.title}\\n${e.content || ''}` : JSON.stringify(e)).join('\\n\\n');\n  } else if (rawLore['📜 통합된 텍스트 / 마크다운']) {\n    loreText = rawLore['📜 통합된 텍스트 / 마크다운'];\n  } else {\n    loreText = rawLore.content || rawLore.text || rawLore.desc || JSON.stringify(rawLore, null, 2);\n  }\n}\nif (!loreText) {\n  return {\n    '🎬 상세 시나리오 (텍스트)': '[오류: 로어북/복선 노드가 연결되지 않았습니다. 📚 포트에 [고유명사], [복선], 또는 [데이터 통합 허브]를 연결해 주세요.]',\n    '🧬 시나리오 JSON 데이터': { error: 'Lorebook Missing' }\n  };\n}\n\n// 6. 프롬프트 및 사용자 지침 조립\nconst sceneGoal = (input.scene_goal || '').trim();\nconst tempoMood = (input.tempo_mood || '팽팽한 기싸움 & 심리전').trim();\nconst promptTemplate = (input.prompt_template || '').trim();\n\nlet charSummary = charactersList.map((c, i) => `인물 ${i + 1}: ${c.name} (${c.role})` + (c.persona_md ? `\\n${c.persona_md}` : '')).join('\\n\\n');\n\nconst systemPrompt = `${promptTemplate}\n\n[추가 연출 조건]:\n- 씬 전개 템포 및 분위기: ${tempoMood}\n${sceneGoal ? `- 씬의 핵심 목표 및 필수 달성 사건: ${sceneGoal}` : ''}`;\n\nconst userPrompt = `# [대략적인 줄거리 및 아이디어]\n${roughPlot}\n\n# [참여 등장인물 설정]\n${charSummary}\n\n# [세계관 및 배경 대전제]\n${worldText}\n\n# [로어북 및 복선 사전]\n${loreText}\n\n위 정보를 종합 분석하여, 지정된 5단계 양식으로 생생하고 입체적인 씬 시나리오(Scene Beat Sheet)를 완성하라.`;\n\nlet generatedScenario = '';\n\n// 7. 100% 실시간 AI 호출\ntry {\n  generatedScenario = await window.aiApi.call(aiConfig, systemPrompt, userPrompt);\n} catch (err) {\n  generatedScenario = `[시나리오 생성 오류: ${err.message}]`;\n}\n\n// 8. 5단 시나리오 파싱하여 JSON 객체 조립\nconst parseSection = (header) => {\n  const regex = new RegExp(`\\\\[${header}[^\\\\]]*\\\\]\\\\s*([\\\\s\\\\S]*?)(?=\\\\[\\\\d+\\\\.|━━━━━━━━|$)`, 'i');\n  const match = generatedScenario.match(regex);\n  return match ? match[1].trim() : '';\n};\n\nconst scenarioData = {\n  raw_scenario: generatedScenario,\n  scene_overview: parseSection('1. 씬 개요'),\n  character_goals: parseSection('2. 인물별 목표'),\n  plot_beats: parseSection('3. 씬 사건 전개'),\n  lore_and_props: parseSection('4. 로어 & 소품'),\n  dialogue_summary: parseSection('5. 대본 연결'),\n  ai_config: {\n    provider: aiConfig.provider,\n    model: aiConfig.model\n  }\n};\n\n// 9. 최종 출력\nreturn {\n  '🎬 상세 시나리오 (텍스트)': generatedScenario,\n  '🧬 시나리오 JSON 데이터': scenarioData\n};"
+    "code": "// 1. AI 환경 설정 수신\nconst aiConfigRaw = inputs['⚡ AI 환경 설정 (필수)'] || inputs['in_ai_config'] || inputs['AI 환경 설정'] || {};\nconst aiConfig = {\n  provider: aiConfigRaw.provider || 'Google (Gemini)',\n  model: aiConfigRaw.model || 'gemini-3.6-flash',\n  apiKey: aiConfigRaw.apiKey || '',\n  temperature: parseFloat(aiConfigRaw.temperature) || 0.7,\n  endpoint: aiConfigRaw.endpoint || ''\n};\n\nif (!aiConfig.apiKey) {\n  return {\n    '🎬 상세 시나리오 (텍스트)': '[AI 생성 오류: API Key가 설정되지 않았습니다. [AI 설정 노드]를 연결하고 API Key를 입력해 주세요.]',\n    '🧬 시나리오 JSON 데이터': { error: 'API Key Missing' }\n  };\n}\n\n// 2. 대략적인 줄거리/아이디어 추출 (필수)\nlet roughPlot = inputs['📝 대략적인 줄거리 / 아이디어 (필수)'] || inputs['in_rough_plot'] || inputs['줄거리'] || '';\nif (roughPlot && typeof roughPlot === 'object') {\n  roughPlot = roughPlot.content || roughPlot.text || roughPlot.summary || JSON.stringify(roughPlot);\n}\nroughPlot = String(roughPlot || '').trim();\nif (!roughPlot) {\n  return {\n    '🎬 상세 시나리오 (텍스트)': '[오류: 대략적인 줄거리 노드가 연결되지 않았습니다. 📝 포트에 줄거리/아이디어를 연결해 주세요.]',\n    '🧬 시나리오 JSON 데이터': { error: 'Rough Plot Missing' }\n  };\n}\n\n// 3. 등장인물 데이터 수집 (필수)\nfunction extractCharacters(raw) {\n  const list = [];\n  function dig(item) {\n    if (!item) return;\n    if (Array.isArray(item)) {\n      item.forEach(dig);\n    } else if (typeof item === 'object') {\n      if (item.persona_md || item.lore) {\n        list.push({\n          name: item.lore?.name || item.name || '인물 ' + (list.length + 1),\n          role: item.lore?.role || item.role || '등장인물',\n          persona_md: item.persona_md || '',\n          lore: item.lore || item\n        });\n      } else if (item['등장인물 데이터']) {\n        dig(item['등장인물 데이터']);\n      } else {\n        Object.values(item).forEach(v => {\n          if (v && typeof v === 'object' && (v.persona_md || v.lore)) dig(v);\n        });\n      }\n    }\n  }\n  dig(raw);\n  return list;\n}\nconst charInput = inputs['👥 등장인물 데이터 (필수)'] || inputs['in_characters'] || [];\nconst charactersList = extractCharacters(charInput);\nif (charactersList.length === 0) {\n  return {\n    '🎬 상세 시나리오 (텍스트)': '[오류: 등장인물 노드가 연결되지 않았습니다. 👥 포트에 등장인물 노드를 연결해 주세요.]',\n    '🧬 시나리오 JSON 데이터': { error: 'Characters Missing' }\n  };\n}\n\n// 4. 세계관 설정 데이터 수집\nlet worldText = '';\nconst rawWorld = inputs['🌍 세계관 설정 (선택)'] || inputs['in_world'] || inputs['세계관 설정'] || '';\nif (typeof rawWorld === 'string') {\n  worldText = rawWorld.trim();\n} else if (rawWorld && typeof rawWorld === 'object') {\n  if (rawWorld.background_lore) {\n    worldText = '[소설 제목]: ' + (rawWorld.title || '미정') + '\\n[로그라인]: ' + (rawWorld.logline || '') + '\\n[배경 로어]:\\n' + rawWorld.background_lore;\n  } else if (rawWorld['📜 통합된 텍스트 / 마크다운']) {\n    worldText = rawWorld['📜 통합된 텍스트 / 마크다운'];\n  } else {\n    worldText = rawWorld.content || rawWorld.text || rawWorld.desc || JSON.stringify(rawWorld, null, 2);\n  }\n}\n\n// 5. 로어북 & RAG 지식 수집 (RAG 벡터 패키지 또는 마크다운 지원)\nlet loreText = '';\nconst rawLore = inputs['📚 로어북 & RAG 지식 (선택)'] || inputs['in_lore'] || '';\nif (typeof rawLore === 'string') {\n  loreText = rawLore.trim();\n} else if (rawLore && typeof rawLore === 'object') {\n  if (rawLore['📚 패키징된 로어북 지식 (마크다운)']) {\n    loreText = rawLore['📚 패키징된 로어북 지식 (마크다운)'];\n  } else if (rawLore['📚 추출된 로어북 지식 (마크다운)']) {\n    loreText = rawLore['📚 추출된 로어북 지식 (마크다운)'];\n  } else if (rawLore.package_name === 'LoreVectorPackage' || rawLore['🧠 RAG 지식 패키지 (벡터 색인)']) {\n    const pkg = rawLore.package_name === 'LoreVectorPackage' ? rawLore : rawLore['🧠 RAG 지식 패키지 (벡터 색인)'];\n    if (window.ragEngine) {\n      const searchRes = await window.ragEngine.searchVectorPackage(pkg, {\n        query: roughPlot,\n        topK: pkg.defaultTopK || 3,\n        maxChars: pkg.defaultMaxChars || 1000,\n        domainFilter: pkg.domainFilter || 'all'\n      });\n      loreText = searchRes.formattedMarkdown;\n    }\n  } else if (rawLore.formattedMarkdown) {\n    loreText = rawLore.formattedMarkdown;\n  } else {\n    loreText = rawLore.content || rawLore.text || rawLore.desc || JSON.stringify(rawLore, null, 2);\n  }\n}\n\n// 6. 프롬프트 및 사용자 지침 조립\nconst sceneGoal = (input.scene_goal || '').trim();\nconst tempoMood = (input.tempo_mood || '팽팽한 기싸움 & 심리전').trim();\nconst promptTemplate = (input.prompt_template || '').trim();\n\nlet charSummary = charactersList.map((c, i) => '인물 ' + (i + 1) + ': ' + c.name + ' (' + c.role + ')' + (c.persona_md ? '\\n' + c.persona_md : '')).join('\\n\\n');\n\nconst systemPrompt = promptTemplate + '\\n\\n[추가 연출 조건]:\\n- 씬 전개 템포 및 분위기: ' + tempoMood + (sceneGoal ? '\\n- 씬의 핵심 목표 및 필수 달성 사건: ' + sceneGoal : '');\n\nconst userPrompt = '# [대략적인 줄거리 및 아이디어]\\n' + roughPlot + '\\n\\n# [참여 등장인물 설정]\\n' + charSummary + '\\n\\n' + (worldText ? '# [세계관 및 배경 대전제]\\n' + worldText + '\\n\\n' : '') + (loreText ? '# [로어북 및 배경 지식]\\n' + loreText + '\\n\\n' : '') + '위 정보를 종합 분석하여, 지정된 5단계 양식으로 생생하고 입체적인 씬 시나리오(Scene Beat Sheet)를 완성하라.';\n\nlet generatedScenario = '';\n\n// 7. 실시간 AI 호출\ntry {\n  generatedScenario = await window.aiApi.call(aiConfig, systemPrompt, userPrompt);\n} catch (err) {\n  generatedScenario = '[시나리오 생성 오류: ' + err.message + ']';\n}\n\n// 8. 5단 시나리오 파싱하여 JSON 객체 조립\nconst parseSection = (header) => {\n  const regex = new RegExp(`\\\\[${header}[^\\\\]]*\\\\]\\\\s*([\\\\s\\\\S]*?)(?=\\\\[\\\\d+\\\\.|━━━━━━━━|$)`, 'i');\n  const match = generatedScenario.match(regex);\n  return match ? match[1].trim() : '';\n};\n\nconst scenarioData = {\n  raw_scenario: generatedScenario,\n  scene_overview: parseSection('1. 씬 개요'),\n  character_goals: parseSection('2. 인물별 목표'),\n  plot_beats: parseSection('3. 씬 사건 전개'),\n  lore_and_props: parseSection('4. 로어 & 소품'),\n  dialogue_summary: parseSection('5. 대본 연결'),\n  ai_config: {\n    provider: aiConfig.provider,\n    model: aiConfig.model\n  }\n};\n\n// 9. 최종 출력\nreturn {\n  '🎬 상세 시나리오 (텍스트)': generatedScenario,\n  '🧬 시나리오 JSON 데이터': scenarioData\n};"
   },
   {
     "id": "preset_sys_universal_hub",
@@ -1447,5 +1465,168 @@
       ]
     },
     "code": "// 1. 모든 연결된 입력 데이터 수집 및 플랫 배열화\nconst collectedItems = [];\nconst collectedLorebooks = [];\n\nfunction harvest(item, defaultTitle = '데이터') {\n  if (item === null || item === undefined) return;\n  \n  if (item.lorebook_entries && Array.isArray(item.lorebook_entries)) {\n    collectedLorebooks.push(...item.lorebook_entries);\n  }\n\n  if (Array.isArray(item)) {\n    item.forEach((sub, idx) => harvest(sub, `${defaultTitle} #${idx + 1}`));\n  } else if (typeof item === 'object') {\n    // 특정 노드 형태 판별\n    if (item.persona_md || item.lore) {\n      if (item.lorebook_entries && Array.isArray(item.lorebook_entries)) {\n        collectedLorebooks.push(...item.lorebook_entries);\n      }\n      collectedItems.push({\n        title: item.lore?.name || item.name || defaultTitle,\n        type: 'character',\n        text: item.persona_md || (typeof item.lore === 'object' ? JSON.stringify(item.lore, null, 2) : String(item.lore)),\n        raw: item\n      });\n    } else if (item.scene_overview || item.plot_beats) {\n      collectedItems.push({\n        title: '🎬 시나리오 비트 데이터',\n        type: 'scenario',\n        text: item.raw_scenario || JSON.stringify(item, null, 2),\n        raw: item\n      });\n    } else if (item['📜 완성된 씬 대본'] || item.turns) {\n      collectedItems.push({\n        title: '🎭 씬 대본집',\n        type: 'dialogue_script',\n        text: item['📜 완성된 씬 대본'] || item.script || JSON.stringify(item, null, 2),\n        raw: item\n      });\n    } else if (item.content !== undefined || item.editorVal !== undefined || item.val !== undefined || item.text !== undefined || item.desc !== undefined) {\n      const textVal = item.content || item.editorVal || item.val || item.text || item.desc || '';\n      collectedItems.push({\n        title: item.title || item.name || defaultTitle,\n        type: 'text_node',\n        text: typeof textVal === 'object' ? JSON.stringify(textVal, null, 2) : String(textVal),\n        raw: item\n      });\n    } else {\n      const keys = Object.keys(item);\n      if (keys.length > 0) {\n        keys.forEach(k => {\n          if (k !== 'input' && k !== 'rawInputs' && k !== 'displayVal' && k !== 'merged_viewer') {\n            harvest(item[k], k);\n          }\n        });\n      } else {\n        collectedItems.push({\n          title: defaultTitle,\n          type: 'json_object',\n          text: JSON.stringify(item, null, 2),\n          raw: item\n        });\n      }\n    }\n  } else {\n    const textVal = String(item).trim();\n    if (textVal) {\n      collectedItems.push({\n        title: defaultTitle,\n        type: 'raw_text',\n        text: textVal,\n        raw: item\n      });\n    }\n  }\n}\n\n// 1) 명시적 포트 데이터 추출\nconst rawNodes = inputs['📥 통합할 노드 데이터들 (다중 연결)'] || inputs['in_nodes'] || inputs['in_1'];\nconst extraInput = inputs['📝 추가 보조 데이터 (선택)'] || inputs['in_extra'];\n\nif (rawNodes !== undefined) {\n  harvest(rawNodes, '통합 항목');\n}\nif (extraInput !== undefined) {\n  harvest(extraInput, '보조 데이터');\n}\n\n// 2) 포트 이름 매핑 외의 다른 연결된 inputs 탐색\nif (collectedItems.length === 0 && inputs && typeof inputs === 'object') {\n  Object.entries(inputs).forEach(([key, val]) => {\n    if (key !== 'in_nodes' && key !== 'in_extra' && key !== 'input' && key !== 'rawInputs') {\n      harvest(val, key);\n    }\n  });\n}\n\nif (collectedItems.length === 0) {\n  return {\n    '📜 통합된 텍스트 / 마크다운': '(통합할 노드가 연결되지 않았습니다. 상위 노드를 📥 포트에 연결해 주세요.)',\n    '🧬 통합된 데이터 (JSON / 배열)': { count: 0, lorebook_entries: [], items: [] }\n  };\n}\n\n// 2. 위젯 설정 및 병합 모드 처리\nconst mergeMode = (input.merge_mode || '📌 스마트 섹션 마크다운 (제목 + 내용 자동 구분)').trim();\nconst prefix = (input.custom_prefix || '').trim();\n\nlet mergedText = '';\nconst textBlocks = [];\n\nif (prefix) {\n  textBlocks.push(prefix);\n}\n\nif (mergeMode.includes('스마트 섹션')) {\n  collectedItems.forEach((it, idx) => {\n    let block = '';\n    if (it.text.startsWith('#')) {\n      block = it.text;\n    } else {\n      block = `## [${it.title || `항목 ${idx + 1}`}]\\n${it.text}`;\n    }\n    textBlocks.push(block);\n  });\n  mergedText = textBlocks.join('\\n\\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\n\\n');\n} else if (mergeMode.includes('구분선')) {\n  collectedItems.forEach(it => textBlocks.push(it.text));\n  mergedText = textBlocks.join('\\n\\n---\\n\\n');\n} else if (mergeMode.includes('단순 줄바꿈')) {\n  collectedItems.forEach(it => textBlocks.push(it.text));\n  mergedText = textBlocks.join('\\n\\n');\n} else if (mergeMode.includes('JSON')) {\n  const jsonArr = collectedItems.map(it => it.raw);\n  mergedText = JSON.stringify(jsonArr, null, 2);\n} else {\n  collectedItems.forEach(it => textBlocks.push(`### ${it.title}\\n${it.text}`));\n  mergedText = textBlocks.join('\\n\\n');\n}\n\n// 중복 로어북 제거\nconst uniqueLorebooks = [];\nconst seenLoreIds = new Set();\ncollectedLorebooks.forEach(lb => {\n  if (lb && lb.id && !seenLoreIds.has(lb.id)) {\n    seenLoreIds.add(lb.id);\n    uniqueLorebooks.push(lb);\n  } else if (lb && !lb.id) {\n    uniqueLorebooks.push(lb);\n  }\n});\n\n// 3. 최종 출력 반환\nreturn {\n  '📜 통합된 텍스트 / 마크다운': mergedText,\n  '🧬 통합된 데이터 (JSON / 배열)': {\n    count: collectedItems.length,\n    lorebook_entries: uniqueLorebooks,\n    items: collectedItems.map(it => it.raw),\n    structured: collectedItems\n  }\n};"
+  },
+  {
+    "schemaVersion": "2.0",
+    "createdAt": 1787233260888,
+    "updatedAt": 1787233260888,
+    "id": "preset_sys_rag_lore_generator",
+    "name": "🧠 RAG 로어 지식 추출 & 패키징 생성기",
+    "icon": "🧠",
+    "desc": "연결된 사전/인물/세계관/원고 노드들을 온디맨드로 청킹 & 벡터 색인화하여, 후속 AI 생성 노드가 실시간으로 인출할 수 있는 [RAG 지식 패키지] 및 [마크다운 로어]를 생성하는 노드",
+    "category": "ai",
+    "color": "#a855f7",
+    "defaultWidth": 520,
+    "defaultHeight": 620,
+    "isDefault": true,
+    "promptForName": true,
+    "promptForDesc": false,
+    "widgets": [
+      {
+        "id": "w_results_viewer",
+        "type": "text_viewer",
+        "label": "👁️ 색인 완료된 로어북 지식 목록",
+        "key": "displayVal",
+        "rows": 16,
+        "defaultVal": "",
+        "placeholder": "노드를 실행하면 연결된 사전/인물/원고 데이터들이 온디맨드로 색인되어 이곳에 목록으로 표시됩니다."
+      }
+    ],
+    "portsConfig": {
+      "inputs": [
+        {
+          "id": "in_lore_sources",
+          "name": "📚 사전 및 로어 데이터 (필수/다중 연결)",
+          "color": "#eab308"
+        }
+      ],
+      "outputs": [
+        {
+          "id": "out_rag_package",
+          "name": "🧠 RAG 지식 패키지 (벡터 색인)",
+          "color": "#a855f7"
+        },
+        {
+          "id": "out_rag_md",
+          "name": "📚 패키징된 로어북 지식 (마크다운)",
+          "color": "#10b981"
+        }
+      ]
+    },
+    "code": "// 1. 입력 로어 데이터 수집 및 온디맨드 벡터 패키징\nconst rawLores = inputs['📚 사전 및 로어 데이터 (필수/다중 연결)'] || inputs['in_lore_sources'] || inputs;\nlet pkg = { package_name: 'LoreVectorPackage', chunks: [], total_chunks: 0 };\nif (window.ragEngine) {\n  pkg = await window.ragEngine.buildVectorPackageFromInputs(rawLores);\n}\n\n// 2. 로어 목록 마크다운 프리뷰 조립\nlet formattedMd = '';\nif (pkg.chunks && pkg.chunks.length > 0) {\n  formattedMd = '# [색인 완료된 로어북 지식 목록 (총 ' + pkg.chunks.length + '개)]\\n\\n' + pkg.chunks.map((c, i) => `### ${i+1}. ${c.sourceTitle}\\n${c.text}`).join('\\n\\n');\n} else {\n  formattedMd = '(연결된 사전/원고/로어 데이터가 없거나 내용이 비어 있습니다. 📚 포트에 사전, 인물 카드, 또는 원고 노드를 연결하고 내용을 작성해 주세요)';\n}\n\nreturn {\n  '🧠 RAG 지식 패키지 (벡터 색인)': pkg,\n  '📚 패키징된 로어북 지식 (마크다운)': formattedMd\n};\n"
+  },
+  {
+    "schemaVersion": "2.0",
+    "createdAt": 1787233260900,
+    "updatedAt": 1787233260900,
+    "id": "preset_sys_rag_search_tester",
+    "name": "🔍 RAG 지식 시맨틱 검색 & 테스트기",
+    "icon": "🔍",
+    "desc": "입력받은 RAG 지식 패키지 또는 로어북 노드에 대해 실시간 자연어 유사도(Top-K) 검색을 수행하고, 일치율 및 인출 결과를 테스트·모니터링하는 노드",
+    "category": "ai",
+    "color": "#a855f7",
+    "defaultWidth": 540,
+    "defaultHeight": 720,
+    "isDefault": true,
+    "promptForName": true,
+    "promptForDesc": false,
+    "widgets": [
+      {
+        "id": "w_search_query",
+        "type": "input_text",
+        "label": "🔍 검색 쿼리 / 질문 / 상황 문맥",
+        "key": "search_query",
+        "rows": 2,
+        "defaultVal": "",
+        "placeholder": "검색할 상황, 키워드, 의문점을 입력하세요 (예: '칼렌의 트라우마', '마력 폭주 원인', '2왕자의 정체')..."
+      },
+      {
+        "id": "w_top_k",
+        "type": "slider",
+        "label": "🎯 인출 로어 개수 (Top-K)",
+        "key": "top_k",
+        "min": 1,
+        "max": 10,
+        "step": 1,
+        "unit": "개",
+        "defaultVal": 3
+      },
+      {
+        "id": "w_max_chars",
+        "type": "slider",
+        "label": "✂️ 청크당 최대 글자수 (Truncation)",
+        "key": "max_chars",
+        "min": 200,
+        "max": 3000,
+        "step": 100,
+        "unit": "자",
+        "defaultVal": 1000
+      },
+      {
+        "id": "w_domain_filter",
+        "type": "dropdown_select",
+        "label": "🏷️ 인출 대상 도메인 필터",
+        "key": "domain_filter",
+        "options": [
+          "전체 (All Domains)",
+          "👥 인물 (Characters)",
+          "🌍 세계관 (World Lore)",
+          "📖 고유명사 (Proper Nouns)",
+          "🔮 복선 (Foreshadowing)"
+        ],
+        "defaultVal": "전체 (All Domains)"
+      },
+      {
+        "id": "w_char_context",
+        "type": "input_text",
+        "label": "🛡️ 인물 시점 격리 (선택)",
+        "key": "character_context",
+        "rows": 1,
+        "defaultVal": "",
+        "placeholder": "인물 이름을 입력하면 타인의 내면 심리/과거사 및 복선의 숨겨진 진실이 차단됩니다"
+      },
+      {
+        "id": "w_search_btn",
+        "type": "button_action",
+        "label": "RAG 지식 검색 실행",
+        "icon": "🔍",
+        "action": "search",
+        "gradient": "linear-gradient(135deg, #a855f7, #6366f1)"
+      },
+      {
+        "id": "w_results_viewer",
+        "type": "text_viewer",
+        "label": "👁️ 검색된 로어 지식 목록 (일치율 & 마크다운)",
+        "key": "displayVal",
+        "rows": 12
+      }
+    ],
+    "portsConfig": {
+      "inputs": [
+        {
+          "id": "in_rag_sources",
+          "name": "📚 RAG 패키지 / 로어 데이터 (필수)",
+          "color": "#a855f7"
+        },
+        {
+          "id": "in_query",
+          "name": "🔍 동적 검색 쿼리 (선택)",
+          "color": "#00ffcc"
+        }
+      ],
+      "outputs": [
+        {
+          "id": "out_rag_text",
+          "name": "📜 검색된 RAG 로어 지식 (마크다운)",
+          "color": "#10b981"
+        },
+        {
+          "id": "out_rag_json",
+          "name": "🧬 검색 결과 데이터 (JSON / 배열)",
+          "color": "#8b5cf6"
+        }
+      ]
+    },
+    "code": "// 1. 검색 쿼리 획득 (동적 포트 입력 우선, 없으면 위젯 입력값)\nlet query = inputs['🔍 동적 검색 쿼리 (선택)'] || inputs['in_query'] || input.search_query || '';\nif (query && typeof query === 'object') {\n  query = query.content || query.text || query.summary || query.val || JSON.stringify(query);\n}\nquery = String(query || '').trim();\n\nif (!query) {\n  return {\n    '📜 검색된 RAG 로어 지식 (마크다운)': '(검색 쿼리가 비어있습니다. [검색 쿼리 / 질문 / 상황 문맥] 입력란에 검색할 키워드나 상황을 입력해 주세요.)',\n    '🧬 검색 결과 데이터 (JSON / 배열)': { query: '', count: 0, results: [] }\n  };\n}\n\n// 2. 위젯 검색 파라미터 획득\nconst topK = Number(input.top_k || 3);\nconst maxChars = Number(input.max_chars || 1000);\nlet domainFilter = input.domain_filter || '전체 (All Domains)';\nif (domainFilter.includes('인물')) domainFilter = 'character';\nelse if (domainFilter.includes('세계관')) domainFilter = 'world';\nelse if (domainFilter.includes('고유명사')) domainFilter = 'proper_noun';\nelse if (domainFilter.includes('복선')) domainFilter = 'foreshadowing';\nelse domainFilter = 'all';\n\nconst characterContext = String(input.character_context || '').trim();\n\n// 3. 입력 RAG 지식 수집\nconst rawRAG = inputs['📚 RAG 패키지 / 로어 데이터 (필수)'] || inputs['in_rag_sources'] || inputs;\n\nif (!window.ragEngine) {\n  return {\n    '📜 검색된 RAG 로어 지식 (마크다운)': '[오류: RAG 엔진이 준비되지 않았습니다.]',\n    '🧬 검색 결과 데이터 (JSON / 배열)': { error: 'RAG Engine Not Ready' }\n  };\n}\n\n// 4. RAG 벡터 유사도 검색 실행\nconst searchRes = await window.ragEngine.searchVectorPackage(rawRAG, {\n  query,\n  topK,\n  maxChars,\n  domainFilter,\n  characterContext\n});\n\n// 5. 마크다운 결과 조립\nlet formattedMarkdown = '';\nif (searchRes.results && searchRes.results.length > 0) {\n  formattedMarkdown = `# [🔍 RAG 검색 결과: \"${query}\"] (총 ${searchRes.results.length}건 인출)\\n\\n` +\n    searchRes.results.map((r, i) => {\n      const scorePct = Math.round(r.score * 100);\n      return `### ${i + 1}. [${r.domain.toUpperCase()}] ${r.title} (🎯 일치율 ${scorePct}%)\\n${r.content}`;\n    }).join('\\n\\n');\n} else {\n  formattedMarkdown = `# [🔍 RAG 검색 결과: \"${query}\"]\\n\\n조건에 일치하는 로어 지식을 찾지 못했습니다.`;\n}\n\nreturn {\n  '📜 검색된 RAG 로어 지식 (마크다운)': formattedMarkdown,\n  '🧬 검색 결과 데이터 (JSON / 배열)': {\n    query,\n    count: searchRes.results?.length || 0,\n    topK,\n    maxChars,\n    domainFilter,\n    characterContext,\n    results: searchRes.results || []\n  }\n};"
   }
 ]

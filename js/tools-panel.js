@@ -732,7 +732,7 @@ class ToolsPanel {
 
         return `
           <div style="background: rgba(52, 152, 219, 0.1); border: 1px solid rgba(52, 152, 219, 0.3); padding: 10px 12px; border-radius: 8px; font-size: 11px; color: var(--color-text-secondary); margin-bottom: 14px; line-height: 1.5;">
-            💡 아래 설정 항목들은 오직 <strong>소설 원고 본문 에디터</strong>의 서식 및 스타일(폰트, 색상, 행간 등)에만 전용으로 적용됩니다.
+            💡 에디터 스타일 및 집필 옵션을 통합 관리하는 환경 설정입니다.
           </div>
 
           <div class="settings-section">

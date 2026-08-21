@@ -32,7 +32,7 @@ class WidgetManager {
                     </div>
                 `;
             },
-            bindEvents: (container, w, contentData, onUpdate) => {
+            bindEvents: (container, w, contentData, onUpdate, fileId) => {
                 const key = w.key || w.label || 'val';
                 const inputEl = container.querySelector(`.widget-input-field[data-widget-key="${key}"]`) || container.querySelector('.widget-input-field');
                 if (inputEl) {
@@ -44,9 +44,79 @@ class WidgetManager {
                         contentData.val = val;
                         onUpdate(contentData);
                     });
+
+                    // Enter 키 입력 시 즉시 단일 노드 실행 트리거 지원 (shift+Enter는 줄바꿈)
+                    if (w.rows === 1 || w.key === 'search_query' || w.runOnEnter) {
+                        inputEl.addEventListener('keydown', async (e) => {
+                            if (e.key === 'Enter' && !e.shiftKey) {
+                                e.preventDefault();
+                                if (window.nodeEngine && fileId) {
+                                    if (window.nodeEngine.evaluateSingleNode) {
+                                        await window.nodeEngine.evaluateSingleNode(fileId);
+                                    } else if (window.nodeEngine.runTargetNode) {
+                                        await window.nodeEngine.runTargetNode(fileId);
+                                    }
+                                }
+                            }
+                        });
+                    }
                 }
             }
         });
+
+        // 1-0) 수치 조절 슬라이드바 위젯 (Range Slider)
+        const sliderHandler = {
+            render: (w, contentData, fileId) => {
+                const key = w.key || w.label || 'val';
+                const min = w.min !== undefined ? Number(w.min) : 1;
+                const max = w.max !== undefined ? Number(w.max) : 100;
+                const step = w.step !== undefined ? Number(w.step) : 1;
+                const unit = w.unit || '';
+                const defaultVal = w.defaultVal !== undefined ? Number(w.defaultVal) : min;
+                
+                let rawVal = contentData[w.key] !== undefined ? contentData[w.key] :
+                             (w.label && contentData[w.label] !== undefined ? contentData[w.label] :
+                             (contentData[key] !== undefined ? contentData[key] : defaultVal));
+                let currentVal = Number(rawVal);
+                if (isNaN(currentVal)) currentVal = defaultVal;
+
+                return `
+                    <div class="widget-item widget-slider-item" style="display: flex; flex-direction: column; gap: 6px; padding: 4px 0;">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <label style="font-size: 11px; font-weight: bold; color: var(--color-text-secondary); display: flex; align-items: center; gap: 4px;">
+                                ${w.icon || '🎚️'} ${this.escapeHtml(w.label || '수치 조절')}
+                            </label>
+                            <span class="widget-slider-badge" data-widget-key="${this.escapeHtml(key)}" style="font-size: 11px; font-weight: 800; color: #a855f7; background: rgba(168,85,247,0.12); padding: 2px 8px; border-radius: 6px; border: 1px solid rgba(168,85,247,0.3);">
+                                ${currentVal}${this.escapeHtml(unit)}
+                            </span>
+                        </div>
+                        <input type="range" class="input-range widget-slider-input" data-widget-key="${this.escapeHtml(key)}" min="${min}" max="${max}" step="${step}" value="${currentVal}" style="width: 100%; cursor: pointer; accent-color: #a855f7;">
+                    </div>
+                `;
+            },
+            bindEvents: (container, w, contentData, onUpdate) => {
+                const key = w.key || w.label || 'val';
+                const unit = w.unit || '';
+                const inputEl = container.querySelector(`.widget-slider-input[data-widget-key="${key}"]`) || container.querySelector('.widget-slider-input');
+                const badgeEl = container.querySelector(`.widget-slider-badge[data-widget-key="${key}"]`) || container.querySelector('.widget-slider-badge');
+                
+                if (inputEl) {
+                    inputEl.addEventListener('input', () => {
+                        const numVal = Number(inputEl.value);
+                        if (badgeEl) badgeEl.textContent = `${numVal}${unit}`;
+                        contentData[key] = numVal;
+                        if (w.key) contentData[w.key] = numVal;
+                        if (w.label) contentData[w.label] = numVal;
+                        contentData.val = numVal;
+                        onUpdate(contentData);
+                    });
+                }
+            }
+        };
+
+        this.register('slider', sliderHandler);
+        this.register('range_slider', sliderHandler);
+        this.register('input_range', sliderHandler);
 
         // 1-0) 섹션 구분 헤더 바 위젯 (시각적 구역 분리용)
         this.register('section_header', {
@@ -477,6 +547,54 @@ class WidgetManager {
                         if (fileId && window.nodeEngine) {
                             window.nodeEngine.resumeWaitingNode(fileId);
                             window.showToast?.('확인 완료! 다음 노드로 진행합니다... 🚀', 'success');
+                        }
+                    });
+                }
+            }
+        });
+
+        // 7-2) 노드 내 액션 버튼 위젯 (단일 노드 즉시 실행 및 RAG 검색 등 커스텀 액션 트리거)
+        this.register('button_action', {
+            render: (w, contentData, fileId) => {
+                const label = w.label || '실행';
+                const icon = w.icon || '▶️';
+                const btnStyle = w.btnStyle || 'primary';
+                const bgStyle = w.gradient ? `background: ${w.gradient};` : (btnStyle === 'primary' ? 'background: linear-gradient(135deg, #a855f7, #6366f1);' : '');
+                
+                return `
+                    <div class="widget-item widget-action-btn-container" style="padding: 4px 0;">
+                        <button type="button" class="btn btn-${btnStyle} widget-action-btn" data-action="${this.escapeHtml(w.action || 'run_node')}" data-file-id="${fileId}" style="width: 100%; height: 38px; font-size: 13px; font-weight: 700; border-radius: 8px; display: flex; align-items: center; justify-content: center; gap: 6px; cursor: pointer; border: none; color: #ffffff; ${bgStyle}">
+                            <span>${icon}</span> ${this.escapeHtml(label)}
+                        </button>
+                    </div>
+                `;
+            },
+            bindEvents: (container, w, contentData, onUpdate, fileId) => {
+                const btn = container.querySelector('.widget-action-btn');
+                if (btn) {
+                    btn.addEventListener('click', async (e) => {
+                        e.stopPropagation();
+                        const action = w.action || 'run_node';
+                        if (action === 'run_node' || action === 'execute' || action === 'search') {
+                            if (window.nodeEngine && fileId) {
+                                btn.disabled = true;
+                                const originalHtml = btn.innerHTML;
+                                btn.innerHTML = '<span>⏳</span> 검색 실행 중...';
+                                try {
+                                    if (window.nodeEngine.evaluateSingleNode) {
+                                        await window.nodeEngine.evaluateSingleNode(fileId);
+                                    } else if (window.nodeEngine.runTargetNode) {
+                                        await window.nodeEngine.runTargetNode(fileId);
+                                    }
+                                    window.showToast?.('🔍 작업 실행이 완료되었습니다!', 'success');
+                                } catch (err) {
+                                    console.error('[WidgetManager] 노드 단독 실행 오류:', err);
+                                    window.showToast?.(`실행 오류: ${err.message}`, 'error');
+                                } finally {
+                                    btn.disabled = false;
+                                    btn.innerHTML = originalHtml;
+                                }
+                            }
                         }
                     });
                 }
