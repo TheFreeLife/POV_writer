@@ -986,6 +986,19 @@ class FileTreeManager {
         if (!modal) return;
 
         this.targetFolderId = targetFolderId;
+
+        const badge = document.getElementById('nodeSelectTargetFolderBadge');
+        if (badge) {
+            if (targetFolderId) {
+                const targetFolder = (this.files || []).find(f => f.id === targetFolderId);
+                const folderName = targetFolder ? targetFolder.name : '선택한 폴더';
+                badge.textContent = `📁 ${folderName} 안에 추가`;
+                badge.style.display = 'inline-flex';
+            } else {
+                badge.style.display = 'none';
+            }
+        }
+
         await this.checkAndPromptSchemaUpgrade();
         await this.renderCustomNodePresets();
         modal.classList.remove('hidden');
@@ -1502,6 +1515,13 @@ class FileTreeManager {
                 `;
             }
 
+            let folderBadgeHtml = '';
+            if (this.targetFolderId) {
+                const targetFolder = (this.files || []).find(f => f.id === this.targetFolderId);
+                const folderName = targetFolder ? targetFolder.name : '선택한 폴더';
+                folderBadgeHtml = `<span style="display:inline-block; font-size:10px; font-weight:600; padding:2px 6px; border-radius:4px; background:rgba(56,189,248,0.15); color:#38bdf8; border:1px solid rgba(56,189,248,0.3); margin-left:6px;">📁 ${this.escapeHtml(folderName)}</span>`;
+            }
+
             overlay.innerHTML = `
                 <div style="
                     background: var(--color-surface-2, #1e1e2e);
@@ -1515,8 +1535,11 @@ class FileTreeManager {
                 ">
                     <div style="display:flex; align-items:center; gap:10px; margin-bottom:16px;">
                         <span style="font-size:26px; line-height:1;">${preset.icon || '📄'}</span>
-                        <div>
-                            <div style="font-size:14px; font-weight:700; color:var(--color-text-primary);">${this.escapeHtml(preset.name)}</div>
+                        <div style="flex: 1;">
+                            <div style="display:flex; align-items:center; gap:6px;">
+                                <span style="font-size:14px; font-weight:700; color:var(--color-text-primary);">${this.escapeHtml(preset.name)}</span>
+                                ${folderBadgeHtml}
+                            </div>
                             <div style="font-size:11px; color:var(--color-text-tertiary); margin-top:2px;">새 노드의 정보 설정 ${hasImageWidget ? '<b style="color:#e74c3c;">(사진 첨부 필요)</b>' : ''}</div>
                         </div>
                     </div>
