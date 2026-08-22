@@ -918,18 +918,79 @@ class ToolsPanel {
             const files = await window.storage.getProjectFiles(projectId);
             const nonFolderFiles = (files || []).filter(f => f.type !== 'folder');
 
+            // 지능형 노드 카테고리 분류 헬퍼
+            const classifyNode = (file, norm) => {
+                const nameLower = String(file.name || '').toLowerCase();
+                const presetLower = String(file.presetId || norm?.presetId || '').toLowerCase();
+                const templateLower = String(file.template || norm?.template || '').toLowerCase();
+                const cd = norm?.contentData || {};
+                const keys = Object.keys(cd).join(' ').toLowerCase();
+
+                if (
+                    nameLower.includes('인물') || nameLower.includes('캐릭터') || nameLower.includes('주인공') || 
+                    nameLower.includes('조연') || nameLower.includes('악역') || nameLower.includes('페르소나') ||
+                    presetLower.includes('char') || templateLower.includes('char') ||
+                    keys.includes('charname') || keys.includes('persona') || keys.includes('personality') || keys.includes('appearance')
+                ) {
+                    return 'character';
+                }
+
+                if (
+                    nameLower.includes('세계관') || nameLower.includes('설정') || nameLower.includes('지리') || 
+                    nameLower.includes('마법') || nameLower.includes('아이템') || nameLower.includes('세력') ||
+                    presetLower.includes('lore') || templateLower.includes('lore') || keys.includes('world') || keys.includes('lore')
+                ) {
+                    return 'lore';
+                }
+
+                if (
+                    nameLower.includes('플롯') || nameLower.includes('대본') || nameLower.includes('씬') || 
+                    nameLower.includes('시나리오') || nameLower.includes('갈등') ||
+                    presetLower.includes('plot') || presetLower.includes('scene') || templateLower.includes('plot')
+                ) {
+                    return 'plot';
+                }
+
+                if (
+                    nameLower.includes('원고') || nameLower.includes('본문') || nameLower.includes('소설') ||
+                    nameLower.includes('화') || nameLower.includes('에피소드') ||
+                    presetLower.includes('novel') || presetLower.includes('manuscript') || templateLower.includes('manuscript')
+                ) {
+                    return 'manuscript';
+                }
+
+                return file.category || norm?.category || 'general';
+            };
+
             if (name === 'list_project_nodes') {
                 const nodes = nonFolderFiles.map(f => {
                     const norm = window.nodeEngine?.normalizeNodeData(f);
+                    const cat = classifyNode(f, norm);
+                    const cd = norm?.contentData || {};
+                    const roleOrSummary = cd.role || cd.charName || cd.summary || cd.outline || cd.title || '';
+
                     return {
                         id: f.id,
                         name: f.name,
-                        category: f.category || norm?.category || f.template || 'general'
+                        category: cat,
+                        summary: roleOrSummary ? String(roleOrSummary).slice(0, 100) : ''
                     };
                 });
+
                 if (args.category) {
-                    const cat = String(args.category).toLowerCase();
-                    return nodes.filter(n => String(n.category).toLowerCase().includes(cat));
+                    const q = String(args.category).toLowerCase().trim();
+                    const isCharQ = q.includes('char') || q.includes('인물') || q.includes('등장') || q.includes('캐릭터');
+                    const isLoreQ = q.includes('lore') || q.includes('세계관') || q.includes('설정') || q.includes('지리');
+                    const isPlotQ = q.includes('plot') || q.includes('플롯') || q.includes('대본') || q.includes('씬');
+                    const isDocQ = q.includes('novel') || q.includes('원고') || q.includes('본문') || q.includes('소설');
+
+                    return nodes.filter(n => {
+                        if (isCharQ && n.category === 'character') return true;
+                        if (isLoreQ && n.category === 'lore') return true;
+                        if (isPlotQ && n.category === 'plot') return true;
+                        if (isDocQ && n.category === 'manuscript') return true;
+                        return String(n.category).toLowerCase().includes(q) || String(n.name).toLowerCase().includes(q);
+                    });
                 }
                 return nodes;
             }
