@@ -373,10 +373,13 @@ class ToolsPanel {
     // ==========================================
 
     renderAgent() {
+        const currentConfig = this.getAiConfigSync();
+        const isDrawerOpen = !!this.isAgentConfigDrawerOpen;
+
         return `
-            <div class="agent-panel-container" style="display: flex; flex-direction: column; height: 100%; box-sizing: border-box; gap: 8px;">
+            <div class="agent-panel-container" style="display: flex; flex-direction: column; height: 100%; box-sizing: border-box; gap: 6px;">
                 <!-- 1. 헤더: 비서 소개 및 대화 비우기 -->
-                <div style="display: flex; align-items: center; justify-content: space-between; padding: 6px 10px; background: var(--color-surface-2); border-radius: 8px; border: 1px solid var(--color-border);">
+                <div style="display: flex; align-items: center; justify-content: space-between; padding: 6px 10px; background: var(--color-surface-2); border-radius: 8px; border: 1px solid var(--color-border); flex-shrink: 0;">
                     <div style="display: flex; align-items: center; gap: 6px;">
                         <span style="font-size: 16px;">🤖</span>
                         <div style="display: flex; flex-direction: column;">
@@ -390,80 +393,196 @@ class ToolsPanel {
                 </div>
 
                 <!-- 2. 메시지 말풍선 스크롤 영역 -->
-                <div id="agentMessagesList" style="flex: 1; min-height: 180px; max-height: calc(100vh - 250px); overflow-y: auto; padding: 8px 4px; display: flex; flex-direction: column; gap: 10px; border-radius: 8px; background: var(--color-bg-primary); border: 1px solid var(--color-border);">
+                <div id="agentMessagesList" style="flex: 1; min-height: 120px; max-height: calc(100vh - 270px); overflow-y: auto; padding: 8px 4px; display: flex; flex-direction: column; gap: 10px; border-radius: 8px; background: var(--color-bg-primary); border: 1px solid var(--color-border);">
                     ${this.renderAgentMessagesHtml()}
                 </div>
 
                 <!-- 3. 실시간 도구 실행 상태 표시 바 -->
-                <div id="agentToolStatusBar" style="display: none; align-items: center; gap: 6px; padding: 4px 8px; background: rgba(56, 189, 248, 0.1); border-radius: 6px; font-size: 10px; color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.2);">
+                <div id="agentToolStatusBar" style="display: none; align-items: center; gap: 6px; padding: 4px 8px; background: rgba(56, 189, 248, 0.1); border-radius: 6px; font-size: 10px; color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.2); flex-shrink: 0;">
                     <span class="agent-tool-spinner" style="display: inline-block;">⏳</span>
                     <span id="agentToolStatusText">관련 노드 탐색 중...</span>
                 </div>
 
                 <!-- 4. 하단 입력창 및 전송 버튼 -->
-                <div style="display: flex; flex-direction: column; gap: 4px;">
+                <div style="display: flex; flex-direction: column; gap: 4px; flex-shrink: 0;">
                     <div style="display: flex; gap: 6px; align-items: flex-end; background: var(--color-surface-2); padding: 6px; border-radius: 8px; border: 1px solid var(--color-border);">
-                        <textarea id="agentInputText" placeholder="인물, 세계관, 복선, 줄거리 등 무엇이든 물어보세요... (Shift+Enter 줄바꿈, Enter 전송)" rows="2" style="flex: 1; border: none; background: transparent; color: var(--color-text-primary); font-size: 12px; line-height: 1.5; resize: none; outline: none; padding: 4px; max-height: 120px; font-family: inherit;"></textarea>
+                        <textarea id="agentInputText" placeholder="인물, 세계관, 복선, 줄거리 등 무엇이든 물어보세요... (Shift+Enter 줄바꿈, Enter 전송)" rows="2" style="flex: 1; border: none; background: transparent; color: var(--color-text-primary); font-size: 12px; line-height: 1.5; resize: none; outline: none; padding: 4px; max-height: 100px; font-family: inherit;"></textarea>
                         <button type="button" class="btn btn-primary btn-sm" id="agentSendBtn" style="padding: 6px 12px; font-size: 11px; font-weight: bold; flex-shrink: 0; border-radius: 6px;">
                             전송 🚀
                         </button>
                     </div>
-                    <div style="display: flex; justify-content: space-between; font-size: 9px; color: var(--color-text-tertiary); padding: 0 4px;">
-                        <span>💡 도구 호출(Function Calling)로 필요한 노드만 핀포인트 열람</span>
-                        <span>Shift+Enter 줄바꿈</span>
+                </div>
+
+                <!-- 5. ⚙️ AI 설정 드로어 (채팅 입력창 바로 밑) -->
+                <div class="agent-config-drawer" style="background: var(--color-surface-2); border: 1px solid var(--color-border); border-radius: 8px; overflow: hidden; flex-shrink: 0;">
+                    <!-- 드로어 헤더 바 (클릭 시 열림/닫힘 토글) -->
+                    <div id="agentConfigToggleHeader" style="display: flex; align-items: center; justify-content: space-between; padding: 5px 8px; cursor: pointer; user-select: none; background: rgba(0,0,0,0.15);">
+                        <div style="display: flex; align-items: center; gap: 6px;">
+                            <span style="font-size: 12px;">⚙️</span>
+                            <span style="font-size: 10px; font-weight: bold; color: var(--color-text-secondary);">AI 설정</span>
+                            <span id="agentConfigSummaryBadge" style="font-size: 9px; padding: 1px 5px; border-radius: 4px; background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3);">
+                                ${this.escapeHtml(currentConfig.model || 'Gemini')}
+                            </span>
+                            ${!currentConfig.apiKey ? '<span style="font-size: 9px; color: #ef4444; font-weight: bold;">⚠️ Key 필요</span>' : '<span style="font-size: 9px; color: #10b981;">🟢 Key 준비됨</span>'}
+                        </div>
+                        <span id="agentConfigToggleIcon" style="font-size: 9px; color: var(--color-text-tertiary); transition: transform 0.2s; transform: ${isDrawerOpen ? 'rotate(180deg)' : 'rotate(0deg)'};">▼</span>
+                    </div>
+
+                    <!-- 드로어 본문 설정 폼 -->
+                    <div id="agentConfigBody" style="display: ${isDrawerOpen ? 'flex' : 'none'}; padding: 8px; flex-direction: column; gap: 6px; border-top: 1px solid var(--color-border); background: var(--color-bg-primary);">
+                        <!-- 플랫폼 & 모델 가로 2단 배치 -->
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
+                            <div style="display: flex; flex-direction: column; gap: 2px;">
+                                <label style="font-size: 9px; font-weight: bold; color: var(--color-text-tertiary);">AI 플랫폼</label>
+                                <select id="agentProviderSelect" class="input" style="font-size: 11px; padding: 2px 6px; height: 26px; background: var(--color-surface-1); border: 1px solid var(--color-border); border-radius: 4px; color: var(--color-text-primary);">
+                                    <option value="Google (Gemini)" ${currentConfig.provider === 'Google (Gemini)' ? 'selected' : ''}>Google (Gemini)</option>
+                                    <option value="OpenAI (ChatGPT)" ${currentConfig.provider === 'OpenAI (ChatGPT)' ? 'selected' : ''}>OpenAI (ChatGPT)</option>
+                                    <option value="Anthropic (Claude)" ${currentConfig.provider === 'Anthropic (Claude)' ? 'selected' : ''}>Anthropic (Claude)</option>
+                                    <option value="Ollama (로컬 AI)" ${currentConfig.provider === 'Ollama (로컬 AI)' ? 'selected' : ''}>Ollama (로컬 AI)</option>
+                                    <option value="Custom (사용자 정의)" ${currentConfig.provider === 'Custom (사용자 정의)' ? 'selected' : ''}>Custom (사용자 정의)</option>
+                                </select>
+                            </div>
+                            <div style="display: flex; flex-direction: column; gap: 2px;">
+                                <label style="font-size: 9px; font-weight: bold; color: var(--color-text-tertiary);">AI 모델명</label>
+                                <input type="text" id="agentModelInput" class="input" value="${this.escapeHtml(currentConfig.model || 'gemini-2.5-flash')}" placeholder="모델명" style="font-size: 11px; padding: 2px 6px; height: 26px; background: var(--color-surface-1); border: 1px solid var(--color-border); border-radius: 4px; color: var(--color-text-primary);">
+                            </div>
+                        </div>
+
+                        <!-- API Key 입력 -->
+                        <div style="display: flex; flex-direction: column; gap: 2px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <label style="font-size: 9px; font-weight: bold; color: var(--color-text-tertiary);">API Key</label>
+                                <span id="agentKeySavedStatus" style="font-size: 9px; color: #10b981; display: none;">✅ 자동 저장됨</span>
+                            </div>
+                            <div style="display: flex; gap: 4px;">
+                                <input type="password" id="agentApiKeyInput" class="input" value="${this.escapeHtml(currentConfig.apiKey || '')}" placeholder="API Key 입력" style="flex: 1; font-size: 11px; padding: 2px 6px; height: 26px; background: var(--color-surface-1); border: 1px solid var(--color-border); border-radius: 4px; color: var(--color-text-primary); font-family: monospace;">
+                                <button type="button" class="btn btn-secondary btn-xs" id="agentToggleKeyVisibility" style="padding: 0 6px; font-size: 10px;" title="API Key 보기/숨기기">👁️</button>
+                            </div>
+                        </div>
+
+                        <!-- 창의성 (Temperature) -->
+                        <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 2px;">
+                            <span style="font-size: 9px; font-weight: bold; color: var(--color-text-tertiary); white-space: nowrap;">창의성 (<span id="agentTempDisplay">${currentConfig.temperature ?? 0.7}</span>)</span>
+                            <input type="range" id="agentTempSlider" min="0" max="1" step="0.05" value="${currentConfig.temperature ?? 0.7}" style="flex: 1; cursor: pointer; height: 14px;">
+                        </div>
                     </div>
                 </div>
             </div>
         `;
     }
 
-    renderAgentMessagesHtml() {
-        if (!this.agentHistory || this.agentHistory.length === 0) {
-            return `
-                <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; min-height: 160px; text-align: center; color: var(--color-text-tertiary); padding: 20px 10px; gap: 8px;">
-                    <span style="font-size: 32px; opacity: 0.8;">🤖✨</span>
-                    <div style="font-size: 12px; font-weight: bold; color: var(--color-text-primary);">POV 소설 총괄 비서에 오신 것을 환영합니다!</div>
-                    <div style="font-size: 11px; line-height: 1.6; max-width: 240px;">
-                        캔버스와 파일 트리의 모든 인물 카드, 세계관, 복선, 대본, 원고를 100% 실시간으로 꿰뚫고 답변해 드립니다.
-                    </div>
-                </div>
-            `;
-        }
-
-        return this.agentHistory.map((msg) => {
-            const isUser = msg.role === 'user';
-            const avatar = isUser ? '👤' : '🤖';
-            const name = isUser ? '작가님' : '스토리 비서';
-            const bubbleBg = isUser ? 'var(--color-surface-2)' : 'rgba(56, 189, 248, 0.05)';
-            const bubbleBorder = isUser ? 'var(--color-border)' : 'rgba(56, 189, 248, 0.2)';
-            const align = isUser ? 'flex-end' : 'flex-start';
-
-            const citationsHtml = (!isUser && Array.isArray(msg.citations) && msg.citations.length > 0) ? `
-                <div style="display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; padding-top: 6px; border-top: 1px dashed rgba(255,255,255,0.1); font-size: 10px;">
-                    <span style="color: var(--color-text-tertiary);">🔍 참조 노드:</span>
-                    ${msg.citations.map(c => `<span style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; padding: 1px 6px; border-radius: 4px; border: 1px solid rgba(56, 189, 248, 0.3);">${this.escapeHtml(c)}</span>`).join('')}
-                </div>
-            ` : '';
-
-            return `
-                <div style="display: flex; flex-direction: column; align-items: ${align}; gap: 2px; width: 100%; box-sizing: border-box;">
-                    <div style="display: flex; align-items: center; gap: 4px; font-size: 10px; font-weight: bold; color: var(--color-text-tertiary); padding: 0 4px;">
-                        <span>${avatar}</span>
-                        <span>${name}</span>
-                    </div>
-                    <div style="max-width: 92%; background: ${bubbleBg}; border: 1px solid ${bubbleBorder}; border-radius: 8px; padding: 8px 10px; font-size: 12px; line-height: 1.6; color: var(--color-text-primary); word-break: break-word; box-sizing: border-box;">
-                        ${isUser ? this.escapeHtml(msg.content).replace(/\n/g, '<br>') : this.formatAgentMarkdown(msg.content)}
-                        ${citationsHtml}
-                    </div>
-                </div>
-            `;
-        }).join('');
-    }
-
     setupAgentEventListeners() {
         const inputEl = document.getElementById('agentInputText');
         const sendBtn = document.getElementById('agentSendBtn');
         const clearBtn = document.getElementById('agentClearChatBtn');
+
+        // 드로어 토글
+        const drawerHeader = document.getElementById('agentConfigToggleHeader');
+        const drawerBody = document.getElementById('agentConfigBody');
+        const drawerIcon = document.getElementById('agentConfigToggleIcon');
+
+        if (drawerHeader && drawerBody) {
+            drawerHeader.addEventListener('click', () => {
+                const isCurrentlyOpen = drawerBody.style.display !== 'none';
+                drawerBody.style.display = isCurrentlyOpen ? 'none' : 'flex';
+                if (drawerIcon) {
+                    drawerIcon.style.transform = isCurrentlyOpen ? 'rotate(0deg)' : 'rotate(180deg)';
+                }
+                this.isAgentConfigDrawerOpen = !isCurrentlyOpen;
+            });
+        }
+
+        // 플랫폼 변경 시 모델 기본값 자동 제안
+        const providerSelect = document.getElementById('agentProviderSelect');
+        const modelInput = document.getElementById('agentModelInput');
+        const apiKeyInput = document.getElementById('agentApiKeyInput');
+        const tempSlider = document.getElementById('agentTempSlider');
+        const tempDisplay = document.getElementById('agentTempDisplay');
+        const keySavedStatus = document.getElementById('agentKeySavedStatus');
+
+        const showSavedBadge = () => {
+            if (keySavedStatus) {
+                keySavedStatus.style.display = 'inline';
+                setTimeout(() => { if (keySavedStatus) keySavedStatus.style.display = 'none'; }, 2000);
+            }
+        };
+
+        const saveCurrentAiSettings = () => {
+            const provider = providerSelect?.value || 'Google (Gemini)';
+            const model = modelInput?.value?.trim() || 'gemini-2.5-flash';
+            const apiKey = apiKeyInput?.value?.trim() || '';
+            const temperature = tempSlider ? Number(tempSlider.value) : 0.7;
+
+            // 로컬 스토리지 및 settings 저장
+            localStorage.setItem('ai_provider', provider);
+            localStorage.setItem('ai_model', model);
+            localStorage.setItem('ai_api_key', apiKey);
+            localStorage.setItem('global_gemini_api_key', apiKey);
+            localStorage.setItem('ai_temperature', String(temperature));
+
+            if (!this.settings) this.settings = {};
+            this.settings.aiProvider = provider;
+            this.settings.aiModel = model;
+            this.settings.apiKey = apiKey;
+            this.settings.temperature = temperature;
+
+            // 요약 뱃지 갱신
+            const badge = document.getElementById('agentConfigSummaryBadge');
+            if (badge) badge.textContent = model;
+
+            showSavedBadge();
+
+            // 만약 현재 프로젝트에 AI 설정 노드가 있다면 그 내용도 함께 동기화
+            this.syncWithAiConfigNode(provider, model, apiKey, temperature);
+        };
+
+        if (providerSelect) {
+            providerSelect.addEventListener('change', () => {
+                const val = providerSelect.value;
+                if (modelInput) {
+                    if (val.includes('Google') || val.includes('Gemini')) modelInput.value = 'gemini-2.5-flash';
+                    else if (val.includes('OpenAI')) modelInput.value = 'gpt-4o-mini';
+                    else if (val.includes('Anthropic') || val.includes('Claude')) modelInput.value = 'claude-3-5-sonnet';
+                    else if (val.includes('Ollama')) modelInput.value = 'llama3.2';
+                }
+                saveCurrentAiSettings();
+            });
+        }
+
+        if (modelInput) {
+            modelInput.addEventListener('change', saveCurrentAiSettings);
+        }
+
+        if (apiKeyInput) {
+            apiKeyInput.addEventListener('change', saveCurrentAiSettings);
+            apiKeyInput.addEventListener('input', () => {
+                // 타이핑 중에도 저장
+                localStorage.setItem('global_gemini_api_key', apiKeyInput.value.trim());
+                localStorage.setItem('ai_api_key', apiKeyInput.value.trim());
+                if (this.settings) this.settings.apiKey = apiKeyInput.value.trim();
+            });
+        }
+
+        // 비밀번호 보이기/숨기기 토글
+        const toggleKeyBtn = document.getElementById('agentToggleKeyVisibility');
+        if (toggleKeyBtn && apiKeyInput) {
+            toggleKeyBtn.addEventListener('click', () => {
+                if (apiKeyInput.type === 'password') {
+                    apiKeyInput.type = 'text';
+                    toggleKeyBtn.textContent = '🔒';
+                } else {
+                    apiKeyInput.type = 'password';
+                    toggleKeyBtn.textContent = '👁️';
+                }
+            });
+        }
+
+        if (tempSlider) {
+            tempSlider.addEventListener('input', () => {
+                if (tempDisplay) tempDisplay.textContent = tempSlider.value;
+                saveCurrentAiSettings();
+            });
+        }
 
         // 엔터키 전송 (Shift+Enter 줄바꿈)
         if (inputEl) {
@@ -481,7 +600,7 @@ class ToolsPanel {
             // 입력창 자동 높이 조절
             inputEl.addEventListener('input', () => {
                 inputEl.style.height = 'auto';
-                inputEl.style.height = Math.min(120, Math.max(36, inputEl.scrollHeight)) + 'px';
+                inputEl.style.height = Math.min(100, Math.max(36, inputEl.scrollHeight)) + 'px';
             });
         }
 
@@ -507,6 +626,54 @@ class ToolsPanel {
                 }
             });
         }
+    }
+
+    /**
+     * 🔄 캔버스 상의 AI 설정 노드(preset_sys_ai_config)와 양방향 동기화
+     */
+    async syncWithAiConfigNode(provider, model, apiKey, temperature) {
+        const projectId = this.currentProjectId || window.currentProjectId || window.fileTreeManager?.currentProjectId || window.projectManager?.currentProjectId;
+        if (!projectId || !window.storage) return;
+
+        try {
+            const files = await window.storage.getProjectFiles(projectId);
+            const aiNode = files?.find(f => {
+                const norm = window.nodeEngine?.normalizeNodeData(f);
+                return f.presetId === 'preset_sys_ai_config' || norm?.presetId === 'preset_sys_ai_config' || f.name.includes('AI 설정') || f.name.includes('AI 환경');
+            });
+
+            if (aiNode) {
+                const norm = window.nodeEngine?.normalizeNodeData(aiNode);
+                const cd = norm?.contentData || {};
+                cd.provider = provider;
+                cd.model = model;
+                cd.apiKey = apiKey;
+                cd.temperature = temperature;
+                aiNode.content = JSON.stringify(cd, null, 2);
+                aiNode.contentData = cd;
+                await window.storage.updateFile(aiNode.id, { content: aiNode.content, contentData: cd });
+                window.windowManager?.renderCustomNode(aiNode.id);
+            }
+        } catch (err) {
+            console.warn('AI 설정 노드 동기화 건너뜀:', err);
+        }
+    }
+
+    /**
+     * ⚡ 동기식 AI 설정 조회 (렌더링 시 사용)
+     */
+    getAiConfigSync() {
+        const savedKey = this.settings?.apiKey || localStorage.getItem('global_gemini_api_key') || localStorage.getItem('ai_api_key') || '';
+        const savedProvider = this.settings?.aiProvider || localStorage.getItem('ai_provider') || 'Google (Gemini)';
+        const savedModel = this.settings?.aiModel || localStorage.getItem('ai_model') || 'gemini-2.5-flash';
+        const savedTemp = localStorage.getItem('ai_temperature') ? Number(localStorage.getItem('ai_temperature')) : 0.7;
+
+        return {
+            provider: savedProvider,
+            model: savedModel,
+            apiKey: savedKey,
+            temperature: savedTemp
+        };
     }
 
     updateAgentMessagesView() {
