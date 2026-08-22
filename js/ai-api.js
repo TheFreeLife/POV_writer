@@ -85,16 +85,7 @@ class AiApiManager {
             };
         }
 
-        const res = await fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(bodyPayload)
-        });
-
-        const data = await res.json();
-        if (data.error) {
-            throw new Error(`[Gemini API 오류] ${data.error.message || JSON.stringify(data.error)}`);
-        }
+        const data = await this._fetchGeminiRobust(targetModel, apiKey, bodyPayload, endpoint);
 
         const reply = data.candidates?.[0]?.content?.parts?.[0]?.text;
         if (!reply) throw new Error('Gemini로부터 유효한 응답 텍스트를 수신하지 못했습니다.');
@@ -104,6 +95,67 @@ class AiApiManager {
     /**
      * OpenAI / DeepSeek API 호출 (Chat Completions)
      */
+    /**
+     * Google Gemini 통신 공통 헬퍼 (High Demand 503 자동 재시도 및 안정 모델 자동 폴백)
+     */
+    async _fetchGeminiRobust(model, apiKey, bodyPayload, endpoint) {
+        const candidateModels = [
+            model,
+            'gemini-2.5-flash',
+            'gemini-2.0-flash',
+            'gemini-1.5-flash',
+            'gemini-1.5-pro'
+        ].filter((m, idx, arr) => m && arr.indexOf(m) === idx);
+
+        let lastError = null;
+
+        for (const currentModel of candidateModels) {
+            const url = endpoint || `https://generativelanguage.googleapis.com/v1beta/models/${currentModel}:generateContent?key=${apiKey}`;
+
+            for (let attempt = 0; attempt < 2; attempt++) {
+                try {
+                    const res = await fetch(url, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(bodyPayload)
+                    });
+
+                    const data = await res.json();
+                    if (!data.error) {
+                        return data;
+                    }
+
+                    const errMsg = (data.error.message || JSON.stringify(data.error)).toLowerCase();
+                    const isHighDemand = errMsg.includes('high demand') || errMsg.includes('resource_exhausted') || errMsg.includes('quota') || data.error.code === 503 || data.error.code === 429;
+
+                    lastError = new Error(`[Gemini API 오류] ${data.error.message || JSON.stringify(data.error)}`);
+
+                    if (isHighDemand && attempt === 0) {
+                        // 잠시 대기 후 1회 즉시 재시도
+                        await new Promise(r => setTimeout(r, 1200));
+                        continue;
+                    }
+
+                    if (isHighDemand) {
+                        // 다음 안정 모델로 폴백 시도
+                        break;
+                    }
+
+                    // 일반 오류인 경우 즉시 throw
+                    throw lastError;
+
+                } catch (fetchErr) {
+                    lastError = fetchErr;
+                    if (attempt === 0) {
+                        await new Promise(r => setTimeout(r, 1000));
+                    }
+                }
+            }
+        }
+
+        throw lastError || new Error('Gemini API 서버와 통신할 수 없습니다. 잠시 후 다시 시도해 주세요.');
+    }
+
     async _callOpenAI({ model, apiKey, temperature, endpoint }, systemPrompt, userPrompt, history) {
         if (!apiKey || apiKey === '(API Key 미설정)') {
             throw new Error('OpenAI API Key가 설정되지 않았습니다. [AI 설정 노드]에 API Key를 입력해 주세요.');
@@ -313,16 +365,7 @@ class AiApiManager {
                 bodyPayload.system_instruction = { parts: [{ text: systemPrompt }] };
             }
 
-            const res = await fetch(url, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(bodyPayload)
-            });
-
-            const data = await res.json();
-            if (data.error) {
-                throw new Error(`[Gemini Tool API 오류] ${data.error.message || JSON.stringify(data.error)}`);
-            }
+            const data = await this._fetchGeminiRobust(targetModel, apiKey, bodyPayload, endpoint);
 
             const candidate = data.candidates?.[0];
             const parts = candidate?.content?.parts || [];
