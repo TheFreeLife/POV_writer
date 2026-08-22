@@ -879,7 +879,7 @@
         "label": "작가 페르소나 & 역할",
         "key": "role",
         "rows": 4,
-        "placeholder": "AI에게 부여할 작가 페르소나 (예: 대박을 친 한국의 웹소설 작가 스타일)"
+        "placeholder": ""
       },
       {
         "id": "w_pov",
@@ -899,7 +899,7 @@
         "label": "문체",
         "key": "tone_style",
         "rows": 3,
-        "placeholder": "예: 간결하고 빠른 템포의 문장, 현대적이고 트렌디한 어휘, 속도감 있는 전개"
+        "placeholder": ""
       },
       {
         "id": "w_rules",
@@ -907,7 +907,7 @@
         "label": "작성 규칙",
         "key": "writing_rules",
         "rows": 9,
-        "placeholder": "1. 대사 위주로 작성하며 대사 앞에 인물명 표기 (ex. 카일: \"손님...\")\n2. 대사 우측 괄호에 인물의 감정과 행동 묘사 삽입\n3. 장면 구분 시 '#Scene 1. 장소' 표기\n4. 한 문단은 최대 2~3줄을 넘지 않도록 가독성 유지\n5. 중요한 시스템/상태창 메시지는 특수 기호【 】로 강조"
+        "placeholder": ""
       }
     ],
     "portsConfig": {
@@ -1058,7 +1058,7 @@
         "label": "작업 명령 (Command)",
         "key": "command",
         "rows": 1,
-        "placeholder": "예: WRITE_CHAPTER, GENERATE_SCENE_PLAN, PROOFREAD"
+        "placeholder": ""
       },
       {
         "id": "w_task",
@@ -1066,7 +1066,7 @@
         "label": "세부 작업 분류 (Task)",
         "key": "task",
         "rows": 1,
-        "placeholder": "예: 소설 본문 작성, 소설 설계도 생성, 씬 연출"
+        "placeholder": ""
       },
       {
         "id": "w_instruction",
@@ -1074,7 +1074,7 @@
         "label": "작업 수행 지시 (Instruction)",
         "key": "instruction",
         "rows": 3,
-        "placeholder": "예: 아래의 [설정값]과 [지금까지의 줄거리]를 완벽히 분석하여, [현재 챕터 범위]에 해당하는 소설 본문을 즉시 작성하시오."
+        "placeholder": ""
       },
       {
         "id": "w_output_req",
@@ -1082,7 +1082,7 @@
         "label": "출력 요구사항 (Output Requirements)",
         "key": "output_requirements",
         "rows": 3,
-        "placeholder": "예: JSON 분석이나 사족(인사말)을 붙이지 말고, 오직 소설 제목과 본문 텍스트만을 일반적인 텍스트로 출력할 것."
+        "placeholder": ""
       }
     ],
     "portsConfig": {
