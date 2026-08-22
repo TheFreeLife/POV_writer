@@ -96,9 +96,10 @@ class ToolsPanel {
                     }
                 }, 50);
                 break;
+            case 'agent':
             case 'tools':
-                content.innerHTML = this.renderTools();
-                this.setupToolsEventListeners();
+                content.innerHTML = this.renderAgent();
+                this.setupAgentEventListeners();
                 break;
             case 'memos':
                 content.innerHTML = this.renderMemos();
