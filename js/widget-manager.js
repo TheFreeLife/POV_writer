@@ -636,11 +636,12 @@ class WidgetManager {
             bindEvents: (container, w, contentData, onUpdate) => {
                 const key = w.key || 'isEnabled';
                 const checkbox = container.querySelector(`.widget-toggle-input[data-widget-key="${key}"]`);
-                const statusText = container.querySelector('.toggle-status-text');
-                const slider = container.querySelector('.slider');
-                const thumb = container.querySelector('.slider-thumb');
-
                 if (checkbox) {
+                    const switchBox = checkbox.closest('.widget-item');
+                    const statusText = switchBox?.querySelector('.toggle-status-text');
+                    const slider = switchBox?.querySelector('.slider');
+                    const thumb = switchBox?.querySelector('.slider-thumb');
+
                     checkbox.addEventListener('change', () => {
                         const checked = checkbox.checked;
                         contentData[key] = checked;
@@ -1089,19 +1090,55 @@ class WidgetManager {
                              (contentData.isEnabled !== undefined ? !!contentData.isEnabled : !!widget.defaultVal)));
             const checkbox = container.querySelector(`.widget-toggle-input[data-widget-key="${k}"]`) ||
                              container.querySelector(`.widget-toggle-input[data-widget-key="${widget.key}"]`) ||
-                             container.querySelector(`.widget-toggle-input[data-widget-key="${widget.label}"]`) ||
-                             container.querySelector('.widget-toggle-input');
-            const statusText = container.querySelector('.toggle-status-text');
-            const slider = container.querySelector('.slider');
-            const thumb = container.querySelector('.slider-thumb');
-            if (checkbox && checkbox.checked !== isChecked) {
-                checkbox.checked = isChecked;
+                             container.querySelector(`.widget-toggle-input[data-widget-key="${widget.label}"]`);
+            if (checkbox) {
+                const switchBox = checkbox.closest('.widget-item');
+                const statusText = switchBox?.querySelector('.toggle-status-text');
+                const slider = switchBox?.querySelector('.slider');
+                const thumb = switchBox?.querySelector('.slider-thumb');
+                if (checkbox.checked !== isChecked) {
+                    checkbox.checked = isChecked;
+                }
                 if (statusText) {
                     statusText.textContent = isChecked ? (widget.onText || 'ON') : (widget.offText || 'OFF');
                     statusText.style.color = isChecked ? 'var(--color-accent-success, #10b981)' : 'var(--color-text-tertiary)';
                 }
                 if (slider) slider.style.backgroundColor = isChecked ? '#10b981' : '#4b5563';
                 if (thumb) thumb.style.left = isChecked ? '19px' : '3px';
+            }
+        } else if (widget.type === 'multi_toggle_group') {
+            const k = widget.key || 'target_node_types';
+            const options = Array.isArray(widget.options) ? widget.options : [];
+            const optColorMap = {};
+            options.forEach(opt => optColorMap[opt.id] = opt.color || '#38bdf8');
+            const savedState = contentData[k] || {};
+
+            const containerBox = container.querySelector('.multi-toggle-group-container');
+            if (containerBox) {
+                containerBox.querySelectorAll('.multi-toggle-checkbox').forEach(cb => {
+                    const optId = cb.dataset.optId;
+                    const isChecked = savedState[optId] !== undefined ? !!savedState[optId] : true;
+                    if (cb.checked !== isChecked) cb.checked = isChecked;
+
+                    const row = cb.closest('.multi-toggle-row');
+                    const color = optColorMap[optId] || '#38bdf8';
+                    const statusText = row?.querySelector('.row-status-text');
+                    const slider = row?.querySelector('.slider');
+                    const thumb = row?.querySelector('.slider-thumb');
+                    const nameSpan = row?.querySelector('span[style*="font-weight"]');
+
+                    if (statusText) {
+                        statusText.textContent = isChecked ? 'ON' : 'OFF';
+                        statusText.style.color = isChecked ? color : 'var(--color-text-tertiary)';
+                    }
+                    if (slider) slider.style.backgroundColor = isChecked ? color : '#4b5563';
+                    if (thumb) thumb.style.left = isChecked ? '17px' : '3px';
+                    if (row) row.style.background = isChecked ? 'rgba(255,255,255,0.03)' : 'transparent';
+                    if (nameSpan) {
+                        nameSpan.style.color = isChecked ? 'var(--color-text-primary)' : 'var(--color-text-tertiary)';
+                        nameSpan.style.fontWeight = isChecked ? '600' : '400';
+                    }
+                });
             }
         } else if (widget.type === 'input_source_filter' || widget.type === 'dynamic_input_toggles') {
             const handler = this.widgets.get(widget.type);
