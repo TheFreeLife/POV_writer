@@ -172,6 +172,23 @@ class WindowManager {
                     e.preventDefault();
                     this.deleteConnection(this.selectedConnectionId);
                 }
+            } else if ((e.key === 'Delete' || e.key === 'Backspace') && this.selectedWindowIds && this.selectedWindowIds.size > 0) {
+                const activeTag = document.activeElement ? document.activeElement.tagName : '';
+                if (activeTag !== 'INPUT' && activeTag !== 'TEXTAREA') {
+                    e.preventDefault();
+                    const count = this.selectedWindowIds.size;
+                    const idsToClose = Array.from(this.selectedWindowIds);
+                    if (count === 1) {
+                        this.closeWindow(idsToClose[0]);
+                    } else if (confirm(`선택한 ${count}개의 노드를 모두 완전히 삭제할까요?\n연결된 핀과 데이터도 함께 제거됩니다.`)) {
+                        (async () => {
+                            for (const id of idsToClose) {
+                                await this.closeWindow(id, true);
+                            }
+                            window.showToast?.(`${count}개의 노드가 삭제되었습니다. 🗑️`);
+                        })();
+                    }
+                }
             }
         });
 
@@ -2533,15 +2550,19 @@ class WindowManager {
         });
 
         const deleteBtn = menu.querySelector('[data-action="delete"]');
-        deleteBtn?.addEventListener('click', (e) => {
+        deleteBtn?.addEventListener('click', async (e) => {
             e.stopPropagation();
             if (isMulti) {
-                if (confirm(`선택한 ${this.selectedWindowIds.size}개의 창을 모두 닫을까요?`)) {
+                const count = this.selectedWindowIds.size;
+                if (confirm(`선택한 ${count}개의 노드를 모두 완전히 삭제할까요?\n연결된 핀과 데이터도 함께 제거됩니다.`)) {
                     const idsToClose = Array.from(this.selectedWindowIds);
-                    idsToClose.forEach(id => this.closeWindow(id));
+                    for (const id of idsToClose) {
+                        await this.closeWindow(id, true);
+                    }
+                    window.showToast?.(`${count}개의 노드가 삭제되었습니다. 🗑️`);
                 }
             } else {
-                this.closeWindow(fileId);
+                await this.closeWindow(fileId);
             }
             this.hideContextMenu();
         });
