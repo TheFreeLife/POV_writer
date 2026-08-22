@@ -864,11 +864,11 @@
     "id": "preset_sys_style_guide",
     "name": "작가 스타일 & 페르소나 노드",
     "icon": "📐",
-    "desc": "작가 페르소나(역할), 핵심 재미/감정 목표(도파민/카타르시스), 서술 시점 및 씬 대사 연출 서식 규칙을 정의하는 노드",
+    "desc": "작가 페르소나(역할), 서술 시점, 문체 및 세부 작성 규칙을 정의하는 노드",
     "category": "ai",
     "color": "#a855f7",
     "defaultWidth": 520,
-    "defaultHeight": 740,
+    "defaultHeight": 620,
     "isDefault": true,
     "promptForName": true,
     "promptForDesc": false,
@@ -908,14 +908,6 @@
         "key": "writing_rules",
         "rows": 9,
         "placeholder": "1. 대사 위주로 작성하며 대사 앞에 인물명 표기 (ex. 카일: \"손님...\")\n2. 대사 우측 괄호에 인물의 감정과 행동 묘사 삽입\n3. 장면 구분 시 '#Scene 1. 장소' 표기\n4. 한 문단은 최대 2~3줄을 넘지 않도록 가독성 유지\n5. 중요한 시스템/상태창 메시지는 특수 기호【 】로 강조"
-      },
-      {
-        "id": "w_exp",
-        "type": "input_text",
-        "label": "핵심 재미 & 감정 목표",
-        "key": "experience_goal",
-        "rows": 2,
-        "placeholder": "독자에게 줄 핵심 감정 (예: 짜릿함, 카타르시스, 도파민, 사이다, 시원한 해결)"
       }
     ],
     "portsConfig": {
@@ -928,7 +920,7 @@
         }
       ]
     },
-    "code": "return {\n  '스타일 가이드': {\n    project_meta: {\n      role: input.role || '',\n      task: '소설 본문 및 씬 설계도 작성'\n    },\n    core_experience_goal: {\n      primary_emotion: input.experience_goal || '',\n      narrative_focus: '주인공의 능력과 문제 해결, 히로인과의 상호작용'\n    },\n    writing_style_guide: {\n      narrative_perspective: input.narrative_perspective || '3인칭 전지적 작가 시점',\n      tone_and_style: input.tone_style || '',\n      writing_rules: (input.writing_rules || input.formatting_rules || '').split('\\n').filter(Boolean)\n    }\n  }\n};"
+    "code": "return {\n  '스타일 가이드': {\n    project_meta: {\n      role: input.role || '',\n      task: '소설 본문 작성'\n    },\n    writing_style_guide: {\n      narrative_perspective: input.narrative_perspective || '3인칭 전지적 작가 시점',\n      tone_and_style: input.tone_style || '',\n      writing_rules: (input.writing_rules || input.formatting_rules || '').split('\\n').filter(Boolean)\n    }\n  }\n};"
   },
   {
     "schemaVersion": "2.0",
