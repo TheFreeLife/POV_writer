@@ -747,11 +747,26 @@ class ToolsPanel {
         }).join('');
     }
 
-    updateAgentMessagesView() {
+    scrollAgentToBottom(smooth = true) {
+        const listEl = document.getElementById('agentMessagesList');
+        if (listEl) {
+            requestAnimationFrame(() => {
+                listEl.scrollTo({
+                    top: listEl.scrollHeight,
+                    behavior: smooth ? 'smooth' : 'auto'
+                });
+            });
+            setTimeout(() => {
+                if (listEl) listEl.scrollTop = listEl.scrollHeight;
+            }, 60);
+        }
+    }
+
+    updateAgentMessagesView(scrollSmooth = true) {
         const listEl = document.getElementById('agentMessagesList');
         if (listEl) {
             listEl.innerHTML = this.renderAgentMessagesHtml();
-            listEl.scrollTop = listEl.scrollHeight;
+            this.scrollAgentToBottom(scrollSmooth);
         }
     }
 
@@ -761,6 +776,7 @@ class ToolsPanel {
         if (bar && textEl) {
             bar.style.display = show ? 'flex' : 'none';
             if (text) textEl.textContent = text;
+            if (show) this.scrollAgentToBottom(true);
         }
     }
 
