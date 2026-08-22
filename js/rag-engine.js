@@ -259,7 +259,17 @@ class LoreRAGManager {
             const term = contentData.term || fileName;
             const desc = toReadableText(contentData.desc || contentData.description || contentData.content);
             const type = contentData.type || '고유명사';
-            if (desc) chunks.push({ id: `${fileId}_noun`, sourceFileId: fileId, sourceTitle: `[${type}] ${term}`, domain: 'proper_noun', text: `[${type} - ${term}]: ${desc}` });
+            const isPublic = Boolean(contentData.is_public ?? contentData.isPublic ?? false);
+            if (desc) {
+                chunks.push({
+                    id: `${fileId}_noun`,
+                    sourceFileId: fileId,
+                    sourceTitle: `[${type}] ${term}`,
+                    domain: 'proper_noun',
+                    isPublic: isPublic,
+                    text: `[${type} - ${term}${isPublic ? ' (공용 지식/상식)' : ' (비밀/전문 지식)'}]: ${desc}`
+                });
+            }
         } else if (isForeshadowing) {
             const hookId = contentData.hook_id || fileName;
             const clue = toReadableText(contentData.observable_clue);
