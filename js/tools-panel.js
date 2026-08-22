@@ -389,26 +389,18 @@ class ToolsPanel {
                     </button>
                 </div>
 
-                <!-- 2. 퀵 프롬프트 칩 -->
-                <div style="display: flex; gap: 4px; overflow-x: auto; padding-bottom: 2px; scrollbar-width: none;" class="agent-quick-chips">
-                    <button type="button" class="btn btn-secondary btn-xs agent-quick-btn" data-prompt="등장인물들의 기본 설정과 최신 상태를 요약해줘." style="font-size: 10px; white-space: nowrap; padding: 3px 8px; border-radius: 12px; background: rgba(56, 189, 248, 0.08); border-color: rgba(56, 189, 248, 0.2); color: #38bdf8;">👥 인물 설정</button>
-                    <button type="button" class="btn btn-secondary btn-xs agent-quick-btn" data-prompt="세계관의 주요 지리, 마법 체계, 세력 설정을 정리해줘." style="font-size: 10px; white-space: nowrap; padding: 3px 8px; border-radius: 12px; background: rgba(16, 185, 129, 0.08); border-color: rgba(16, 185, 129, 0.2); color: #10b981;">🌍 세계관 요약</button>
-                    <button type="button" class="btn btn-secondary btn-xs agent-quick-btn" data-prompt="아직 회수되지 않았거나 진행 중인 복선과 떡밥들을 점검해줘." style="font-size: 10px; white-space: nowrap; padding: 3px 8px; border-radius: 12px; background: rgba(245, 158, 11, 0.08); border-color: rgba(245, 158, 11, 0.2); color: #f59e0b;">🪝 복선 점검</button>
-                    <button type="button" class="btn btn-secondary btn-xs agent-quick-btn" data-prompt="지금까지 작성된 회차 원고의 전체 줄거리를 요약해줘." style="font-size: 10px; white-space: nowrap; padding: 3px 8px; border-radius: 12px; background: rgba(168, 85, 247, 0.08); border-color: rgba(168, 85, 247, 0.2); color: #a855f7;">📖 회차 줄거리</button>
-                </div>
-
-                <!-- 3. 메시지 말풍선 스크롤 영역 -->
-                <div id="agentMessagesList" style="flex: 1; min-height: 180px; max-height: calc(100vh - 280px); overflow-y: auto; padding: 8px 4px; display: flex; flex-direction: column; gap: 10px; border-radius: 8px; background: var(--color-bg-primary); border: 1px solid var(--color-border);">
+                <!-- 2. 메시지 말풍선 스크롤 영역 -->
+                <div id="agentMessagesList" style="flex: 1; min-height: 180px; max-height: calc(100vh - 250px); overflow-y: auto; padding: 8px 4px; display: flex; flex-direction: column; gap: 10px; border-radius: 8px; background: var(--color-bg-primary); border: 1px solid var(--color-border);">
                     ${this.renderAgentMessagesHtml()}
                 </div>
 
-                <!-- 4. 실시간 도구 실행 상태 표시 바 -->
+                <!-- 3. 실시간 도구 실행 상태 표시 바 -->
                 <div id="agentToolStatusBar" style="display: none; align-items: center; gap: 6px; padding: 4px 8px; background: rgba(56, 189, 248, 0.1); border-radius: 6px; font-size: 10px; color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.2);">
                     <span class="agent-tool-spinner" style="display: inline-block;">⏳</span>
                     <span id="agentToolStatusText">관련 노드 탐색 중...</span>
                 </div>
 
-                <!-- 5. 하단 입력창 및 전송 버튼 -->
+                <!-- 4. 하단 입력창 및 전송 버튼 -->
                 <div style="display: flex; flex-direction: column; gap: 4px;">
                     <div style="display: flex; gap: 6px; align-items: flex-end; background: var(--color-surface-2); padding: 6px; border-radius: 8px; border: 1px solid var(--color-border);">
                         <textarea id="agentInputText" placeholder="인물, 세계관, 복선, 줄거리 등 무엇이든 물어보세요... (Shift+Enter 줄바꿈, Enter 전송)" rows="2" style="flex: 1; border: none; background: transparent; color: var(--color-text-primary); font-size: 12px; line-height: 1.5; resize: none; outline: none; padding: 4px; max-height: 120px; font-family: inherit;"></textarea>
@@ -433,9 +425,6 @@ class ToolsPanel {
                     <div style="font-size: 12px; font-weight: bold; color: var(--color-text-primary);">POV 소설 총괄 비서에 오신 것을 환영합니다!</div>
                     <div style="font-size: 11px; line-height: 1.6; max-width: 240px;">
                         캔버스와 파일 트리의 모든 인물 카드, 세계관, 복선, 대본, 원고를 100% 실시간으로 꿰뚫고 답변해 드립니다.
-                    </div>
-                    <div style="font-size: 10px; color: var(--color-accent-primary, #38bdf8); margin-top: 4px;">
-                        위의 추천 질문을 클릭하거나 아래에 질문을 입력해 보세요!
                     </div>
                 </div>
             `;
@@ -475,16 +464,6 @@ class ToolsPanel {
         const inputEl = document.getElementById('agentInputText');
         const sendBtn = document.getElementById('agentSendBtn');
         const clearBtn = document.getElementById('agentClearChatBtn');
-
-        // 빠른 질문 칩 클릭
-        document.querySelectorAll('.agent-quick-btn').forEach(btn => {
-            btn.addEventListener('click', () => {
-                const prompt = btn.getAttribute('data-prompt');
-                if (prompt && !this.isAgentLoading) {
-                    this.askAgent(prompt);
-                }
-            });
-        });
 
         // 엔터키 전송 (Shift+Enter 줄바꿈)
         if (inputEl) {
