@@ -445,16 +445,15 @@ class ToolsPanel {
                             <div style="display: flex; flex-direction: column; gap: 2px;">
                                 <label style="font-size: 9px; font-weight: bold; color: var(--color-text-tertiary);">AI 모델 선택</label>
                                 <select id="agentModelPresetSelect" class="input" style="font-size: 11px; padding: 2px 6px; height: 26px; background: var(--color-surface-1); border: 1px solid var(--color-border); border-radius: 4px; color: var(--color-text-primary);">
-                                    <option value="gemini-2.0-flash" ${currentConfig.model === 'gemini-2.0-flash' || !currentConfig.model || currentConfig.model.includes('3.') ? 'selected' : ''}>gemini-2.0-flash (추천)</option>
+                                    <option value="gemini-3.6-flash" ${currentConfig.model === 'gemini-3.6-flash' || !currentConfig.model || currentConfig.model.includes('2.0') ? 'selected' : ''}>gemini-3.6-flash (최신 추천)</option>
                                     <option value="gemini-1.5-flash" ${currentConfig.model === 'gemini-1.5-flash' ? 'selected' : ''}>gemini-1.5-flash (안정)</option>
-                                    <option value="gemini-2.0-flash-lite" ${currentConfig.model === 'gemini-2.0-flash-lite' ? 'selected' : ''}>gemini-2.0-flash-lite</option>
                                     <option value="gemini-1.5-pro" ${currentConfig.model === 'gemini-1.5-pro' ? 'selected' : ''}>gemini-1.5-pro</option>
                                     <option value="gpt-4o-mini" ${currentConfig.model === 'gpt-4o-mini' ? 'selected' : ''}>gpt-4o-mini</option>
                                     <option value="gpt-4o" ${currentConfig.model === 'gpt-4o' ? 'selected' : ''}>gpt-4o</option>
                                     <option value="claude-3-5-sonnet" ${currentConfig.model === 'claude-3-5-sonnet' ? 'selected' : ''}>claude-3-5-sonnet</option>
                                     <option value="custom">✏️ 직접 입력...</option>
                                 </select>
-                                <input type="text" id="agentModelInput" class="input" value="${this.escapeHtml(currentConfig.model || 'gemini-2.0-flash')}" placeholder="직접 모델명 입력" style="display: none; font-size: 11px; padding: 2px 6px; height: 24px; background: var(--color-surface-1); border: 1px solid var(--color-border); border-radius: 4px; color: var(--color-text-primary); margin-top: 2px;">
+                                <input type="text" id="agentModelInput" class="input" value="${this.escapeHtml(currentConfig.model || 'gemini-3.6-flash')}" placeholder="직접 모델명 입력" style="display: none; font-size: 11px; padding: 2px 6px; height: 24px; background: var(--color-surface-1); border: 1px solid var(--color-border); border-radius: 4px; color: var(--color-text-primary); margin-top: 2px;">
                             </div>
                         </div>
 
@@ -519,7 +518,7 @@ class ToolsPanel {
 
         const saveCurrentAiSettings = () => {
             const provider = providerSelect?.value || 'Google (Gemini)';
-            const model = modelInput?.value?.trim() || 'gemini-2.0-flash';
+            const model = modelInput?.value?.trim() || 'gemini-3.6-flash';
             const apiKey = apiKeyInput?.value?.trim() || '';
             const temperature = tempSlider ? Number(tempSlider.value) : 0.7;
 
@@ -550,7 +549,7 @@ class ToolsPanel {
             providerSelect.addEventListener('change', () => {
                 const val = providerSelect.value;
                 if (modelInput) {
-                    if (val.includes('Google') || val.includes('Gemini')) modelInput.value = 'gemini-2.0-flash';
+                    if (val.includes('Google') || val.includes('Gemini')) modelInput.value = 'gemini-3.6-flash';
                     else if (val.includes('OpenAI')) modelInput.value = 'gpt-4o-mini';
                     else if (val.includes('Anthropic') || val.includes('Claude')) modelInput.value = 'claude-3-5-sonnet';
                     else if (val.includes('Ollama')) modelInput.value = 'llama3.2';
@@ -694,7 +693,7 @@ class ToolsPanel {
     getAiConfigSync() {
         const savedKey = this.settings?.apiKey || localStorage.getItem('global_gemini_api_key') || localStorage.getItem('ai_api_key') || '';
         const savedProvider = this.settings?.aiProvider || localStorage.getItem('ai_provider') || 'Google (Gemini)';
-        const savedModel = this.settings?.aiModel || localStorage.getItem('ai_model') || 'gemini-2.0-flash';
+        const savedModel = this.settings?.aiModel || localStorage.getItem('ai_model') || 'gemini-3.6-flash';
         const savedTemp = localStorage.getItem('ai_temperature') ? Number(localStorage.getItem('ai_temperature')) : 0.7;
 
         return {
@@ -1034,7 +1033,7 @@ class ToolsPanel {
                     if (apiKey && apiKey !== '(API Key 미설정)') {
                         return {
                             provider: cd.provider || 'Google (Gemini)',
-                            model: cd.model || 'gemini-2.0-flash',
+                            model: cd.model || 'gemini-3.6-flash',
                             apiKey: apiKey,
                             temperature: cd.temperature !== undefined ? Number(cd.temperature) : 0.7,
                             endpoint: cd.endpoint || ''

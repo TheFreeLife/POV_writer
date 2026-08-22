@@ -19,7 +19,7 @@ class AiApiManager {
      */
     async call(config = {}, systemPrompt = '', userPrompt = '', history = []) {
         const provider = String(config.provider || 'Google (Gemini)').toLowerCase();
-        const model = String(config.model || 'gemini-2.0-flash').trim();
+        const model = String(config.model || 'gemini-3.6-flash').trim();
         const apiKey = String(config.rawApiKey || config.apiKey || '').trim();
         const temperature = (config.temperature !== undefined && !isNaN(config.temperature)) 
             ? Number(config.temperature) 
@@ -53,7 +53,7 @@ class AiApiManager {
             throw new Error('Google Gemini API Key가 설정되지 않았습니다. [AI 설정 노드]에 API Key를 입력해 주세요.');
         }
 
-        const targetModel = model || 'gemini-2.0-flash';
+        const targetModel = model || 'gemini-3.6-flash';
         const url = endpoint || `https://generativelanguage.googleapis.com/v1beta/models/${targetModel}:generateContent?key=${apiKey}`;
 
         const contents = [];
@@ -99,7 +99,7 @@ class AiApiManager {
      * Google Gemini 통신 공통 헬퍼 (지정 모델 호출 및 High Demand 503 재시도)
      */
     async _fetchGeminiRobust(model, apiKey, bodyPayload, endpoint) {
-        const targetModel = model || 'gemini-2.0-flash';
+        const targetModel = model || 'gemini-3.6-flash';
         const url = endpoint || `https://generativelanguage.googleapis.com/v1beta/models/${targetModel}:generateContent?key=${apiKey}`;
 
         let lastError = null;
@@ -271,7 +271,7 @@ class AiApiManager {
      */
     async callWithTools(config = {}, systemPrompt = '', userPrompt = '', tools = [], toolExecutor = null, maxTurns = 5) {
         const provider = String(config.provider || 'Google (Gemini)').toLowerCase();
-        const model = String(config.model || 'gemini-2.0-flash').trim();
+        const model = String(config.model || 'gemini-3.6-flash').trim();
         const apiKey = String(config.rawApiKey || config.apiKey || '').trim();
         const temperature = (config.temperature !== undefined && !isNaN(config.temperature)) ? Number(config.temperature) : 0.7;
         const endpoint = String(config.endpoint || '').trim();
@@ -317,7 +317,7 @@ class AiApiManager {
             throw new Error('Google Gemini API Key가 설정되지 않았습니다. [AI 설정 노드]에 API Key를 입력해 주세요.');
         }
 
-        const targetModel = model || 'gemini-2.0-flash';
+        const targetModel = model || 'gemini-3.6-flash';
         const url = endpoint || `https://generativelanguage.googleapis.com/v1beta/models/${targetModel}:generateContent?key=${apiKey}`;
 
         // Gemini Function Declarations 포맷 변환
