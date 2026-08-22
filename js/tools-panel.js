@@ -444,7 +444,7 @@ class ToolsPanel {
                             </div>
                             <div style="display: flex; flex-direction: column; gap: 2px;">
                                 <label style="font-size: 9px; font-weight: bold; color: var(--color-text-tertiary);">AI 모델명</label>
-                                <input type="text" id="agentModelInput" class="input" value="${this.escapeHtml(currentConfig.model || 'gemini-2.5-flash')}" placeholder="모델명" style="font-size: 11px; padding: 2px 6px; height: 26px; background: var(--color-surface-1); border: 1px solid var(--color-border); border-radius: 4px; color: var(--color-text-primary);">
+                                <input type="text" id="agentModelInput" class="input" value="${this.escapeHtml(currentConfig.model || 'gemini-2.0-flash')}" placeholder="모델명" style="font-size: 11px; padding: 2px 6px; height: 26px; background: var(--color-surface-1); border: 1px solid var(--color-border); border-radius: 4px; color: var(--color-text-primary);">
                             </div>
                         </div>
 
@@ -509,7 +509,7 @@ class ToolsPanel {
 
         const saveCurrentAiSettings = () => {
             const provider = providerSelect?.value || 'Google (Gemini)';
-            const model = modelInput?.value?.trim() || 'gemini-2.5-flash';
+            const model = modelInput?.value?.trim() || 'gemini-2.0-flash';
             const apiKey = apiKeyInput?.value?.trim() || '';
             const temperature = tempSlider ? Number(tempSlider.value) : 0.7;
 
@@ -540,7 +540,7 @@ class ToolsPanel {
             providerSelect.addEventListener('change', () => {
                 const val = providerSelect.value;
                 if (modelInput) {
-                    if (val.includes('Google') || val.includes('Gemini')) modelInput.value = 'gemini-2.5-flash';
+                    if (val.includes('Google') || val.includes('Gemini')) modelInput.value = 'gemini-2.0-flash';
                     else if (val.includes('OpenAI')) modelInput.value = 'gpt-4o-mini';
                     else if (val.includes('Anthropic') || val.includes('Claude')) modelInput.value = 'claude-3-5-sonnet';
                     else if (val.includes('Ollama')) modelInput.value = 'llama3.2';
@@ -665,7 +665,7 @@ class ToolsPanel {
     getAiConfigSync() {
         const savedKey = this.settings?.apiKey || localStorage.getItem('global_gemini_api_key') || localStorage.getItem('ai_api_key') || '';
         const savedProvider = this.settings?.aiProvider || localStorage.getItem('ai_provider') || 'Google (Gemini)';
-        const savedModel = this.settings?.aiModel || localStorage.getItem('ai_model') || 'gemini-2.5-flash';
+        const savedModel = this.settings?.aiModel || localStorage.getItem('ai_model') || 'gemini-2.0-flash';
         const savedTemp = localStorage.getItem('ai_temperature') ? Number(localStorage.getItem('ai_temperature')) : 0.7;
 
         return {
@@ -1005,7 +1005,7 @@ class ToolsPanel {
                     if (apiKey && apiKey !== '(API Key 미설정)') {
                         return {
                             provider: cd.provider || 'Google (Gemini)',
-                            model: cd.model || 'gemini-2.5-flash',
+                            model: cd.model || 'gemini-2.0-flash',
                             apiKey: apiKey,
                             temperature: cd.temperature !== undefined ? Number(cd.temperature) : 0.7,
                             endpoint: cd.endpoint || ''
@@ -1019,7 +1019,7 @@ class ToolsPanel {
 
         const savedKey = this.settings?.apiKey || localStorage.getItem('global_gemini_api_key') || localStorage.getItem('ai_api_key') || '';
         const savedProvider = this.settings?.aiProvider || localStorage.getItem('ai_provider') || 'Google (Gemini)';
-        const savedModel = this.settings?.aiModel || localStorage.getItem('ai_model') || 'gemini-2.5-flash';
+        const savedModel = this.settings?.aiModel || localStorage.getItem('ai_model') || 'gemini-2.0-flash';
 
         return {
             provider: savedProvider,

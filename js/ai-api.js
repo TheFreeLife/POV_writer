@@ -19,7 +19,7 @@ class AiApiManager {
      */
     async call(config = {}, systemPrompt = '', userPrompt = '', history = []) {
         const provider = String(config.provider || 'Google (Gemini)').toLowerCase();
-        const model = String(config.model || 'gemini-3.6-flash').trim();
+        const model = String(config.model || 'gemini-2.0-flash').trim();
         const apiKey = String(config.rawApiKey || config.apiKey || '').trim();
         const temperature = (config.temperature !== undefined && !isNaN(config.temperature)) 
             ? Number(config.temperature) 
@@ -53,7 +53,7 @@ class AiApiManager {
             throw new Error('Google Gemini API Key가 설정되지 않았습니다. [AI 설정 노드]에 API Key를 입력해 주세요.');
         }
 
-        const targetModel = model || 'gemini-3.6-flash';
+        const targetModel = model || 'gemini-2.0-flash';
         const url = endpoint || `https://generativelanguage.googleapis.com/v1beta/models/${targetModel}:generateContent?key=${apiKey}`;
 
         const contents = [];
@@ -101,10 +101,10 @@ class AiApiManager {
     async _fetchGeminiRobust(model, apiKey, bodyPayload, endpoint) {
         const candidateModels = [
             model,
-            'gemini-2.5-flash',
             'gemini-2.0-flash',
             'gemini-1.5-flash',
-            'gemini-1.5-pro'
+            'gemini-2.5-flash',
+            'gemini-1.5-flash-latest'
         ].filter((m, idx, arr) => m && arr.indexOf(m) === idx);
 
         let lastError = null;
@@ -127,8 +127,14 @@ class AiApiManager {
 
                     const errMsg = (data.error.message || JSON.stringify(data.error)).toLowerCase();
                     const isHighDemand = errMsg.includes('high demand') || errMsg.includes('resource_exhausted') || errMsg.includes('quota') || data.error.code === 503 || data.error.code === 429;
+                    const isNotFoundOrDeprecated = errMsg.includes('not found') || errMsg.includes('not supported') || data.error.code === 404;
 
                     lastError = new Error(`[Gemini API 오류] ${data.error.message || JSON.stringify(data.error)}`);
+
+                    if (isNotFoundOrDeprecated) {
+                        // 모델명이 존재하지 않거나 v1beta 미지원일 경우 다음 후보 모델로 즉시 폴백
+                        break;
+                    }
 
                     if (isHighDemand && attempt === 0) {
                         // 잠시 대기 후 1회 즉시 재시도
@@ -141,7 +147,7 @@ class AiApiManager {
                         break;
                     }
 
-                    // 일반 오류인 경우 즉시 throw
+                    // 잘못된 API Key나 기타 치명적 오류인 경우 즉시 throw
                     throw lastError;
 
                 } catch (fetchErr) {
@@ -285,7 +291,7 @@ class AiApiManager {
      */
     async callWithTools(config = {}, systemPrompt = '', userPrompt = '', tools = [], toolExecutor = null, maxTurns = 5) {
         const provider = String(config.provider || 'Google (Gemini)').toLowerCase();
-        const model = String(config.model || 'gemini-3.6-flash').trim();
+        const model = String(config.model || 'gemini-2.0-flash').trim();
         const apiKey = String(config.rawApiKey || config.apiKey || '').trim();
         const temperature = (config.temperature !== undefined && !isNaN(config.temperature)) ? Number(config.temperature) : 0.7;
         const endpoint = String(config.endpoint || '').trim();
@@ -331,7 +337,7 @@ class AiApiManager {
             throw new Error('Google Gemini API Key가 설정되지 않았습니다. [AI 설정 노드]에 API Key를 입력해 주세요.');
         }
 
-        const targetModel = model || 'gemini-3.6-flash';
+        const targetModel = model || 'gemini-2.0-flash';
         const url = endpoint || `https://generativelanguage.googleapis.com/v1beta/models/${targetModel}:generateContent?key=${apiKey}`;
 
         // Gemini Function Declarations 포맷 변환
