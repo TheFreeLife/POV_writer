@@ -962,37 +962,70 @@ class ToolsPanel {
                 return file.category || norm?.category || 'general';
             };
 
+            // 1줄 요약 추출 헬퍼 (0토큰 무비용)
+            const extractSummary = (norm) => {
+                const cd = norm?.contentData || {};
+                const priority = cd.role || cd.summary || cd.traits || cd.sceneGoal || cd.outline || cd.topic || cd.charName || cd.title;
+                if (priority && typeof priority === 'string' && priority.trim()) {
+                    return priority.trim().replace(/\n/g, ' ').slice(0, 50);
+                }
+                const body = cd.content || cd.editorVal || cd.text || '';
+                if (typeof body === 'string' && body.trim()) {
+                    return body.trim().replace(/\n/g, ' ').slice(0, 35) + '...';
+                }
+                return '';
+            };
+
             if (name === 'list_project_nodes') {
-                const nodes = nonFolderFiles.map(f => {
+                const categorized = {
+                    characters: [],
+                    lore: [],
+                    plots: [],
+                    manuscripts: [],
+                    others: []
+                };
+
+                for (const f of nonFolderFiles) {
                     const norm = window.nodeEngine?.normalizeNodeData(f);
                     const cat = classifyNode(f, norm);
-                    const cd = norm?.contentData || {};
-                    const roleOrSummary = cd.role || cd.charName || cd.summary || cd.outline || cd.title || '';
-
-                    return {
+                    const summary = extractSummary(norm);
+                    const item = {
                         id: f.id,
                         name: f.name,
-                        category: cat,
-                        summary: roleOrSummary ? String(roleOrSummary).slice(0, 100) : ''
+                        summary: summary || undefined
                     };
-                });
+
+                    if (cat === 'character') categorized.characters.push(item);
+                    else if (cat === 'lore') categorized.lore.push(item);
+                    else if (cat === 'plot') categorized.plots.push(item);
+                    else if (cat === 'manuscript') categorized.manuscripts.push(item);
+                    else categorized.others.push(item);
+                }
 
                 if (args.category) {
                     const q = String(args.category).toLowerCase().trim();
-                    const isCharQ = q.includes('char') || q.includes('인물') || q.includes('등장') || q.includes('캐릭터');
-                    const isLoreQ = q.includes('lore') || q.includes('세계관') || q.includes('설정') || q.includes('지리');
-                    const isPlotQ = q.includes('plot') || q.includes('플롯') || q.includes('대본') || q.includes('씬');
-                    const isDocQ = q.includes('novel') || q.includes('원고') || q.includes('본문') || q.includes('소설');
-
-                    return nodes.filter(n => {
-                        if (isCharQ && n.category === 'character') return true;
-                        if (isLoreQ && n.category === 'lore') return true;
-                        if (isPlotQ && n.category === 'plot') return true;
-                        if (isDocQ && n.category === 'manuscript') return true;
-                        return String(n.category).toLowerCase().includes(q) || String(n.name).toLowerCase().includes(q);
-                    });
+                    if (q.includes('char') || q.includes('인물') || q.includes('등장') || q.includes('캐릭터')) {
+                        return { category: 'characters', total: categorized.characters.length, items: categorized.characters };
+                    }
+                    if (q.includes('lore') || q.includes('세계관') || q.includes('설정') || q.includes('지리') || q.includes('마법')) {
+                        return { category: 'lore', total: categorized.lore.length, items: categorized.lore };
+                    }
+                    if (q.includes('plot') || q.includes('플롯') || q.includes('대본') || q.includes('씬') || q.includes('시나리오')) {
+                        return { category: 'plots', total: categorized.plots.length, items: categorized.plots };
+                    }
+                    if (q.includes('novel') || q.includes('원고') || q.includes('본문') || q.includes('소설')) {
+                        return { category: 'manuscripts', total: categorized.manuscripts.length, items: categorized.manuscripts };
+                    }
                 }
-                return nodes;
+
+                return {
+                    message: '프로젝트 전체 노드 목록과 요약입니다.',
+                    characters: categorized.characters,
+                    lore: categorized.lore,
+                    plots: categorized.plots,
+                    manuscripts: categorized.manuscripts,
+                    others: categorized.others
+                };
             }
 
             if (name === 'search_story_nodes') {
