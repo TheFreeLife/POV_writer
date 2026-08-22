@@ -3,7 +3,7 @@
  */
 class ToolsPanel {
     constructor() {
-        this.currentTab = 'stats';
+        this.currentTab = 'agent';
         this.currentProjectId = null;
         this.memos = [];
 
@@ -34,7 +34,7 @@ class ToolsPanel {
         await this.loadSettingsAsync();
         
         this.setupEventListeners();
-        this.renderTab('stats');
+        this.renderTab('agent');
 
         // 앱 시작 시 저장된 에디터 설정(글자색, 배경색, 폰트 등) 초기 1회 즉시 적용
         if (this.settings) {
