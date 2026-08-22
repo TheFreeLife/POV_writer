@@ -885,14 +885,24 @@ class WindowManager {
         }
 
         // 3. 기존 사용자가 입력한 값(contentData)은 100% 보존하면서 프리셋 설정 동기화
-        let contentObj = file.contentData;
-        if (!contentObj && typeof file.content === 'string') {
+        let contentObj = {};
+        if (typeof file.content === 'string' && file.content.trim()) {
             try { contentObj = JSON.parse(file.content); } catch(e) { contentObj = {}; }
+        } else if (typeof file.content === 'object' && file.content) {
+            contentObj = { ...file.content };
+        } else if (file.contentData && typeof file.contentData === 'object') {
+            contentObj = { ...file.contentData };
         }
-        contentObj = contentObj || {};
 
         if (Array.isArray(targetPreset.widgets)) {
             contentObj.widgets = targetPreset.widgets;
+            // 이미 사용자가 입력한 필드(빈 문자열 포함)는 100% 보존하고, 신규 추가된 위젯에만 defaultVal 적용
+            targetPreset.widgets.forEach(w => {
+                const key = w.key || w.id;
+                if (key && contentObj[key] === undefined && w.defaultVal !== undefined && w.defaultVal !== '') {
+                    contentObj[key] = w.defaultVal;
+                }
+            });
         }
         if (targetPreset.defaultWidth) contentObj.defaultWidth = targetPreset.defaultWidth;
         if (targetPreset.defaultHeight) contentObj.defaultHeight = targetPreset.defaultHeight;
@@ -1058,14 +1068,24 @@ class WindowManager {
             const targetPreset = this._findMatchingPreset(file, allPresets);
             if (!targetPreset) continue;
 
-            let contentObj = file.contentData;
-            if (!contentObj && typeof file.content === 'string') {
+            let contentObj = {};
+            if (typeof file.content === 'string' && file.content.trim()) {
                 try { contentObj = JSON.parse(file.content); } catch(e) { contentObj = {}; }
+            } else if (typeof file.content === 'object' && file.content) {
+                contentObj = { ...file.content };
+            } else if (file.contentData && typeof file.contentData === 'object') {
+                contentObj = { ...file.contentData };
             }
-            contentObj = contentObj || {};
 
             if (Array.isArray(targetPreset.widgets)) {
                 contentObj.widgets = targetPreset.widgets;
+                // 이미 사용자가 입력한 필드(빈 문자열 포함)는 100% 보존하고, 신규 추가된 위젯에만 defaultVal 적용
+                targetPreset.widgets.forEach(w => {
+                    const key = w.key || w.id;
+                    if (key && contentObj[key] === undefined && w.defaultVal !== undefined && w.defaultVal !== '') {
+                        contentObj[key] = w.defaultVal;
+                    }
+                });
             }
             if (targetPreset.defaultWidth) contentObj.defaultWidth = targetPreset.defaultWidth;
             if (targetPreset.defaultHeight) contentObj.defaultHeight = targetPreset.defaultHeight;
@@ -3381,8 +3401,9 @@ class WindowManager {
 
         // 🌟 2) 최초 렌더링 시에만 HTML 구조 조립 및 DOM 배치
         const onUpdate = (updatedContentData) => {
+            info.file.contentData = updatedContentData;
             info.file.content = JSON.stringify(updatedContentData, null, 2);
-            window.storage?.updateFile(fileId, { content: info.file.content });
+            window.storage?.updateFile(fileId, { content: info.file.content, contentData: updatedContentData });
             this.notifyNodeChanged(fileId, 'outputChange');
         };
 
