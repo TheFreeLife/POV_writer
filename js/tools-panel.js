@@ -752,6 +752,27 @@ class ToolsPanel {
                 </div>
             ` : '';
 
+            const thinkingHtml = (!isUser && Array.isArray(msg.toolCallsLog) && msg.toolCallsLog.length > 0) ? `
+                <details style="margin-bottom: 6px; background: rgba(0,0,0,0.2); border-radius: 6px; padding: 4px 8px; border: 1px solid rgba(255,255,255,0.06); font-size: 10px;">
+                    <summary style="cursor: pointer; color: var(--color-accent-primary, #38bdf8); font-weight: bold; user-select: none; font-size: 10px; display: flex; align-items: center; gap: 4px;">
+                        <span>💭 AI 사고 과정 & 도구 탐색 기록</span>
+                        <span style="background: rgba(56, 189, 248, 0.15); padding: 1px 5px; border-radius: 8px; font-size: 9px;">${msg.toolCallsLog.length}회</span>
+                    </summary>
+                    <div style="margin-top: 6px; display: flex; flex-direction: column; gap: 4px; border-top: 1px dashed rgba(255,255,255,0.1); padding-top: 6px; font-size: 10px; color: var(--color-text-secondary);">
+                        ${msg.toolCallsLog.map(t => {
+                            const argStr = Object.entries(t.args || {}).map(([k, v]) => `${k}="${v}"`).join(', ');
+                            return `
+                                <div style="display: flex; gap: 4px; align-items: baseline; flex-wrap: wrap;">
+                                    <span style="color: #38bdf8; font-weight: bold;">[${t.turn}턴]</span>
+                                    <span style="font-family: monospace; color: var(--color-text-primary);"><b>${t.name}</b>(${argStr})</span>
+                                    ${t.resultSummary ? `<span style="color: var(--color-text-tertiary);">➔ ${this.escapeHtml(t.resultSummary)}</span>` : ''}
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
+                </details>
+            ` : '';
+
             return `
                 <div style="display: flex; flex-direction: column; align-items: ${align}; gap: 2px; width: 100%; box-sizing: border-box;">
                     <div style="display: flex; align-items: center; gap: 4px; font-size: 10px; font-weight: bold; color: var(--color-text-tertiary); padding: 0 4px;">
@@ -759,6 +780,7 @@ class ToolsPanel {
                         <span>${name}</span>
                     </div>
                     <div style="max-width: 92%; background: ${bubbleBg}; border: 1px solid ${bubbleBorder}; border-radius: 8px; padding: 8px 10px; font-size: 12px; line-height: 1.6; color: var(--color-text-primary); word-break: break-word; box-sizing: border-box;">
+                        ${thinkingHtml}
                         ${isUser ? this.escapeHtml(msg.content).replace(/\n/g, '<br>') : this.formatAgentMarkdown(msg.content)}
                         ${citationsHtml}
                     </div>
@@ -907,10 +929,12 @@ class ToolsPanel {
             }
 
             // 응답 추가
+            const logEntries = (res && typeof res === 'object' && Array.isArray(res.toolCallsLog)) ? res.toolCallsLog : (Array.isArray(toolCallsLog) ? toolCallsLog : []);
             this.agentHistory.push({
                 role: 'assistant',
                 content: answer || '답변을 생성하지 못했습니다.',
-                citations: Array.from(referencedNodeNames)
+                citations: Array.from(referencedNodeNames),
+                toolCallsLog: logEntries
             });
 
         } catch (err) {

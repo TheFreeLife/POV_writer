@@ -375,10 +375,22 @@ class AiApiManager {
                 for (const fcp of functionCallParts) {
                     const callName = fcp.functionCall.name;
                     const callArgs = fcp.functionCall.args || {};
-                    toolCallsLog.push({ turn, name: callName, args: callArgs });
 
                     // 도구 실행
                     const execResult = await toolExecutor(callName, callArgs);
+
+                    let resultSummary = '';
+                    if (callName === 'list_project_nodes') {
+                        const chars = execResult?.characters?.length || (execResult?.category === 'characters' ? execResult.total : 0);
+                        const lore = execResult?.lore?.length || 0;
+                        resultSummary = `인물 ${chars}건, 세계관 ${lore}건 목록 조회`;
+                    } else if (callName === 'search_story_nodes') {
+                        resultSummary = Array.isArray(execResult) ? `${execResult.length}개 노드 매칭` : (execResult?.message || '검색 완료');
+                    } else if (callName === 'read_node_detail') {
+                        resultSummary = execResult?.nodeName ? `'${execResult.nodeName}' 상세 데이터 열람` : '열람 완료';
+                    }
+
+                    toolCallsLog.push({ turn, name: callName, args: callArgs, resultSummary });
 
                     if (callName === 'searchLorebookRAG' && execResult?.results) {
                         ragResults.push(...execResult.results);
