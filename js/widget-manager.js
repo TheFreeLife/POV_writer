@@ -656,6 +656,139 @@ class WidgetManager {
             }
         });
 
+        // 8-2) 다중 토글 그룹 위젯 (여러 개의 노드/옵션 항목을 개별 토글 스위치로 다중 선택)
+        this.register('multi_toggle_group', {
+            render: (w, contentData, fileId) => {
+                const key = w.key || 'target_node_types';
+                const label = w.label || '🎯 동기화 대상 노드 종류 (다중 선택)';
+                const options = Array.isArray(w.options) ? w.options : [];
+
+                let savedState = contentData[key];
+                if (!savedState || typeof savedState !== 'object') {
+                    savedState = {};
+                    options.forEach(opt => {
+                        savedState[opt.id] = opt.defaultOn !== undefined ? !!opt.defaultOn : true;
+                    });
+                    contentData[key] = savedState;
+                }
+
+                const rowsHtml = options.map((opt, idx) => {
+                    const isChecked = savedState[opt.id] !== undefined ? !!savedState[opt.id] : !!opt.defaultOn;
+                    const optColor = opt.color || '#38bdf8';
+                    const icon = opt.icon || '📦';
+                    const optName = opt.name || opt.id;
+
+                    return `
+                        <div class="multi-toggle-row" data-opt-id="${this.escapeHtml(opt.id)}" style="display: flex; align-items: center; justify-content: space-between; padding: 6px 10px; background: ${isChecked ? 'rgba(255,255,255,0.03)' : 'transparent'}; border-bottom: 1px solid var(--color-border); transition: background 0.2s;">
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <span style="font-size: 13px;">${icon}</span>
+                                <span style="font-size: 11px; font-weight: ${isChecked ? '600' : '400'}; color: ${isChecked ? 'var(--color-text-primary)' : 'var(--color-text-tertiary)'};">${this.escapeHtml(optName)}</span>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 6px;">
+                                <span class="row-status-text" style="font-size: 9px; font-weight: bold; color: ${isChecked ? optColor : 'var(--color-text-tertiary)'};">
+                                    ${isChecked ? 'ON' : 'OFF'}
+                                </span>
+                                <label class="switch" style="position: relative; display: inline-block; width: 32px; height: 18px; margin: 0;">
+                                    <input type="checkbox" class="multi-toggle-checkbox" data-opt-id="${this.escapeHtml(opt.id)}" ${isChecked ? 'checked' : ''} style="opacity: 0; width: 0; height: 0;">
+                                    <span class="slider round" style="position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: ${isChecked ? optColor : '#4b5563'}; transition: 0.25s; border-radius: 18px;">
+                                        <span class="slider-thumb" style="position: absolute; height: 12px; width: 12px; left: ${isChecked ? '17px' : '3px'}; bottom: 3px; background-color: white; transition: 0.25s; border-radius: 50%;"></span>
+                                    </span>
+                                </label>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+
+                return `
+                    <div class="widget-item multi-toggle-group-container" style="display: flex; flex-direction: column; gap: 6px; background: var(--color-bg-secondary); border: 1px solid var(--color-border); border-radius: 8px; padding: 10px;">
+                        <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--color-border); padding-bottom: 6px;">
+                            <label style="font-size: 11px; font-weight: bold; color: var(--color-text-secondary);">
+                                🎛️ ${this.escapeHtml(label)}
+                            </label>
+                            <div style="display: flex; gap: 4px;">
+                                <button type="button" class="btn-all-toggle-on" style="font-size: 10px; padding: 2px 6px; border-radius: 4px; background: var(--color-surface-2); border: 1px solid var(--color-border); color: var(--color-accent-primary); cursor: pointer;">전체 ON</button>
+                                <button type="button" class="btn-all-toggle-off" style="font-size: 10px; padding: 2px 6px; border-radius: 4px; background: var(--color-surface-2); border: 1px solid var(--color-border); color: var(--color-text-tertiary); cursor: pointer;">전체 OFF</button>
+                            </div>
+                        </div>
+                        <div class="multi-toggle-list" style="display: flex; flex-direction: column; max-height: 220px; overflow-y: auto;">
+                            ${rowsHtml}
+                        </div>
+                    </div>
+                `;
+            },
+            bindEvents: (container, w, contentData, onUpdate) => {
+                const key = w.key || 'target_node_types';
+                const options = Array.isArray(w.options) ? w.options : [];
+                const optColorMap = {};
+                options.forEach(opt => optColorMap[opt.id] = opt.color || '#38bdf8');
+
+                let stateObj = contentData[key];
+                if (!stateObj || typeof stateObj !== 'object') {
+                    stateObj = {};
+                    options.forEach(opt => {
+                        stateObj[opt.id] = opt.defaultOn !== undefined ? !!opt.defaultOn : true;
+                    });
+                    contentData[key] = stateObj;
+                }
+
+                const checkboxes = container.querySelectorAll('.multi-toggle-checkbox');
+
+                const updateRowVisual = (cb) => {
+                    const optId = cb.dataset.optId;
+                    const checked = cb.checked;
+                    const row = cb.closest('.multi-toggle-row');
+                    const color = optColorMap[optId] || '#38bdf8';
+                    const statusText = row?.querySelector('.row-status-text');
+                    const slider = row?.querySelector('.slider');
+                    const thumb = row?.querySelector('.slider-thumb');
+                    const nameSpan = row?.querySelector('span[style*="font-weight"]');
+
+                    if (statusText) {
+                        statusText.textContent = checked ? 'ON' : 'OFF';
+                        statusText.style.color = checked ? color : 'var(--color-text-tertiary)';
+                    }
+                    if (slider) slider.style.backgroundColor = checked ? color : '#4b5563';
+                    if (thumb) thumb.style.left = checked ? '17px' : '3px';
+                    if (row) row.style.background = checked ? 'rgba(255,255,255,0.03)' : 'transparent';
+                    if (nameSpan) {
+                        nameSpan.style.color = checked ? 'var(--color-text-primary)' : 'var(--color-text-tertiary)';
+                        nameSpan.style.fontWeight = checked ? '600' : '400';
+                    }
+                };
+
+                checkboxes.forEach(cb => {
+                    cb.addEventListener('change', () => {
+                        const optId = cb.dataset.optId;
+                        stateObj[optId] = cb.checked;
+                        updateRowVisual(cb);
+                        onUpdate(contentData);
+                    });
+                });
+
+                // 전체 ON
+                container.querySelector('.btn-all-toggle-on')?.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    checkboxes.forEach(cb => {
+                        cb.checked = true;
+                        stateObj[cb.dataset.optId] = true;
+                        updateRowVisual(cb);
+                    });
+                    onUpdate(contentData);
+                });
+
+                // 전체 OFF
+                container.querySelector('.btn-all-toggle-off')?.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    checkboxes.forEach(cb => {
+                        cb.checked = false;
+                        stateObj[cb.dataset.optId] = false;
+                        updateRowVisual(cb);
+                    });
+                    onUpdate(contentData);
+                });
+            }
+        });
+
         // 9) 동적 연결 노드별 개별 선택 목록 위젯 (연결된 각 노드의 데이터를 개별적으로 ON/OFF 선택)
         const filterHandler = {
             render: (w, contentData, fileId) => {

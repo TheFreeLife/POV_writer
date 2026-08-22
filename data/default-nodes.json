@@ -1744,5 +1744,129 @@
       ]
     },
     "code": "// 1. ⚡ AI 환경 설정 수신 (필수)\nconst aiConfigRaw = inputs['⚡ AI 환경 설정 (필수)'] || inputs['in_ai_config'] || inputs['AI 환경 설정'] || {};\nconst aiConfig = {\n  provider: aiConfigRaw.provider || 'Google (Gemini)',\n  model: aiConfigRaw.model || 'gemini-3.6-flash',\n  apiKey: aiConfigRaw.apiKey || '',\n  temperature: parseFloat(aiConfigRaw.temperature) || 0.75,\n  endpoint: aiConfigRaw.endpoint || ''\n};\n\nif (!aiConfig.apiKey) {\n  return {\n    '🖋️ 완성된 최종 소설 원고': '[AI 생성 오류: API Key가 설정되지 않았습니다. [AI 설정 노드]를 연결하고 API Key를 입력해 주세요.]',\n    '🧬 소설 원고 데이터 (JSON)': { error: 'API Key Missing' }\n  };\n}\n\n// 2. 📜 씬 대본 데이터 수신 (필수)\nconst rawScriptInput = inputs['📜 씬 대본 (필수)'] || inputs['in_script'] || inputs['📜 완성된 씬 대본'] || inputs['대본'] || '';\nlet scriptText = '';\n\nif (rawScriptInput && typeof rawScriptInput === 'object') {\n  if (rawScriptInput['📜 완성된 씬 대본']) {\n    scriptText = rawScriptInput['📜 완성된 씬 대본'];\n  } else if (rawScriptInput.full_script_text) {\n    scriptText = rawScriptInput.full_script_text;\n  } else if (rawScriptInput.content || rawScriptInput.text) {\n    scriptText = rawScriptInput.content || rawScriptInput.text;\n  } else {\n    scriptText = JSON.stringify(rawScriptInput, null, 2);\n  }\n} else {\n  scriptText = String(rawScriptInput || '').trim();\n}\n\nif (!scriptText) {\n  return {\n    '🖋️ 완성된 최종 소설 원고': '[오류: 씬 대본 노드가 연결되지 않았습니다. 📜 포트에 [다자간 AI 티키타카 대본 생성기]를 연결해 주세요.]',\n    '🧬 소설 원고 데이터 (JSON)': { error: 'Script Missing' }\n  };\n}\n\n// 3. 📐 작가 스타일 & 페르소나 수신 (필수)\nconst rawStyleInput = inputs['📐 작가 스타일 & 페르소나 (필수)'] || inputs['in_style'] || inputs['스타일 가이드'] || inputs['작가 스타일'] || '';\nlet styleGuideText = '';\n\nif (rawStyleInput && typeof rawStyleInput === 'object') {\n  const sData = rawStyleInput['스타일 가이드'] || rawStyleInput;\n  const projectMeta = sData.project_meta || {};\n  const styleGuide = sData.writing_style_guide || {};\n\n  const role = projectMeta.role || sData.role || '인기 웹소설 작가';\n  const pov = styleGuide.narrative_perspective || sData.narrative_perspective || '3인칭 전지적 작가 시점';\n  const tone = styleGuide.tone_and_style || sData.tone_style || '간결하고 속도감 있는 문체';\n  const rules = Array.isArray(styleGuide.writing_rules)\n    ? styleGuide.writing_rules.join('\\n')\n    : (sData.writing_rules || sData.formatting_rules || '');\n\n  styleGuideText = `- 작가 페르소나 & 역할: ${role}\\n- 서술 시점: ${pov}\\n- 문체 톤앤매너: ${tone}${rules ? `\\n- 세부 집필 규칙:\\n${rules}` : ''}`;\n} else if (typeof rawStyleInput === 'string' && rawStyleInput.trim()) {\n  styleGuideText = rawStyleInput.trim();\n}\n\nif (!styleGuideText) {\n  return {\n    '🖋️ 완성된 최종 소설 원고': '[오류: 작가 스타일 노드가 연결되지 않았습니다. 📐 포트에 [작가 스타일 & 페르소나 노드]를 연결해 주세요.]',\n    '🧬 소설 원고 데이터 (JSON)': { error: 'Style Guide Missing' }\n  };\n}\n\n// 4. 🎯 AI 작업 지시 수신 (필수)\nconst rawInstInput = inputs['🎯 AI 작업 지시 (필수)'] || inputs['in_instruction'] || inputs['AI 작업 지시'] || inputs['작업 지시'] || '';\nlet instructionText = '';\n\nif (rawInstInput && typeof rawInstInput === 'object') {\n  const iData = rawInstInput['AI 작업 지시'] || rawInstInput.request || rawInstInput;\n  const cmd = iData.command || 'WRITE_CHAPTER';\n  const task = iData.task || '소설 본문 작성';\n  const inst = iData.instruction || '주어진 씬 대본을 바탕으로 완성된 웹소설 본문을 작성하시오.';\n  const outReq = iData.output_requirements || '사족 없이 오직 소설 제목과 1화 완성본 본문만을 출력할 것.';\n\n  instructionText = `- 작업 명령: ${cmd} (${task})\\n- 핵심 지시: ${inst}\\n- 출력 요구사항: ${outReq}`;\n} else if (typeof rawInstInput === 'string' && rawInstInput.trim()) {\n  instructionText = rawInstInput.trim();\n}\n\nif (!instructionText) {\n  return {\n    '🖋️ 완성된 최종 소설 원고': '[오류: AI 작업 지시 노드가 연결되지 않았습니다. 🎯 포트에 [AI 작업 지시 노드]를 연결해 주세요.]',\n    '🧬 소설 원고 데이터 (JSON)': { error: 'AI Instruction Missing' }\n  };\n}\n\n// 5. 📅 당일 날짜 및 🎬 현재 회차 정보 획득\nconst now = new Date();\nconst year = now.getFullYear();\nconst month = String(now.getMonth() + 1).padStart(2, '0');\nconst day = String(now.getDate()).padStart(2, '0');\nconst dateStr = `${year}.${month}.${day}`;\n\nlet currentEpStr = '제 1화';\nif (window.episodeManager && window.episodeManager.currentEpisode) {\n  currentEpStr = `제 ${window.episodeManager.currentEpisode}화`;\n} else if (window.currentEpisode) {\n  currentEpStr = `제 ${window.currentEpisode}화`;\n}\n\n// 6. 위젯 설정값 및 프롬프트 조립\nconst targetWords = (input.target_words || '공백 포함 4,500자 ~ 5,500자 (웹소설 표준 1화 분량)').trim();\n\nconst systemPrompt = `# 1. 📐 작가 페르소나 & 문체 가이드\n${styleGuideText}\n\n# 2. 🎯 AI 작업 지시 & 요구사항\n${instructionText}\n- 현재 집필 회차: ${currentEpStr}\n- 당일 집필 일자: ${dateStr}\n\n# 3. 📋 웹소설화(Novelization) 집필 규칙\n- [씬 대본]에 담긴 캐릭터들의 고유 호칭, 찰떡 대사 핑퐁, 행동 지문, 내면 속마음을 100% 온전히 반영할 것.\n- 대본 형식('인물: \"대사\"')을 절대 그대로 출력하지 말고, 자연스러운 문학적 문단과 지문 묘사, 큰따옴표 대사(\"...\")로 완성할 것.\n- 원고 맨 첫 줄에 반드시 '# [${currentEpStr}] 소설 제목' 형태로 회차와 제목을 명시하고, 바로 다음 줄에 '📅 집필 일자: ${dateStr}'를 표기한 뒤 소설 본문을 시작할 것.\n- 목표 분량: ${targetWords}`;\n\nconst userPrompt = `# [원천 재료: 1화 씬 대본집 (도입 서술 지문, 대사, 행동, 속마음 포함)]\n${scriptText}\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n위 씬 대본집의 모든 대사와 상황을 바탕으로, 지정된 작가 문체와 시점에 맞추어 생생하고 완성도 높은 [${currentEpStr} 웹소설 완성 원고]를 지금 즉시 집필하라.`;\n\n// 7. 실시간 AI 집필 호출\nlet generatedManuscript = '';\n\ntry {\n  generatedManuscript = await window.aiApi.call(aiConfig, systemPrompt, userPrompt);\n} catch (err) {\n  generatedManuscript = '[소설 원고 집필 오류: ' + err.message + ']';\n}\n\nlet finalManuscript = generatedManuscript.trim();\nif (finalManuscript && !finalManuscript.includes(dateStr) && !finalManuscript.startsWith('[')) {\n  finalManuscript = `# [${currentEpStr}]\\n📅 집필 일자: ${dateStr}\\n\\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\n\\n` + finalManuscript;\n}\n\n// 8. 결과 및 데이터 구조체 반환\nconst wordCount = finalManuscript.replace(/\\s+/g, '').length;\nconst charCountWithSpaces = finalManuscript.length;\n\nreturn {\n  '🖋️ 완성된 최종 소설 원고': finalManuscript,\n  'manuscript_editor': finalManuscript,\n  '🧬 소설 원고 데이터 (JSON)': {\n    episode: currentEpStr,\n    date: dateStr,\n    char_count_with_spaces: charCountWithSpaces,\n    char_count_no_spaces: wordCount,\n    manuscript_text: finalManuscript,\n    target_words: targetWords,\n    ai_config_used: {\n      provider: aiConfig.provider,\n      model: aiConfig.model\n    }\n  }\n};"
+  },
+  {
+    "schemaVersion": "2.0",
+    "createdAt": 1787120563702,
+    "updatedAt": 1787120563702,
+    "id": "preset_sys_state_evolution_tracker",
+    "name": "서사 상태 변화 & 노드 자동 동기화 노드",
+    "icon": "🧬",
+    "desc": "완성된 소설 원고(또는 대본)를 분석하여 서사 진행에 따른 인물 외모/관계/아이템/세계관 변화를 6대 영역 전수 감수하고, 선택된 대상 노드들의 실제 데이터를 실시간 자동 갱신합니다.",
+    "category": "ai",
+    "color": "#8b5cf6",
+    "defaultWidth": 580,
+    "defaultHeight": 780,
+    "isDefault": true,
+    "promptForName": true,
+    "promptForDesc": false,
+    "widgets": [
+      {
+        "id": "w_target_nodes",
+        "type": "multi_toggle_group",
+        "label": "🎯 수정 및 동기화 대상 노드 종류 (다중 토글 선택)",
+        "key": "target_node_types",
+        "options": [
+          {
+            "id": "preset_sys_detailed_character",
+            "name": "상세 등장인물 카드 (외모/성격/관계/특징)",
+            "icon": "👥",
+            "color": "#a855f7",
+            "defaultOn": true
+          },
+          {
+            "id": "preset_sys_character",
+            "name": "기본 등장인물 카드",
+            "icon": "👤",
+            "color": "#8b5cf6",
+            "defaultOn": true
+          },
+          {
+            "id": "preset_sys_proper_nouns",
+            "name": "고유명사 사전 노드 (지명/아이템/마법)",
+            "icon": "📚",
+            "color": "#38bdf8",
+            "defaultOn": true
+          },
+          {
+            "id": "preset_sys_world_settings",
+            "name": "세계관 및 배경 설정 노드",
+            "icon": "🌍",
+            "color": "#10b981",
+            "defaultOn": true
+          },
+          {
+            "id": "preset_sys_foreshadowing",
+            "name": "복선 & 떡밥 레지스트리",
+            "icon": "🪝",
+            "color": "#ec4899",
+            "defaultOn": true
+          },
+          {
+            "id": "preset_sys_chapter_scope",
+            "name": "챕터 스코프 & 씬 기획 노드",
+            "icon": "🎬",
+            "color": "#f97316",
+            "defaultOn": false
+          },
+          {
+            "id": "preset_sys_style_guide",
+            "name": "작가 스타일 & 페르소나 노드",
+            "icon": "📐",
+            "color": "#a855f7",
+            "defaultOn": false
+          },
+          {
+            "id": "preset_sys_ai_meta_instruction",
+            "name": "AI 작업 지시 노드",
+            "icon": "🎯",
+            "color": "#6366f1",
+            "defaultOn": false
+          }
+        ]
+      },
+      {
+        "id": "w_auto_apply",
+        "type": "toggle_switch",
+        "label": "노드 데이터 즉시 자동 수정 & 화면 반영",
+        "key": "auto_apply",
+        "defaultVal": true,
+        "onText": "자동 반영 ON ⚡",
+        "offText": "검토 모드 (리포트만)"
+      },
+      {
+        "id": "w_report_viewer",
+        "type": "text_viewer",
+        "label": "👁️ 상태 변화 동기화 리포트",
+        "key": "report_viewer"
+      }
+    ],
+    "portsConfig": {
+      "inputs": [
+        {
+          "id": "in_ai_config",
+          "name": "⚡ AI 환경 설정 (필수)",
+          "color": "#38bdf8"
+        },
+        {
+          "id": "in_manuscript",
+          "name": "📖 완성된 소설 원고 (필수)",
+          "color": "#10b981"
+        }
+      ],
+      "outputs": [
+        {
+          "id": "out_report",
+          "name": "📋 상태 변화 반영 보고서",
+          "color": "#10b981"
+        },
+        {
+          "id": "out_data",
+          "name": "🧬 업데이트 데이터 (JSON)",
+          "color": "#06b6d4"
+        }
+      ]
+    },
+    "code": "// 1. ⚡ AI 환경 설정 수신 (필수)\nconst aiConfigRaw = inputs['⚡ AI 환경 설정 (필수)'] || inputs['in_ai_config'] || inputs['AI 환경 설정'] || {};\nconst aiConfig = {\n  provider: aiConfigRaw.provider || 'Google (Gemini)',\n  model: aiConfigRaw.model || 'gemini-3.6-flash',\n  apiKey: aiConfigRaw.apiKey || '',\n  temperature: parseFloat(aiConfigRaw.temperature) || 0.3,\n  endpoint: aiConfigRaw.endpoint || ''\n};\n\nif (!aiConfig.apiKey) {\n  const errMsg = '[AI 실행 오류: API Key가 설정되지 않았습니다. ⚡ 포트에 [AI 설정 노드]를 연결해 주세요.]';\n  return {\n    '📋 상태 변화 반영 보고서': errMsg,\n    'report_viewer': errMsg,\n    '🧬 업데이트 데이터 (JSON)': { error: 'API Key Missing' }\n  };\n}\n\n// 2. 📖 완성된 소설 원고 수신 (필수)\nconst rawManuscriptInput = inputs['📖 완성된 소설 원고 (필수)'] || inputs['in_manuscript'] || inputs['🖋️ 완성된 최종 소설 원고'] || inputs['원고'] || '';\nlet manuscriptText = '';\n\nif (rawManuscriptInput && typeof rawManuscriptInput === 'object') {\n  if (rawManuscriptInput.manuscript_text) {\n    manuscriptText = rawManuscriptInput.manuscript_text;\n  } else if (rawManuscriptInput['🖋️ 완성된 최종 소설 원고']) {\n    manuscriptText = rawManuscriptInput['🖋️ 완성된 최종 소설 원고'];\n  } else if (rawManuscriptInput['📜 완성된 씬 대본']) {\n    manuscriptText = rawManuscriptInput['📜 완성된 씬 대본'];\n  } else {\n    manuscriptText = rawManuscriptInput.content || rawManuscriptInput.text || JSON.stringify(rawManuscriptInput, null, 2);\n  }\n} else {\n  manuscriptText = String(rawManuscriptInput || '').trim();\n}\n\nif (!manuscriptText) {\n  const errMsg = '[오류: 소설 원고가 입력되지 않았습니다. 📖 포트에 [최종 웹소설 원고 작성 노드]를 연결해 주세요.]';\n  return {\n    '📋 상태 변화 반영 보고서': errMsg,\n    'report_viewer': errMsg,\n    '🧬 업데이트 데이터 (JSON)': { error: 'Manuscript Missing' }\n  };\n}\n\n// 3. 🎯 토글로 선택된 수정 대상 노드 종류 필터링\nconst targetTypesConfig = input.target_node_types || {};\nconst allowedPresetIds = new Set();\n\nObject.entries(targetTypesConfig).forEach(([pId, isEnabled]) => {\n  if (isEnabled) allowedPresetIds.add(pId);\n});\n\n// 기본 선택 폴백 (설정된 게 없으면 기본 5대 설정 노드 허용)\nif (allowedPresetIds.size === 0) {\n  allowedPresetIds.add('preset_sys_detailed_character');\n  allowedPresetIds.add('preset_sys_character');\n  allowedPresetIds.add('preset_sys_proper_nouns');\n  allowedPresetIds.add('preset_sys_world_settings');\n  allowedPresetIds.add('preset_sys_foreshadowing');\n}\n\n// 4. 🔍 프로젝트 내 노드 목록 수집 및 필드 구조 스냅샷 생성\nconst projectId = window.currentProjectId;\nlet allFiles = [];\nif (window.storage?.getProjectFiles) {\n  allFiles = await window.storage.getProjectFiles(projectId) || [];\n} else if (window.fileTreeManager?.files) {\n  allFiles = Array.isArray(window.fileTreeManager.files) ? window.fileTreeManager.files : Array.from(window.fileTreeManager.files.values());\n}\n\nconst targetNodesSnapshot = [];\nconst scannedFiles = [];\n\nfor (const file of allFiles) {\n  if (!file || file.type === 'folder' || file.id === input.fileId) continue;\n\n  let contentData = {};\n  if (typeof file.content === 'string' && file.content.trim()) {\n    try { contentData = JSON.parse(file.content); } catch (e) { contentData = {}; }\n  } else if (typeof file.content === 'object' && file.content) {\n    contentData = { ...file.content };\n  } else if (file.contentData && typeof file.contentData === 'object') {\n    contentData = { ...file.contentData };\n  }\n\n  const presetId = file.presetId || contentData.presetId || file.templateId || contentData.templateId || '';\n  \n  // 허용된 프리셋 ID이거나, 캐릭터/설정 카테고리인 경우 매칭\n  let isAllowed = allowedPresetIds.has(presetId);\n  if (!isAllowed) {\n    if (allowedPresetIds.has('preset_sys_detailed_character') && (file.category === 'character' || contentData.persona_md || contentData.personality)) isAllowed = true;\n    if (allowedPresetIds.has('preset_sys_proper_nouns') && (file.category === 'lore' && (contentData.term || contentData.proper_noun))) isAllowed = true;\n    if (allowedPresetIds.has('preset_sys_world_settings') && (file.category === 'lore' && contentData.background_lore)) isAllowed = true;\n    if (allowedPresetIds.has('preset_sys_foreshadowing') && (contentData.hidden_truth || contentData.observable_clue)) isAllowed = true;\n  }\n\n  if (!isAllowed) continue;\n\n  // 노드의 위젯 필드 및 현재 값 추출\n  const widgets = Array.isArray(contentData.widgets) ? contentData.widgets : (Array.isArray(file.widgets) ? file.widgets : []);\n  const fields = {};\n\n  if (widgets.length > 0) {\n    widgets.forEach(w => {\n      const key = w.key || w.id;\n      if (key && !['editorVal', 'code', 'script', 'rawInputs'].includes(key)) {\n        fields[key] = {\n          label: w.label || key,\n          currentValue: contentData[key] !== undefined ? String(contentData[key]).trim() : ''\n        };\n      }\n    });\n  } else {\n    Object.entries(contentData).forEach(([k, v]) => {\n      if (!['widgets', 'code', 'script', 'presetId', 'portsConfig'].includes(k) && typeof v === 'string') {\n        fields[k] = { label: k, currentValue: v.trim() };\n      }\n    });\n  }\n\n  if (Object.keys(fields).length > 0) {\n    scannedFiles.push(file);\n    targetNodesSnapshot.push({\n      nodeId: file.id,\n      nodeName: file.name || '무제 노드',\n      presetId: presetId || file.category || 'custom',\n      fields: fields\n    });\n  }\n}\n\nif (targetNodesSnapshot.length === 0) {\n  const emptyMsg = '⚠️ 수정 대상에 해당하는 설정 노드를 프로젝트에서 찾지 못했습니다. 대상 노드 토글을 확인해 주세요.';\n  return {\n    '📋 상태 변화 반영 보고서': emptyMsg,\n    'report_viewer': emptyMsg,\n    '🧬 업데이트 데이터 (JSON)': { changes: [], count: 0 }\n  };\n}\n\n// 5. 🤖 6대 영역 전수 감수 AI 프롬프트 조립\nconst systemPrompt = `당신은 소설의 서사 변화와 설정 무결성을 유지하는 '수석 설정 감수관(Continuity Supervisor)'입니다.\n주어진 [1화 소설 원고]를 정밀 분석하여, [현재 등록된 노드들의 기존 설정값] 대비 이번 화에서 새롭게 변경/진전/추가된 영구적·지속적 상태 변화를 찾아내고,\n아래 6대 감수 영역에 맞춰 정확한 JSON 수정 명령(changes)을 작성하세요.\n\n## 6대 전수 감수 체크리스트\n1. 👤 [인물 외모 & 신체 상태]: 머리색/스타일, 옷차림, 흉터/부상, 건강/생사, 신체 특징 변화\n2. 👥 [인물 간 호칭 & 관계망]: 서로를 부르는 호칭 변화, 동맹/적대/계약 체결, 호감/불신 등 감정선\n3. 🗡️ [능력 & 스킬 & 장비/소지품]: 새로 획득/소비/파괴된 아이템, 새 스킬/마법 각성\n4. 🗺️ [공간 & 지명 & 환경 파괴]: 새로운 장소 언급, 사건으로 인한 지형/건물 파괴 및 변화\n5. 🏛️ [세력 & 사회 정세]: 신규 길드/상단/가문 등장, 수배령 발령 등 사회적 변화\n6. 🪝 [사건 완결 & 떡밥/비밀 진전]: 밝혀진 비밀, 완료된 의뢰, 진전된 복선 단서\n\n## ⚠️ 출력 형식 규칙 (반드시 JSON만 출력할 것)\n반드시 아래 JSON 스키마를 엄격히 준수하여 순수 JSON 객체만 반환하세요:\n{\n  \"summary\": \"이번 화의 주요 상태 변화 요약 (1~2줄)\",\n  \"changes\": [\n    {\n      \"nodeId\": 12,\n      \"nodeName\": \"카일\",\n      \"fieldKey\": \"appearance\",\n      \"fieldLabel\": \"외모 & 시각적 특징\",\n      \"action\": \"replace\", // \"replace\" (기존 내용 교체) 또는 \"append\" (기존 내용 뒤에 추가)\n      \"oldValue\": \"단정한 흑발, 낡은 가죽 코트\",\n      \"newValue\": \"붉은색으로 염색한 머리, 낡은 가죽 코트\",\n      \"reason\": \"경비대의 수배를 피하기 위해 주점에서 머리를 염색함\"\n    }\n  ]\n}\n※ 중요: 변경 사항이 전혀 없는 노드는 changes 배열에 넣지 마세요. 이번 화에서 실제로 변화가 일어난 항목만 출력하세요.`;\n\nconst snapshotText = targetNodesSnapshot.map(n => {\n  const fieldsStr = Object.entries(n.fields).map(([k, f]) => `    • [${k}] (${f.label}): \"${f.currentValue || '(비어있음)'}\"`).join('\\n');\n  return `• 노드 ID: ${n.nodeId} | 노드명: [${n.nodeName}] (${n.presetId})\\n${fieldsStr}`;\n}).join('\\n\\n');\n\nconst userPrompt = `# [1. 📖 이번 화 소설 원고 본문]\n${manuscriptText}\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n# [2. 🎛️ 현재 등록된 노드들의 필드 구조 및 기존 값 목록]\n${snapshotText}\n\n위 원고를 철저히 감수하여, 기존 설정값에서 영구적/지속적으로 변화한 모든 항목을 6대 체크리스트에 따라 누락 없이 추출하고 JSON으로 출력하라.`;\n\n// 6. 📡 AI 감수 실행 (단 1회 호출)\nlet aiResponseRaw = '';\ntry {\n  aiResponseRaw = await window.aiApi.call(aiConfig, systemPrompt, userPrompt);\n} catch (err) {\n  const errMsg = '[AI 감수 호출 실패: ' + err.message + ']';\n  return {\n    '📋 상태 변화 반영 보고서': errMsg,\n    'report_viewer': errMsg,\n    '🧬 업데이트 데이터 (JSON)': { error: err.message }\n  };\n}\n\n// 7. 🧩 JSON 파싱 및 데이터 추출\nlet parsedResult = { summary: '상태 변화 없음', changes: [] };\ntry {\n  let cleanJson = aiResponseRaw.trim();\n  const match = cleanJson.match(/\\{[\\s\\S]*\\}/);\n  if (match) cleanJson = match[0];\n  parsedResult = JSON.parse(cleanJson);\n} catch (e) {\n  parsedResult = { summary: 'JSON 파싱 실패', changes: [], raw: aiResponseRaw };\n}\n\nconst changes = Array.isArray(parsedResult.changes) ? parsedResult.changes : [];\nconst autoApply = input.auto_apply !== undefined ? !!input.auto_apply : true;\nconst appliedChanges = [];\n\n// 8. 💾 JS 로컬 엔진: 실제 노드 DB 및 화면 텍스트 실시간 동기화\nif (autoApply && changes.length > 0) {\n  for (const ch of changes) {\n    const targetFile = scannedFiles.find(f => String(f.id) === String(ch.nodeId) || f.name === ch.nodeName);\n    if (!targetFile) continue;\n\n    let contentObj = {};\n    if (typeof targetFile.content === 'string' && targetFile.content.trim()) {\n      try { contentObj = JSON.parse(targetFile.content); } catch (e) { contentObj = {}; }\n    } else if (typeof targetFile.content === 'object' && targetFile.content) {\n      contentObj = { ...targetFile.content };\n    } else if (targetFile.contentData && typeof targetFile.contentData === 'object') {\n      contentObj = { ...targetFile.contentData };\n    }\n\n    const prevVal = contentObj[ch.fieldKey] || '';\n    let finalVal = ch.newValue || '';\n    if (ch.action === 'append' && prevVal && !prevVal.includes(finalVal)) {\n      finalVal = `${prevVal}\\n${finalVal}`;\n    }\n\n    contentObj[ch.fieldKey] = finalVal;\n\n    // 1) DB 영구 저장\n    await window.storage?.updateFile(targetFile.id, {\n      content: JSON.stringify(contentObj, null, 2),\n      contentData: contentObj\n    });\n    targetFile.content = JSON.stringify(contentObj, null, 2);\n    targetFile.contentData = contentObj;\n\n    // 2) 캔버스 상에 열려 있는 창의 입력 필드 실시간 텍스트 교체 및 하이라이트\n    const winInfo = window.windowManager?.windows?.get(targetFile.id) || window.windowManager?.windows?.get(String(targetFile.id));\n    if (winInfo && winInfo.element) {\n      const inputEl = winInfo.element.querySelector(`[data-widget-key=\"${ch.fieldKey}\"]`) || winInfo.element.querySelector(`[name=\"${ch.fieldKey}\"]`);\n      if (inputEl) {\n        inputEl.value = finalVal;\n        inputEl.style.transition = 'background-color 0.4s ease';\n        inputEl.style.backgroundColor = 'rgba(139, 92, 246, 0.25)';\n        setTimeout(() => inputEl.style.backgroundColor = '', 2000);\n      }\n      window.windowManager?.notifyNodeChanged?.(targetFile.id, 'contentChange');\n    }\n\n    appliedChanges.push({ ...ch, finalValue: finalVal, applied: true });\n  }\n}\n\n// 9. 📋 마크다운 서사 상태 변화 보고서 렌더링\nlet reportMd = `# [🧬 서사 상태 변화 & 노드 동기화 보고서]\\n\\n`;\nreportMd += `**📌 총평 요약**: ${parsedResult.summary || '감수 완료'}\\n`;\nreportMd += `**⚡ 자동 반영 모드**: ${autoApply ? '즉시 DB 및 화면 반영 완료 (ON ✅)' : '검토 모드 (수동 확인 OFF)'}\\n`;\nreportMd += `**📊 감수 결과**: 총 ${changes.length}건의 상태 변화 감지 (${appliedChanges.length}건 반영)\\n\\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\n\\n`;\n\nif (changes.length === 0) {\n  reportMd += '✨ **이번 화에서는 기존 설정을 변경하거나 새로 추가해야 할 상태 변화가 발견되지 않았습니다.** (설정 완벽 일치 ✅)';\n} else {\n  changes.forEach((ch, idx) => {\n    reportMd += `### ${idx + 1}. ${ch.nodeName} (${ch.fieldLabel || ch.fieldKey})\\n`;\n    reportMd += `- **변경 전**: ${ch.oldValue || '(없음)'}\\n`;\n    reportMd += `- **변경 후**: ``${ch.newValue}`` ${autoApply ? '✅ (반영됨)' : '⏳ (검토 대기)'}\\n`;\n    reportMd += `- **변화 사유**: ${ch.reason}\\n\\n`;\n  });\n}\n\nif (autoApply && appliedChanges.length > 0) {\n  window.showToast?.(`✨ 총 ${appliedChanges.length}건의 노드 설정이 최신 상태로 자동 동기화되었습니다! 🧬`, 'success');\n}\n\nreturn {\n  '📋 상태 변화 반영 보고서': reportMd,\n  'report_viewer': reportMd,\n  '🧬 업데이트 데이터 (JSON)': {\n    summary: parsedResult.summary,\n    total_detected: changes.length,\n    total_applied: appliedChanges.length,\n    auto_apply: autoApply,\n    changes: autoApply ? appliedChanges : changes\n  }\n};"
   }
 ]
