@@ -362,70 +362,510 @@ class ToolsPanel {
         });
     }
 
-    renderTools() {
-        const displayTime = this.timerMode === 'stopwatch' ? this.elapsedTime : this.remainingTime;
+    // ==========================================
+    // 🤖 [AI 소설 총괄 비서 (Story Copilot)] 엔진
+    // ==========================================
 
+    renderAgent() {
         return `
-            <div class="tools-container">
-                <div class="stopwatch-card">
-                    <div class="stopwatch-modes">
-                        <button class="mode-btn ${this.timerMode === 'stopwatch' ? 'active' : ''}" data-mode="stopwatch">스톱워치</button>
-                        <button class="mode-btn ${this.timerMode === 'pomodoro' ? 'active' : ''}" data-mode="pomodoro">뽀모도로</button>
-                        <button class="mode-btn ${this.timerMode === 'custom' ? 'active' : ''}" data-mode="custom">타이머</button>
-                    </div>
-
-                    ${this.timerMode === 'custom' && !this.isRunning ? `
-                        <div class="timer-settings">
-                            <input type="number" class="timer-input" id="customMin" value="${this.customMinutes}" min="1" max="999"> 분 설정
+            <div class="agent-panel-container" style="display: flex; flex-direction: column; height: 100%; box-sizing: border-box; gap: 8px;">
+                <!-- 1. 헤더: 비서 소개 및 대화 비우기 -->
+                <div style="display: flex; align-items: center; justify-content: space-between; padding: 6px 10px; background: var(--color-surface-2); border-radius: 8px; border: 1px solid var(--color-border);">
+                    <div style="display: flex; align-items: center; gap: 6px;">
+                        <span style="font-size: 16px;">🤖</span>
+                        <div style="display: flex; flex-direction: column;">
+                            <span style="font-size: 12px; font-weight: bold; color: var(--color-text-primary);">POV 스토리 비서</span>
+                            <span style="font-size: 9px; color: var(--color-accent-primary, #38bdf8);">⚡ 프로젝트 전체 지식 연동 (Tool-Use)</span>
                         </div>
-                    ` : ''}
+                    </div>
+                    <button type="button" class="btn btn-secondary btn-xs" id="agentClearChatBtn" style="font-size: 10px; padding: 2px 6px;" title="대화 기록 비우기">
+                        🔄 비우기
+                    </button>
+                </div>
 
-                    <div class="stopwatch-display" id="mainDisplay">${this.formatTime(displayTime)}</div>
-                    
-                    <div class="stopwatch-controls">
-                        <button class="btn ${this.isRunning ? 'btn-secondary' : 'btn-primary'}" id="timerStartBtn">
-                            ${this.isRunning ? '일시정지' : '시작'}
+                <!-- 2. 퀵 프롬프트 칩 -->
+                <div style="display: flex; gap: 4px; overflow-x: auto; padding-bottom: 2px; scrollbar-width: none;" class="agent-quick-chips">
+                    <button type="button" class="btn btn-secondary btn-xs agent-quick-btn" data-prompt="등장인물들의 기본 설정과 최신 상태를 요약해줘." style="font-size: 10px; white-space: nowrap; padding: 3px 8px; border-radius: 12px; background: rgba(56, 189, 248, 0.08); border-color: rgba(56, 189, 248, 0.2); color: #38bdf8;">👥 인물 설정</button>
+                    <button type="button" class="btn btn-secondary btn-xs agent-quick-btn" data-prompt="세계관의 주요 지리, 마법 체계, 세력 설정을 정리해줘." style="font-size: 10px; white-space: nowrap; padding: 3px 8px; border-radius: 12px; background: rgba(16, 185, 129, 0.08); border-color: rgba(16, 185, 129, 0.2); color: #10b981;">🌍 세계관 요약</button>
+                    <button type="button" class="btn btn-secondary btn-xs agent-quick-btn" data-prompt="아직 회수되지 않았거나 진행 중인 복선과 떡밥들을 점검해줘." style="font-size: 10px; white-space: nowrap; padding: 3px 8px; border-radius: 12px; background: rgba(245, 158, 11, 0.08); border-color: rgba(245, 158, 11, 0.2); color: #f59e0b;">🪝 복선 점검</button>
+                    <button type="button" class="btn btn-secondary btn-xs agent-quick-btn" data-prompt="지금까지 작성된 회차 원고의 전체 줄거리를 요약해줘." style="font-size: 10px; white-space: nowrap; padding: 3px 8px; border-radius: 12px; background: rgba(168, 85, 247, 0.08); border-color: rgba(168, 85, 247, 0.2); color: #a855f7;">📖 회차 줄거리</button>
+                </div>
+
+                <!-- 3. 메시지 말풍선 스크롤 영역 -->
+                <div id="agentMessagesList" style="flex: 1; min-height: 180px; max-height: calc(100vh - 280px); overflow-y: auto; padding: 8px 4px; display: flex; flex-direction: column; gap: 10px; border-radius: 8px; background: var(--color-bg-primary); border: 1px solid var(--color-border);">
+                    ${this.renderAgentMessagesHtml()}
+                </div>
+
+                <!-- 4. 실시간 도구 실행 상태 표시 바 -->
+                <div id="agentToolStatusBar" style="display: none; align-items: center; gap: 6px; padding: 4px 8px; background: rgba(56, 189, 248, 0.1); border-radius: 6px; font-size: 10px; color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.2);">
+                    <span class="agent-tool-spinner" style="display: inline-block;">⏳</span>
+                    <span id="agentToolStatusText">관련 노드 탐색 중...</span>
+                </div>
+
+                <!-- 5. 하단 입력창 및 전송 버튼 -->
+                <div style="display: flex; flex-direction: column; gap: 4px;">
+                    <div style="display: flex; gap: 6px; align-items: flex-end; background: var(--color-surface-2); padding: 6px; border-radius: 8px; border: 1px solid var(--color-border);">
+                        <textarea id="agentInputText" placeholder="인물, 세계관, 복선, 줄거리 등 무엇이든 물어보세요... (Shift+Enter 줄바꿈, Enter 전송)" rows="2" style="flex: 1; border: none; background: transparent; color: var(--color-text-primary); font-size: 12px; line-height: 1.5; resize: none; outline: none; padding: 4px; max-height: 120px; font-family: inherit;"></textarea>
+                        <button type="button" class="btn btn-primary btn-sm" id="agentSendBtn" style="padding: 6px 12px; font-size: 11px; font-weight: bold; flex-shrink: 0; border-radius: 6px;">
+                            전송 🚀
                         </button>
-                        <button class="btn btn-secondary" id="timerResetBtn">리셋</button>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; font-size: 9px; color: var(--color-text-tertiary); padding: 0 4px;">
+                        <span>💡 도구 호출(Function Calling)로 필요한 노드만 핀포인트 열람</span>
+                        <span>Shift+Enter 줄바꿈</span>
                     </div>
                 </div>
-                
-                <div style="font-size: 12px; color: var(--color-text-tertiary); text-align: center;">
-                    ${this.timerMode === 'pomodoro' ? '💡 25분 집중 후 5분 휴식을 권장합니다.' : '창작에 몰입하는 시간을 기록하세요.'}
-                </div>                </div>
             </div>
         `;
     }
 
-    setupToolsEventListeners() {
-        document.querySelectorAll('.mode-btn').forEach(btn => {
+    renderAgentMessagesHtml() {
+        if (!this.agentHistory || this.agentHistory.length === 0) {
+            return `
+                <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; min-height: 160px; text-align: center; color: var(--color-text-tertiary); padding: 20px 10px; gap: 8px;">
+                    <span style="font-size: 32px; opacity: 0.8;">🤖✨</span>
+                    <div style="font-size: 12px; font-weight: bold; color: var(--color-text-primary);">POV 소설 총괄 비서에 오신 것을 환영합니다!</div>
+                    <div style="font-size: 11px; line-height: 1.6; max-width: 240px;">
+                        캔버스와 파일 트리의 모든 인물 카드, 세계관, 복선, 대본, 원고를 100% 실시간으로 꿰뚫고 답변해 드립니다.
+                    </div>
+                    <div style="font-size: 10px; color: var(--color-accent-primary, #38bdf8); margin-top: 4px;">
+                        위의 추천 질문을 클릭하거나 아래에 질문을 입력해 보세요!
+                    </div>
+                </div>
+            `;
+        }
+
+        return this.agentHistory.map((msg) => {
+            const isUser = msg.role === 'user';
+            const avatar = isUser ? '👤' : '🤖';
+            const name = isUser ? '작가님' : '스토리 비서';
+            const bubbleBg = isUser ? 'var(--color-surface-2)' : 'rgba(56, 189, 248, 0.05)';
+            const bubbleBorder = isUser ? 'var(--color-border)' : 'rgba(56, 189, 248, 0.2)';
+            const align = isUser ? 'flex-end' : 'flex-start';
+
+            const citationsHtml = (!isUser && Array.isArray(msg.citations) && msg.citations.length > 0) ? `
+                <div style="display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; padding-top: 6px; border-top: 1px dashed rgba(255,255,255,0.1); font-size: 10px;">
+                    <span style="color: var(--color-text-tertiary);">🔍 참조 노드:</span>
+                    ${msg.citations.map(c => `<span style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; padding: 1px 6px; border-radius: 4px; border: 1px solid rgba(56, 189, 248, 0.3);">${this.escapeHtml(c)}</span>`).join('')}
+                </div>
+            ` : '';
+
+            return `
+                <div style="display: flex; flex-direction: column; align-items: ${align}; gap: 2px; width: 100%; box-sizing: border-box;">
+                    <div style="display: flex; align-items: center; gap: 4px; font-size: 10px; font-weight: bold; color: var(--color-text-tertiary); padding: 0 4px;">
+                        <span>${avatar}</span>
+                        <span>${name}</span>
+                    </div>
+                    <div style="max-width: 92%; background: ${bubbleBg}; border: 1px solid ${bubbleBorder}; border-radius: 8px; padding: 8px 10px; font-size: 12px; line-height: 1.6; color: var(--color-text-primary); word-break: break-word; box-sizing: border-box;">
+                        ${isUser ? this.escapeHtml(msg.content).replace(/\n/g, '<br>') : this.formatAgentMarkdown(msg.content)}
+                        ${citationsHtml}
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    setupAgentEventListeners() {
+        const inputEl = document.getElementById('agentInputText');
+        const sendBtn = document.getElementById('agentSendBtn');
+        const clearBtn = document.getElementById('agentClearChatBtn');
+
+        // 빠른 질문 칩 클릭
+        document.querySelectorAll('.agent-quick-btn').forEach(btn => {
             btn.addEventListener('click', () => {
-                const mode = btn.getAttribute('data-mode');
-                if (this.isRunning) {
-                    if (!confirm('작업 중인 타이머가 초기화됩니다. 변경할까요?')) return;
+                const prompt = btn.getAttribute('data-prompt');
+                if (prompt && !this.isAgentLoading) {
+                    this.askAgent(prompt);
                 }
-                this.setTimerMode(mode);
             });
         });
 
-        document.getElementById('timerStartBtn')?.addEventListener('click', () => {
-            if (this.isRunning) this.stopTimer();
-            else this.startTimer();
-            this.renderTab('tools');
-        });
+        // 엔터키 전송 (Shift+Enter 줄바꿈)
+        if (inputEl) {
+            inputEl.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    const text = inputEl.value.trim();
+                    if (text && !this.isAgentLoading) {
+                        inputEl.value = '';
+                        this.askAgent(text);
+                    }
+                }
+            });
 
-        document.getElementById('timerResetBtn')?.addEventListener('click', () => {
-            this.resetTimer();
-            this.renderTab('tools');
-        });
+            // 입력창 자동 높이 조절
+            inputEl.addEventListener('input', () => {
+                inputEl.style.height = 'auto';
+                inputEl.style.height = Math.min(120, Math.max(36, inputEl.scrollHeight)) + 'px';
+            });
+        }
 
-        document.getElementById('customMin')?.addEventListener('change', (e) => {
-            this.customMinutes = parseInt(e.target.value) || 10;
-            this.remainingTime = this.customMinutes * 60 * 1000;
-            const display = document.getElementById('mainDisplay');
-            if (display) display.textContent = this.formatTime(this.remainingTime);
-        });
+        // 전송 버튼 클릭
+        if (sendBtn) {
+            sendBtn.addEventListener('click', () => {
+                const text = inputEl?.value?.trim();
+                if (text && !this.isAgentLoading) {
+                    if (inputEl) inputEl.value = '';
+                    this.askAgent(text);
+                }
+            });
+        }
 
+        // 대화 비우기 버튼
+        if (clearBtn) {
+            clearBtn.addEventListener('click', () => {
+                if (this.agentHistory.length === 0) return;
+                if (confirm('AI 비서와의 대화 기록을 모두 비울까요?')) {
+                    this.agentHistory = [];
+                    this.lastReferencedNodes = [];
+                    this.updateAgentMessagesView();
+                }
+            });
+        }
+    }
+
+    updateAgentMessagesView() {
+        const listEl = document.getElementById('agentMessagesList');
+        if (listEl) {
+            listEl.innerHTML = this.renderAgentMessagesHtml();
+            listEl.scrollTop = listEl.scrollHeight;
+        }
+    }
+
+    setAgentToolStatus(show, text = '') {
+        const bar = document.getElementById('agentToolStatusBar');
+        const textEl = document.getElementById('agentToolStatusText');
+        if (bar && textEl) {
+            bar.style.display = show ? 'flex' : 'none';
+            if (text) textEl.textContent = text;
+        }
+    }
+
+    /**
+     * 🤖 AI 에이전트 질문 전송 및 도구 호출 루프
+     */
+    async askAgent(userPrompt) {
+        if (!userPrompt || this.isAgentLoading) return;
+        this.isAgentLoading = true;
+
+        // 1. 사용자 메시지 추가
+        this.agentHistory.push({ role: 'user', content: userPrompt });
+        this.updateAgentMessagesView();
+
+        // 2. AI 설정 조회 (프로젝트 내 AI 설정 노드 우선)
+        const aiConfig = await this.getAiConfigForAgent();
+        if (!aiConfig.apiKey) {
+            this.agentHistory.push({
+                role: 'assistant',
+                content: '⚠️ **AI API Key가 설정되지 않았습니다.**\n\n프로젝트 캔버스에 `[AI 설정 노드]`를 추가하여 API Key를 입력하시거나, 우측 `[환경 설정]` 탭에서 API Key를 입력해 주시면 소설 지식을 실시간으로 탐색할 수 있습니다!'
+            });
+            this.isAgentLoading = false;
+            this.updateAgentMessagesView();
+            return;
+        }
+
+        // 3. 로딩 상태 및 도구 바 표시
+        this.setAgentToolStatus(true, '🧠 질문 분석 및 지식 도구 탐색 중...');
+        const referencedNodeNames = new Set();
+
+        try {
+            // 도구 정의 (Tool Declarations)
+            const agentTools = [
+                {
+                    name: 'list_project_nodes',
+                    description: '현재 소설 프로젝트에 존재하는 모든 노드(등장인물, 세계관, 씬 대본, 원고, 복선 등)의 목록과 카테고리를 조회합니다.',
+                    parameters: {
+                        type: 'object',
+                        properties: {
+                            category: { type: 'string', description: '선택사항: 특정 카테고리만 필터링 (character, lore, plot, manuscript, prompt 등)' }
+                        }
+                    }
+                },
+                {
+                    name: 'search_story_nodes',
+                    description: '소설 속 사건, 키워드, 고유명사, 인물 이름 등으로 프로젝트 내 노드를 고속 검색합니다.',
+                    parameters: {
+                        type: 'object',
+                        properties: {
+                            query: { type: 'string', description: '검색할 키워드 또는 질의어 (예: 카일 치유약, 마법 체계 등)' },
+                            limit: { type: 'number', description: '최대 결과 개수 (기본값: 5)' }
+                        },
+                        required: ['query']
+                    }
+                },
+                {
+                    name: 'read_node_detail',
+                    description: '특정 노드의 상세 소설 본문과 설정 데이터를 메타데이터 없이 순수하게 정제하여 열람합니다.',
+                    parameters: {
+                        type: 'object',
+                        properties: {
+                            nodeId: { type: 'string', description: '열람할 노드의 ID (선택)' },
+                            nodeName: { type: 'string', description: '열람할 노드의 이름 (예: 카일, 아르카디아 대륙, 제 1화 등)' }
+                        }
+                    }
+                }
+            ];
+
+            const systemPrompt = `당신은 사용자의 웹소설 프로젝트를 100% 완벽히 파악하고 집필을 돕는 \'POV 소설 총괄 비서 (Story Copilot)\'입니다.
+프로젝트의 모든 설정과 원고는 도구(Tool)를 통해 실시간으로 접근할 수 있습니다.
+
+[도구 사용 원칙]
+1. 사용자가 인물, 세계관, 아이템, 특정 회차 사건, 복선 등에 대해 질문하면 스스로 \'search_story_nodes\' 또는 \'list_project_nodes\'를 호출하여 관련 노드를 찾으세요.
+2. 정확한 팩트 확인이 필요하면 \'read_node_detail\'을 호출하여 해당 노드의 상세 설정을 읽은 후 답변하세요.
+3. 지어내지 말고, 노드에서 확인된 정확한 팩트에 기반하여 친절하고 명쾌하게 답변하세요.
+4. 마크다운 서식(굵은 글씨, 목록, 인용구 등)을 활용하여 가독성 높게 답변하세요.`;
+
+            // 도구 실행 핸들러 (Tool Executor)
+            const toolExecutor = async (name, args) => {
+                this.setAgentToolStatus(true, `🔍 [도구 실행] ${name === 'read_node_detail' ? (args.nodeName || args.nodeId) + ' 노드 열람 중' : '프로젝트 지식 탐색 중'}...`);
+                const result = await this.executeAgentTool(name, args);
+                if (name === 'read_node_detail' && result?.nodeName) {
+                    referencedNodeNames.add(result.nodeName);
+                } else if (name === 'search_story_nodes' && Array.isArray(result)) {
+                    result.forEach(r => r.name && referencedNodeNames.add(r.name));
+                }
+                return result;
+            };
+
+            // AI 호출 (Function Calling 지원 엔진)
+            let answer = '';
+            if (window.aiApi?.callWithTools) {
+                const toolCallsLog = [];
+                answer = await window.aiApi.callWithTools(
+                    aiConfig,
+                    systemPrompt,
+                    userPrompt,
+                    agentTools,
+                    toolExecutor,
+                    5,
+                    toolCallsLog
+                );
+            } else {
+                answer = await window.aiApi.call(aiConfig, systemPrompt, userPrompt);
+            }
+
+            // 응답 추가
+            this.agentHistory.push({
+                role: 'assistant',
+                content: answer || '답변을 생성하지 못했습니다.',
+                citations: Array.from(referencedNodeNames)
+            });
+
+        } catch (err) {
+            console.error('AI 에이전트 질의 오류:', err);
+            this.agentHistory.push({
+                role: 'assistant',
+                content: `❌ **오류가 발생했습니다:** ${err.message || 'AI 서버 응답 실패'}`
+            });
+        } finally {
+            this.isAgentLoading = false;
+            this.setAgentToolStatus(false);
+            this.updateAgentMessagesView();
+        }
+    }
+
+    /**
+     * 🛠️ 에이전트 전용 로컬 도구 실행 함수
+     */
+    async executeAgentTool(name, args = {}) {
+        const projectId = this.currentProjectId || window.currentProjectId || window.fileTreeManager?.currentProjectId || window.projectManager?.currentProjectId;
+        if (!projectId) {
+            return { error: '활성화된 프로젝트가 없습니다.' };
+        }
+
+        try {
+            const files = await window.storage.getProjectFiles(projectId);
+            const nonFolderFiles = (files || []).filter(f => f.type !== 'folder');
+
+            if (name === 'list_project_nodes') {
+                const nodes = nonFolderFiles.map(f => {
+                    const norm = window.nodeEngine?.normalizeNodeData(f);
+                    return {
+                        id: f.id,
+                        name: f.name,
+                        category: f.category || norm?.category || f.template || 'general'
+                    };
+                });
+                if (args.category) {
+                    const cat = String(args.category).toLowerCase();
+                    return nodes.filter(n => String(n.category).toLowerCase().includes(cat));
+                }
+                return nodes;
+            }
+
+            if (name === 'search_story_nodes') {
+                const query = String(args.query || '').toLowerCase().trim();
+                const limit = Number(args.limit) || 5;
+                if (!query) return { message: '검색어가 비어있습니다.' };
+
+                const scored = [];
+                for (const file of nonFolderFiles) {
+                    const norm = window.nodeEngine?.normalizeNodeData(file);
+                    const contentStr = JSON.stringify(norm?.contentData || {});
+                    const nameMatch = file.name.toLowerCase().includes(query);
+                    const textMatch = contentStr.toLowerCase().includes(query);
+
+                    if (nameMatch || textMatch) {
+                        let score = 0;
+                        if (nameMatch) score += 10;
+                        if (textMatch) score += 5;
+                        scored.push({
+                            id: file.id,
+                            name: file.name,
+                            category: file.category || norm?.category || 'general',
+                            score
+                        });
+                    }
+                }
+
+                scored.sort((a, b) => b.score - a.score);
+                const top = scored.slice(0, limit);
+                if (top.length === 0) {
+                    return { message: `\'${query}\'에 대한 정확한 일치 노드가 없습니다. list_project_nodes 도구로 전체 노드 목록을 확인해 보세요.` };
+                }
+                return top;
+            }
+
+            if (name === 'read_node_detail') {
+                const target = nonFolderFiles.find(f => 
+                    (args.nodeId && String(f.id) === String(args.nodeId)) ||
+                    (args.nodeName && f.name.toLowerCase().includes(String(args.nodeName).toLowerCase()))
+                );
+
+                if (!target) {
+                    return { error: `노드 \'${args.nodeName || args.nodeId}\'를 프로젝트에서 찾을 수 없습니다.` };
+                }
+
+                // 🌟 [핵심 정제]: 창 좌표(windowState), code, portsConfig, widgets 스키마 100% 필터링!
+                const norm = window.nodeEngine?.normalizeNodeData(target);
+                const contentData = norm?.contentData || {};
+                const cleanFields = {};
+
+                if (Array.isArray(norm?.widgets) && norm.widgets.length > 0) {
+                    norm.widgets.forEach(w => {
+                        const k = w.key || w.id;
+                        if (k && !['code', 'script', 'rawInputs', 'rawVal'].includes(k)) {
+                            const val = contentData[k] !== undefined ? contentData[k] : (w.defaultVal || '');
+                            if (val !== '' && val !== null && val !== undefined) {
+                                cleanFields[w.label || k] = val;
+                            }
+                        }
+                    });
+                } else {
+                    Object.entries(contentData).forEach(([k, v]) => {
+                        if (!['widgets', 'code', 'script', 'windowState', 'portsConfig', 'presetId', 'rawInputs'].includes(k)) {
+                            if (v !== '' && v !== null && v !== undefined) {
+                                cleanFields[k] = v;
+                            }
+                        }
+                    });
+                }
+
+                if (Object.keys(cleanFields).length === 0 && target.content) {
+                    try {
+                        const parsed = JSON.parse(target.content);
+                        Object.entries(parsed).forEach(([k, v]) => {
+                            if (!['widgets', 'code', 'script', 'windowState', 'portsConfig'].includes(k)) {
+                                cleanFields[k] = v;
+                            }
+                        });
+                    } catch (e) {
+                        cleanFields['content'] = target.content;
+                    }
+                }
+
+                return {
+                    nodeId: target.id,
+                    nodeName: target.name,
+                    category: target.category || 'general',
+                    storyContent: cleanFields
+                };
+            }
+
+            return { error: `지원하지 않는 도구: ${name}` };
+
+        } catch (error) {
+            return { error: `도구 실행 실패: ${error.message}` };
+        }
+    }
+
+    /**
+     * 🔑 AI 에이전트용 AI 설정 및 API Key 자동 검색
+     */
+    async getAiConfigForAgent() {
+        const projectId = this.currentProjectId || window.currentProjectId || window.fileTreeManager?.currentProjectId || window.projectManager?.currentProjectId;
+        if (projectId) {
+            try {
+                const files = await window.storage?.getProjectFiles(projectId);
+                const aiNode = files?.find(f => {
+                    const norm = window.nodeEngine?.normalizeNodeData(f);
+                    return f.presetId === 'preset_sys_ai_config' || norm?.presetId === 'preset_sys_ai_config' || f.name.includes('AI 설정') || f.name.includes('AI 환경');
+                });
+                if (aiNode) {
+                    const norm = window.nodeEngine?.normalizeNodeData(aiNode);
+                    const cd = norm?.contentData || {};
+                    const apiKey = cd.apiKey || cd.w_api_key || cd.val;
+                    if (apiKey && apiKey !== '(API Key 미설정)') {
+                        return {
+                            provider: cd.provider || 'Google (Gemini)',
+                            model: cd.model || 'gemini-2.5-flash',
+                            apiKey: apiKey,
+                            temperature: cd.temperature !== undefined ? Number(cd.temperature) : 0.7,
+                            endpoint: cd.endpoint || ''
+                        };
+                    }
+                }
+            } catch (e) {
+                console.warn('AI 설정 노드 검색 실패:', e);
+            }
+        }
+
+        const savedKey = this.settings?.apiKey || localStorage.getItem('global_gemini_api_key') || localStorage.getItem('ai_api_key') || '';
+        const savedProvider = this.settings?.aiProvider || localStorage.getItem('ai_provider') || 'Google (Gemini)';
+        const savedModel = this.settings?.aiModel || localStorage.getItem('ai_model') || 'gemini-2.5-flash';
+
+        return {
+            provider: savedProvider,
+            model: savedModel,
+            apiKey: savedKey,
+            temperature: 0.7
+        };
+    }
+
+    /**
+     * 📝 가벼운 에이전트 마크다운 파서
+     */
+    formatAgentMarkdown(text) {
+        if (!text) return '';
+        let escaped = this.escapeHtml(text);
+
+        // 코드 블록 (```...```)
+        escaped = escaped.replace(/```([\s\S]*?)```/g, '<pre style="background: rgba(0,0,0,0.3); padding: 8px; border-radius: 6px; font-family: monospace; font-size: 11px; overflow-x: auto; margin: 6px 0;"><code>$1</code></pre>');
+
+        // 인라인 코드 (`...`)
+        escaped = escaped.replace(/`([^`]+)`/g, '<code style="background: rgba(255,255,255,0.1); padding: 1px 4px; border-radius: 4px; font-family: monospace; font-size: 11px; color: #38bdf8;">$1</code>');
+
+        // 헤딩 (###, ##, #)
+        escaped = escaped.replace(/^### (.*$)/gim, '<div style="font-size: 12px; font-weight: bold; color: var(--color-accent-primary, #38bdf8); margin: 6px 0 2px 0;">$1</div>');
+        escaped = escaped.replace(/^## (.*$)/gim, '<div style="font-size: 13px; font-weight: bold; color: var(--color-text-primary); margin: 8px 0 3px 0;">$1</div>');
+        escaped = escaped.replace(/^# (.*$)/gim, '<div style="font-size: 14px; font-weight: bold; color: var(--color-text-primary); margin: 10px 0 4px 0;">$1</div>');
+
+        // 굵게 (**...**)
+        escaped = escaped.replace(/\*\*(.*?)\*\*/g, '<strong style="color: var(--color-text-primary); font-weight: 700;">$1</strong>');
+
+        // 기울임 (*...*)
+        escaped = escaped.replace(/\*(.*?)\*/g, '<em>$1</em>');
+
+        // 인용문 (> ...)
+        escaped = escaped.replace(/^> (.*$)/gim, '<blockquote style="border-left: 3px solid var(--color-accent-primary, #38bdf8); padding-left: 8px; margin: 4px 0; color: var(--color-text-secondary); background: rgba(56, 189, 248, 0.04);">$1</blockquote>');
+
+        // 목록 (- ... 또는 * ...)
+        escaped = escaped.replace(/^[\-*] (.*$)/gim, '<div style="display: flex; gap: 4px; margin: 2px 0;"><span style="color: #38bdf8;">•</span><span>$1</span></div>');
+
+        // 줄바꿈
+        escaped = escaped.replace(/\n/g, '<br>');
+
+        return escaped;
     }
 
     setTimerMode(mode) {
