@@ -1705,6 +1705,7 @@ class FileTreeManager {
             'continue_gate': '▶️',
             'button_action': '🔘',
             'toggle_switch': '🔘',
+            'multi_toggle_group': '🎛️',
             'input_source_filter': '🎛️',
             'dynamic_input_toggles': '🎛️',
             'choice_select': '🔀',
@@ -1724,6 +1725,7 @@ class FileTreeManager {
             'continue_gate': '진행 확인 게이트',
             'button_action': '액션 실행 버튼',
             'toggle_switch': '스위치 토글',
+            'multi_toggle_group': '다중 토글 그룹',
             'input_source_filter': '연결 노드 선택 목록',
             'dynamic_input_toggles': '연결 노드 선택 목록',
             'choice_select': '분기 선택 버튼',
@@ -1737,7 +1739,7 @@ class FileTreeManager {
         const defaultRows = rows || (type === 'editor_canvas' ? 5 : (type === 'raw_data_viewer' ? 10 : 1));
         const showRowsOption = ['input_text', 'editor_canvas', 'text_viewer', 'raw_data_viewer'].includes(type);
         const hasInputs = ['input_text', 'editor_canvas', 'toggle_switch'].includes(type);
-        const isDropdown = type === 'dropdown_select';
+        const isDropdown = type === 'dropdown_select' || type === 'multi_toggle_group';
         const isSlider = type === 'slider' || type === 'range_slider';
         const isSectionHeader = type === 'section_header';
         const optionsStr = Array.isArray(options) ? options.join(', ') : (options || defaultVal || '옵션 1, 옵션 2, 옵션 3');
