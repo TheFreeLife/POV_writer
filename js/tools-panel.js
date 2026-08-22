@@ -676,6 +676,49 @@ class ToolsPanel {
         };
     }
 
+    renderAgentMessagesHtml() {
+        if (!this.agentHistory || this.agentHistory.length === 0) {
+            return `
+                <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; min-height: 140px; text-align: center; color: var(--color-text-tertiary); padding: 16px 10px; gap: 8px;">
+                    <span style="font-size: 28px; opacity: 0.8;">🤖✨</span>
+                    <div style="font-size: 12px; font-weight: bold; color: var(--color-text-primary);">POV 소설 총괄 비서</div>
+                    <div style="font-size: 11px; line-height: 1.6; max-width: 240px;">
+                        캔버스와 파일 트리의 모든 인물 카드, 세계관, 복선, 대본, 원고를 100% 실시간으로 꿰뚫고 답변해 드립니다.
+                    </div>
+                </div>
+            `;
+        }
+
+        return this.agentHistory.map((msg) => {
+            const isUser = msg.role === 'user';
+            const avatar = isUser ? '👤' : '🤖';
+            const name = isUser ? '작가님' : '스토리 비서';
+            const bubbleBg = isUser ? 'var(--color-surface-2)' : 'rgba(56, 189, 248, 0.05)';
+            const bubbleBorder = isUser ? 'var(--color-border)' : 'rgba(56, 189, 248, 0.2)';
+            const align = isUser ? 'flex-end' : 'flex-start';
+
+            const citationsHtml = (!isUser && Array.isArray(msg.citations) && msg.citations.length > 0) ? `
+                <div style="display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; padding-top: 6px; border-top: 1px dashed rgba(255,255,255,0.1); font-size: 10px;">
+                    <span style="color: var(--color-text-tertiary);">🔍 참조 노드:</span>
+                    ${msg.citations.map(c => `<span style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; padding: 1px 6px; border-radius: 4px; border: 1px solid rgba(56, 189, 248, 0.3);">${this.escapeHtml(c)}</span>`).join('')}
+                </div>
+            ` : '';
+
+            return `
+                <div style="display: flex; flex-direction: column; align-items: ${align}; gap: 2px; width: 100%; box-sizing: border-box;">
+                    <div style="display: flex; align-items: center; gap: 4px; font-size: 10px; font-weight: bold; color: var(--color-text-tertiary); padding: 0 4px;">
+                        <span>${avatar}</span>
+                        <span>${name}</span>
+                    </div>
+                    <div style="max-width: 92%; background: ${bubbleBg}; border: 1px solid ${bubbleBorder}; border-radius: 8px; padding: 8px 10px; font-size: 12px; line-height: 1.6; color: var(--color-text-primary); word-break: break-word; box-sizing: border-box;">
+                        ${isUser ? this.escapeHtml(msg.content).replace(/\n/g, '<br>') : this.formatAgentMarkdown(msg.content)}
+                        ${citationsHtml}
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+
     updateAgentMessagesView() {
         const listEl = document.getElementById('agentMessagesList');
         if (listEl) {
