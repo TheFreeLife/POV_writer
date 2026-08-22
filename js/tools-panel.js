@@ -21,6 +21,11 @@ class ToolsPanel {
         this.editingMemoId = null;
         this.isSelectionMode = false;
 
+        // 🤖 AI 소설 총괄 비서 (Story Copilot) 상태
+        this.agentHistory = [];
+        this.isAgentLoading = false;
+        this.lastReferencedNodes = [];
+
         this.init();
     }
 
@@ -548,6 +553,7 @@ class ToolsPanel {
     async askAgent(userPrompt) {
         if (!userPrompt || this.isAgentLoading) return;
         this.isAgentLoading = true;
+        if (!Array.isArray(this.agentHistory)) this.agentHistory = [];
 
         // 1. 사용자 메시지 추가
         this.agentHistory.push({ role: 'user', content: userPrompt });
