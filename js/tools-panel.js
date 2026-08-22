@@ -474,6 +474,12 @@ class ToolsPanel {
                             <span style="font-size: 9px; font-weight: bold; color: var(--color-text-tertiary); white-space: nowrap;">창의성 (<span id="agentTempDisplay">${currentConfig.temperature ?? 0.7}</span>)</span>
                             <input type="range" id="agentTempSlider" min="0" max="1" step="0.05" value="${currentConfig.temperature ?? 0.7}" style="flex: 1; cursor: pointer; height: 14px;">
                         </div>
+
+                        <!-- 최대 도구 탐색 횟수 (Max Turns) -->
+                        <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 2px;">
+                            <span style="font-size: 9px; font-weight: bold; color: var(--color-text-tertiary); white-space: nowrap;">최대 탐색 턴 (<span id="agentMaxTurnsDisplay">${currentConfig.maxTurns ?? 5}턴</span>)</span>
+                            <input type="range" id="agentMaxTurnsSlider" min="1" max="15" step="1" value="${currentConfig.maxTurns ?? 5}" style="flex: 1; cursor: pointer; height: 14px;" title="질문 1개당 AI가 프로젝트 노드를 연속으로 탐색할 수 있는 최대 횟수">
+                        </div>
                     </div>
                 </div>
             </div>
@@ -507,6 +513,8 @@ class ToolsPanel {
         const apiKeyInput = document.getElementById('agentApiKeyInput');
         const tempSlider = document.getElementById('agentTempSlider');
         const tempDisplay = document.getElementById('agentTempDisplay');
+        const maxTurnsSlider = document.getElementById('agentMaxTurnsSlider');
+        const maxTurnsDisplay = document.getElementById('agentMaxTurnsDisplay');
         const keySavedStatus = document.getElementById('agentKeySavedStatus');
 
         const showSavedBadge = () => {
@@ -521,6 +529,7 @@ class ToolsPanel {
             const model = modelInput?.value?.trim() || 'gemini-3.6-flash';
             const apiKey = apiKeyInput?.value?.trim() || '';
             const temperature = tempSlider ? Number(tempSlider.value) : 0.7;
+            const maxTurns = maxTurnsSlider ? Number(maxTurnsSlider.value) : 5;
 
             // 로컬 스토리지 및 settings 저장
             localStorage.setItem('ai_provider', provider);
@@ -528,12 +537,14 @@ class ToolsPanel {
             localStorage.setItem('ai_api_key', apiKey);
             localStorage.setItem('global_gemini_api_key', apiKey);
             localStorage.setItem('ai_temperature', String(temperature));
+            localStorage.setItem('ai_max_turns', String(maxTurns));
 
             if (!this.settings) this.settings = {};
             this.settings.aiProvider = provider;
             this.settings.aiModel = model;
             this.settings.apiKey = apiKey;
             this.settings.temperature = temperature;
+            this.settings.maxTurns = maxTurns;
 
             // 요약 뱃지 갱신
             const badge = document.getElementById('agentConfigSummaryBadge');
@@ -608,6 +619,13 @@ class ToolsPanel {
         if (tempSlider) {
             tempSlider.addEventListener('input', () => {
                 if (tempDisplay) tempDisplay.textContent = tempSlider.value;
+                saveCurrentAiSettings();
+            });
+        }
+
+        if (maxTurnsSlider) {
+            maxTurnsSlider.addEventListener('input', () => {
+                if (maxTurnsDisplay) maxTurnsDisplay.textContent = maxTurnsSlider.value + '턴';
                 saveCurrentAiSettings();
             });
         }
@@ -695,12 +713,14 @@ class ToolsPanel {
         const savedProvider = this.settings?.aiProvider || localStorage.getItem('ai_provider') || 'Google (Gemini)';
         const savedModel = this.settings?.aiModel || localStorage.getItem('ai_model') || 'gemini-3.6-flash';
         const savedTemp = localStorage.getItem('ai_temperature') ? Number(localStorage.getItem('ai_temperature')) : 0.7;
+        const savedMaxTurns = localStorage.getItem('ai_max_turns') ? Number(localStorage.getItem('ai_max_turns')) : (this.settings?.maxTurns || 5);
 
         return {
             provider: savedProvider,
             model: savedModel,
             apiKey: savedKey,
-            temperature: savedTemp
+            temperature: savedTemp,
+            maxTurns: savedMaxTurns
         };
     }
 
@@ -871,13 +891,14 @@ class ToolsPanel {
             let answer = '';
             if (window.aiApi?.callWithTools) {
                 const toolCallsLog = [];
+                const maxTurns = aiConfig.maxTurns || 5;
                 const res = await window.aiApi.callWithTools(
                     aiConfig,
                     systemPrompt,
                     userPrompt,
                     agentTools,
                     toolExecutor,
-                    5,
+                    maxTurns,
                     toolCallsLog
                 );
                 answer = (res && typeof res === 'object') ? (res.finalText || JSON.stringify(res)) : String(res || '');
@@ -1157,13 +1178,16 @@ class ToolsPanel {
 
         const savedKey = this.settings?.apiKey || localStorage.getItem('global_gemini_api_key') || localStorage.getItem('ai_api_key') || '';
         const savedProvider = this.settings?.aiProvider || localStorage.getItem('ai_provider') || 'Google (Gemini)';
-        const savedModel = this.settings?.aiModel || localStorage.getItem('ai_model') || 'gemini-2.0-flash';
+        const savedModel = this.settings?.aiModel || localStorage.getItem('ai_model') || 'gemini-3.6-flash';
+        const savedTemp = localStorage.getItem('ai_temperature') ? Number(localStorage.getItem('ai_temperature')) : 0.7;
+        const savedMaxTurns = localStorage.getItem('ai_max_turns') ? Number(localStorage.getItem('ai_max_turns')) : (this.settings?.maxTurns || 5);
 
         return {
             provider: savedProvider,
             model: savedModel,
             apiKey: savedKey,
-            temperature: 0.7
+            temperature: savedTemp,
+            maxTurns: savedMaxTurns
         };
     }
 
