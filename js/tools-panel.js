@@ -827,7 +827,7 @@ class ToolsPanel {
             let answer = '';
             if (window.aiApi?.callWithTools) {
                 const toolCallsLog = [];
-                answer = await window.aiApi.callWithTools(
+                const res = await window.aiApi.callWithTools(
                     aiConfig,
                     systemPrompt,
                     userPrompt,
@@ -836,6 +836,7 @@ class ToolsPanel {
                     5,
                     toolCallsLog
                 );
+                answer = (res && typeof res === 'object') ? (res.finalText || JSON.stringify(res)) : String(res || '');
             } else {
                 answer = await window.aiApi.call(aiConfig, systemPrompt, userPrompt);
             }

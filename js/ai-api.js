@@ -327,52 +327,48 @@ class AiApiManager {
             const candidate = data.candidates?.[0];
             const parts = candidate?.content?.parts || [];
 
-            let functionCallPart = null;
-            let textParts = [];
-
-            for (const part of parts) {
-                if (part.functionCall) {
-                    functionCallPart = part.functionCall;
-                }
-                if (part.text) {
-                    textParts.push(part.text);
-                }
-            }
+            const functionCallParts = parts.filter(p => p.functionCall);
+            const textParts = parts.filter(p => p.text).map(p => p.text);
 
             if (textParts.length > 0) {
                 finalText = textParts.join('\n').trim();
             }
 
             // AI가 Tool 호출을 요청한 경우 실행 및 피드백 전송
-            if (functionCallPart && toolExecutor) {
-                const callName = functionCallPart.name;
-                const callArgs = functionCallPart.args || {};
-                toolCallsLog.push({ turn, name: callName, args: callArgs });
-
-                // 도구 실행
-                const execResult = await toolExecutor(callName, callArgs);
-
-                if (callName === 'searchLorebookRAG' && execResult?.results) {
-                    ragResults.push(...execResult.results);
-                } else if (callName === 'patchLorebookEntry' || callName === 'patchCharacterState' || callName === 'saveCharacterKnowledge') {
-                    stateChanges.push({ tool: callName, args: callArgs, result: execResult });
-                }
-
-                // 모델의 functionCall 메시지 추가
-                contents.push({
+            if (functionCallParts.length > 0 && toolExecutor) {
+                // 🌟 중요: Gemini는 candidate.content 원본 객체(thought_signature, parts 전체)를 그대로 보존해야 합니다.
+                contents.push(candidate.content || {
                     role: 'model',
-                    parts: [{ functionCall: functionCallPart }]
+                    parts: parts
                 });
 
-                // 사용자의 functionResponse 메시지 추가
-                contents.push({
-                    role: 'user',
-                    parts: [{
+                const responseParts = [];
+                for (const fcp of functionCallParts) {
+                    const callName = fcp.functionCall.name;
+                    const callArgs = fcp.functionCall.args || {};
+                    toolCallsLog.push({ turn, name: callName, args: callArgs });
+
+                    // 도구 실행
+                    const execResult = await toolExecutor(callName, callArgs);
+
+                    if (callName === 'searchLorebookRAG' && execResult?.results) {
+                        ragResults.push(...execResult.results);
+                    } else if (callName === 'patchLorebookEntry' || callName === 'patchCharacterState' || callName === 'saveCharacterKnowledge') {
+                        stateChanges.push({ tool: callName, args: callArgs, result: execResult });
+                    }
+
+                    responseParts.push({
                         functionResponse: {
                             name: callName,
                             response: { output: execResult }
                         }
-                    }]
+                    });
+                }
+
+                // 사용자의 functionResponse 메시지 추가
+                contents.push({
+                    role: 'user',
+                    parts: responseParts
                 });
 
                 // 루프 계속 진행 (AI가 검색 결과를 읽고 답변 작성)
