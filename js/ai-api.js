@@ -96,70 +96,50 @@ class AiApiManager {
      * OpenAI / DeepSeek API 호출 (Chat Completions)
      */
     /**
-     * Google Gemini 통신 공통 헬퍼 (High Demand 503 자동 재시도 및 안정 모델 자동 폴백)
+     * Google Gemini 통신 공통 헬퍼 (지정 모델 호출 및 High Demand 503 재시도)
      */
     async _fetchGeminiRobust(model, apiKey, bodyPayload, endpoint) {
-        const candidateModels = [
-            model,
-            'gemini-2.0-flash',
-            'gemini-1.5-flash',
-            'gemini-2.5-flash',
-            'gemini-1.5-flash-latest'
-        ].filter((m, idx, arr) => m && arr.indexOf(m) === idx);
+        const targetModel = model || 'gemini-2.0-flash';
+        const url = endpoint || `https://generativelanguage.googleapis.com/v1beta/models/${targetModel}:generateContent?key=${apiKey}`;
 
         let lastError = null;
 
-        for (const currentModel of candidateModels) {
-            const url = endpoint || `https://generativelanguage.googleapis.com/v1beta/models/${currentModel}:generateContent?key=${apiKey}`;
+        for (let attempt = 0; attempt < 3; attempt++) {
+            try {
+                const res = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(bodyPayload)
+                });
 
-            for (let attempt = 0; attempt < 2; attempt++) {
-                try {
-                    const res = await fetch(url, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(bodyPayload)
-                    });
+                const data = await res.json();
+                if (!data.error) {
+                    return data;
+                }
 
-                    const data = await res.json();
-                    if (!data.error) {
-                        return data;
-                    }
+                const errMsg = (data.error.message || JSON.stringify(data.error)).toLowerCase();
+                const isHighDemand = errMsg.includes('high demand') || errMsg.includes('resource_exhausted') || errMsg.includes('quota') || data.error.code === 503 || data.error.code === 429;
 
-                    const errMsg = (data.error.message || JSON.stringify(data.error)).toLowerCase();
-                    const isHighDemand = errMsg.includes('high demand') || errMsg.includes('resource_exhausted') || errMsg.includes('quota') || data.error.code === 503 || data.error.code === 429;
-                    const isNotFoundOrDeprecated = errMsg.includes('not found') || errMsg.includes('not supported') || data.error.code === 404;
+                lastError = new Error(`[Gemini API 오류] ${data.error.message || JSON.stringify(data.error)}`);
 
-                    lastError = new Error(`[Gemini API 오류] ${data.error.message || JSON.stringify(data.error)}`);
+                if (isHighDemand && attempt < 2) {
+                    // 일시적 서버 과부하 시 잠시 대기 후 동일 모델 재시도
+                    await new Promise(r => setTimeout(r, 1200 * (attempt + 1)));
+                    continue;
+                }
 
-                    if (isNotFoundOrDeprecated) {
-                        // 모델명이 존재하지 않거나 v1beta 미지원일 경우 다음 후보 모델로 즉시 폴백
-                        break;
-                    }
+                // 그 외 오류는 즉시 throw
+                throw lastError;
 
-                    if (isHighDemand && attempt === 0) {
-                        // 잠시 대기 후 1회 즉시 재시도
-                        await new Promise(r => setTimeout(r, 1200));
-                        continue;
-                    }
-
-                    if (isHighDemand) {
-                        // 다음 안정 모델로 폴백 시도
-                        break;
-                    }
-
-                    // 잘못된 API Key나 기타 치명적 오류인 경우 즉시 throw
-                    throw lastError;
-
-                } catch (fetchErr) {
-                    lastError = fetchErr;
-                    if (attempt === 0) {
-                        await new Promise(r => setTimeout(r, 1000));
-                    }
+            } catch (fetchErr) {
+                lastError = fetchErr;
+                if (attempt < 2) {
+                    await new Promise(r => setTimeout(r, 1000));
                 }
             }
         }
 
-        throw lastError || new Error('Gemini API 서버와 통신할 수 없습니다. 잠시 후 다시 시도해 주세요.');
+        throw lastError || new Error(`[Gemini API 오류] ${targetModel} 모델 서버와 통신할 수 없습니다.`);
     }
 
     async _callOpenAI({ model, apiKey, temperature, endpoint }, systemPrompt, userPrompt, history) {
