@@ -911,10 +911,12 @@ class ToolsPanel {
 
             // AI 호출 (Function Calling 지원 엔진)
             let answer = '';
+            let res = null;
+            const toolCallsLog = [];
+
             if (window.aiApi?.callWithTools) {
-                const toolCallsLog = [];
                 const maxTurns = aiConfig.maxTurns || 5;
-                const res = await window.aiApi.callWithTools(
+                res = await window.aiApi.callWithTools(
                     aiConfig,
                     systemPrompt,
                     userPrompt,
