@@ -157,6 +157,10 @@ class WindowManager {
         document.getElementById('editAddInputPortBtn')?.addEventListener('click', () => this.addNodePortEditRow('input', '입력 데이터', '#2ecc71'));
         document.getElementById('editAddOutputPortBtn')?.addEventListener('click', () => this.addNodePortEditRow('output', '출력 데이터', '#00ffcc'));
 
+        // 노드 입력값 JSON 뷰어/주입 모달 버튼
+        document.getElementById('closeNodeIoModalBtn')?.addEventListener('click', () => this.hideNodeIoModal());
+        document.getElementById('nodeIoCancelBtn')?.addEventListener('click', () => this.hideNodeIoModal());
+
         // 전역 단축키 (저장 및 연결선 삭제)
         window.addEventListener('keydown', (e) => {
             if ((e.ctrlKey || e.metaKey) && e.key === 's') {
@@ -1432,6 +1436,7 @@ class WindowManager {
                     <span class="window-modified" data-indicator="${file.id}"></span>
                 </div>
                 <div class="window-titlebar-actions">
+                    <button class="window-btn window-btn-json-io" data-action="json-io" title="🧩 노드 입력값 JSON 보기 / 복사 / 주입" style="color: #00ffcc; font-size: 13px;">📋</button>
                     <button class="window-btn window-btn-save-template" data-action="save-template" title="⭐ 현재 채워진 입력 상태 그대로 노드 템플릿 저장">⭐</button>
                     <button class="window-btn window-btn-sync-preset" data-action="sync-preset" title="🔄 최신 프리셋으로 코드 및 설정 동기화 (작성 데이터 100% 보존)">🔄</button>
                     ${isImage ? `<button class="window-btn window-btn-rotate" data-action="rotate" title="90도 회전">🔄</button>` : ''}
@@ -1653,6 +1658,7 @@ class WindowManager {
                 if (action === 'rotate') this.rotateImage(fileId);
                 if (action === 'save-template') this.saveNodeAsTemplate(fileId);
                 if (action === 'sync-preset') this.syncNodeWithLatestPreset(fileId);
+                if (action === 'json-io') this.openNodeIoModal(fileId, 'view');
             });
         });
 
@@ -2520,8 +2526,20 @@ class WindowManager {
                     <span class="context-menu-icon">✏️</span>
                     <span>노드 정보 수정 (이름/설명)...</span>
                 </div>
-                <div class="context-menu-item" data-action="duplicate">
+                <div class="context-menu-item" data-action="json-view" style="color:#00ffcc;">
                     <span class="context-menu-icon">📋</span>
+                    <span>노드 입력값 JSON 보기/복사...</span>
+                </div>
+                <div class="context-menu-item" data-action="json-inject" style="color:#a855f7;">
+                    <span class="context-menu-icon">📥</span>
+                    <span>JSON 입력값 붙여넣기...</span>
+                </div>
+                <div class="context-menu-item" data-action="json-export-file">
+                    <span class="context-menu-icon">💾</span>
+                    <span>노드 파일(.json) 내보내기...</span>
+                </div>
+                <div class="context-menu-item" data-action="duplicate">
+                    <span class="context-menu-icon">📑</span>
                     <span>노드 복사</span>
                 </div>
                 <div class="context-menu-item" data-action="edit-node-ports">
@@ -2611,6 +2629,31 @@ class WindowManager {
             e.stopPropagation();
             this.showNodePortEditModal(fileId);
             this.hideContextMenu();
+        });
+
+        const jsonViewBtn = menu.querySelector('[data-action="json-view"]');
+        jsonViewBtn?.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.openNodeIoModal(fileId, 'view');
+            this.hideContextMenu();
+        });
+
+        const jsonInjectBtn = menu.querySelector('[data-action="json-inject"]');
+        jsonInjectBtn?.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.openNodeIoModal(fileId, 'inject');
+            this.hideContextMenu();
+        });
+
+        const jsonExportFileBtn = menu.querySelector('[data-action="json-export-file"]');
+        jsonExportFileBtn?.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            this.hideContextMenu();
+            const node = window.nodeManager?.getNode(fileId);
+            const file = node ? node.toJSON() : this.windows.get(fileId)?.file;
+            const name = file?.name || '노드';
+            const cleanValuesJson = window.nodeManager?.getNodeInputValuesJson(fileId) || '{}';
+            await window.nodeManager?.saveJsonWithDirectoryPicker(`node_${name}_${Date.now()}.json`, cleanValuesJson);
         });
 
         const duplicateBtn = menu.querySelector('[data-action="duplicate"]');
@@ -2920,6 +2963,147 @@ class WindowManager {
 
     hideNodePortEditModal() {
         document.getElementById('nodePortEditModal')?.classList.add('hidden');
+    }
+
+    /**
+     * 🧩 노드 입력값 JSON 데이터 뷰어 및 주입 모달 열기
+     */
+    async openNodeIoModal(fileId, defaultTab = 'view') {
+        const modal = document.getElementById('nodeIoModal');
+        if (!modal) return;
+
+        const info = this.windows.get(fileId);
+        const node = window.nodeManager?.getNode(fileId);
+        const file = node ? node.toJSON() : (info?.file || await window.storage?.getFile(fileId));
+        if (!file) return;
+
+        const modalIcon = document.getElementById('nodeIoModalIcon');
+        const modalTitle = document.getElementById('nodeIoModalTitle');
+        if (modalIcon) modalIcon.textContent = file.icon || '🧩';
+        if (modalTitle) modalTitle.textContent = `'${file.name || '노드'}' 입력값 JSON 데이터`;
+
+        const tabs = modal.querySelectorAll('.node-io-tab');
+        const tabView = document.getElementById('nodeIoTabView');
+        const tabInject = document.getElementById('nodeIoTabInject');
+        const jsonViewer = document.getElementById('nodeIoJsonViewer');
+        const jsonInput = document.getElementById('nodeIoJsonInput');
+        const fieldCountEl = document.getElementById('nodeIoFieldCount');
+        const injectFeedback = document.getElementById('nodeIoInjectFeedback');
+        const applyBtn = document.getElementById('nodeIoApplyBtn');
+        const copyBtn = document.getElementById('nodeIoCopyBtn');
+        const saveFileBtn = document.getElementById('nodeIoSaveFileBtn');
+
+        // 1. 현재 노드의 순수 입력값 추출 및 뷰어 표시
+        const valuesObj = window.nodeManager?.getNodeInputValues(fileId) || {};
+        const fieldKeys = Object.keys(valuesObj);
+        const jsonStr = JSON.stringify(valuesObj, null, 2);
+
+        if (jsonViewer) jsonViewer.value = jsonStr;
+        if (fieldCountEl) fieldCountEl.textContent = `${fieldKeys.length}개 입력 필드`;
+        if (jsonInput) jsonInput.value = '';
+        if (injectFeedback) injectFeedback.innerHTML = '';
+
+        // 2. 탭 전환 헬퍼
+        const switchTab = (tabName) => {
+            tabs.forEach(t => {
+                if (t.dataset.tab === tabName) {
+                    t.classList.add('active');
+                } else {
+                    t.classList.remove('active');
+                }
+            });
+
+            if (tabName === 'view') {
+                tabView?.classList.remove('hidden');
+                tabInject?.classList.add('hidden');
+                if (copyBtn) copyBtn.style.display = 'inline-flex';
+                if (saveFileBtn) saveFileBtn.style.display = 'inline-flex';
+                if (applyBtn) applyBtn.style.display = 'none';
+            } else {
+                tabView?.classList.add('hidden');
+                tabInject?.classList.remove('hidden');
+                if (copyBtn) copyBtn.style.display = 'none';
+                if (saveFileBtn) saveFileBtn.style.display = 'none';
+                if (applyBtn) applyBtn.style.display = 'inline-flex';
+                setTimeout(() => jsonInput?.focus(), 50);
+            }
+        };
+
+        tabs.forEach(t => {
+            t.onclick = () => switchTab(t.dataset.tab);
+        });
+
+        // 3. 복사 버튼 이벤트
+        if (copyBtn) {
+            copyBtn.onclick = async () => {
+                try {
+                    await navigator.clipboard.writeText(jsonViewer?.value || jsonStr);
+                    window.showToast?.('노드 입력값 JSON이 클립보드에 복사되었습니다! 📋');
+                } catch (err) {
+                    jsonViewer?.select();
+                    document.execCommand('copy');
+                    window.showToast?.('JSON이 복사되었습니다! 📋');
+                }
+            };
+        }
+
+        // 4. 파일 저장(위치 선택) 버튼 이벤트
+        if (saveFileBtn) {
+            saveFileBtn.onclick = async () => {
+                const fileName = `node_${(file.name || 'node').replace(/[^\w\s가-힣]/g, '_')}_${Date.now()}.json`;
+                await window.nodeManager?.saveJsonWithDirectoryPicker(fileName, jsonViewer?.value || jsonStr);
+            };
+        }
+
+        // 5. 붙여넣기 입력 실시간 유효성 검사 피드백
+        if (jsonInput) {
+            jsonInput.oninput = () => {
+                const text = jsonInput.value.trim();
+                if (!text) {
+                    if (injectFeedback) injectFeedback.innerHTML = '';
+                    return;
+                }
+                const parsed = window.nodeManager?.extractJsonFromAiResponse(text);
+                if (parsed && typeof parsed === 'object') {
+                    const keys = Object.keys(parsed);
+                    if (injectFeedback) {
+                        injectFeedback.innerHTML = `<span style="color: #3fb950;">✅ 유효한 JSON 인식됨 (${keys.length}개 속성 감지: <strong>${keys.slice(0, 4).join(', ')}${keys.length > 4 ? '...' : ''}</strong>)</span>`;
+                    }
+                } else {
+                    if (injectFeedback) {
+                        injectFeedback.innerHTML = `<span style="color: #f85149;">⚠️ 유효한 JSON을 찾을 수 없습니다. 형식을 확인해 주세요.</span>`;
+                    }
+                }
+            };
+        }
+
+        // 6. 노드에 값 적용 버튼 이벤트
+        if (applyBtn) {
+            applyBtn.onclick = async () => {
+                const rawText = jsonInput?.value?.trim();
+                if (!rawText) {
+                    window.showToast?.('붙여넣을 JSON 데이터가 없습니다.', 'warning');
+                    return;
+                }
+
+                try {
+                    await window.nodeManager?.injectValuesToNode(fileId, rawText);
+                    this.hideNodeIoModal();
+                } catch (err) {
+                    window.showToast?.(`값 주입 실패: ${err.message}`, 'error');
+                }
+            };
+        }
+
+        switchTab(defaultTab);
+        modal.classList.remove('hidden');
+    }
+
+    /**
+     * 노드 IO 모달 닫기
+     */
+    hideNodeIoModal() {
+        document.getElementById('nodeIoModal')?.classList.add('hidden');
     }
 
     async saveNodePortEdit() {

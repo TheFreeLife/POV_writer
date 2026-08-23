@@ -1388,6 +1388,64 @@ return { 총합, 랭크 };</pre>
     </div>
   </div>
 
+  <!-- 노드 입력값 JSON 데이터 뷰어 & 주입 모달 -->
+  <div id="nodeIoModal" class="modal-overlay hidden">
+    <div class="modal" style="max-width: 620px; width: 90vw; position: relative;">
+      <div class="modal-header" style="border-bottom: 1px solid var(--color-border); padding-bottom: 12px; margin-bottom: 14px; display: flex; justify-content: space-between; align-items: center;">
+        <h2 class="modal-title" style="font-size: 16px; font-weight: 700; display: flex; align-items: center; gap: 8px;">
+          <span id="nodeIoModalIcon">🧩</span> <span id="nodeIoModalTitle">노드 입력값 JSON 데이터</span>
+        </h2>
+        <button id="closeNodeIoModalBtn"
+          style="background: transparent; border: none; font-size: 18px; color: var(--color-text-tertiary); cursor: pointer; padding: 4px 8px; border-radius: 4px;">✕</button>
+      </div>
+
+      <!-- 탭 바 -->
+      <div class="node-io-tabs" style="display: flex; gap: 8px; border-bottom: 1px solid var(--color-border); padding-bottom: 8px; margin-bottom: 14px;">
+        <button class="node-io-tab active" data-tab="view" style="flex: 1; padding: 8px 12px; font-size: 12px; font-weight: 700; border-radius: 6px; border: 1px solid var(--color-border); background: var(--color-bg-secondary); color: var(--color-text-primary); cursor: pointer;">👁️ 입력값 JSON 보기 / 복사</button>
+        <button class="node-io-tab" data-tab="inject" style="flex: 1; padding: 8px 12px; font-size: 12px; font-weight: 700; border-radius: 6px; border: 1px solid var(--color-border); background: transparent; color: var(--color-text-secondary); cursor: pointer;">📥 JSON 붙여넣기 / 주입</button>
+      </div>
+
+      <div class="modal-body" style="max-height: 480px; overflow-y: auto;">
+        <!-- 탭 1: 입력값 JSON 보기 / 복사 -->
+        <div id="nodeIoTabView" class="node-io-tab-content">
+          <div style="font-size: 12px; color: var(--color-text-secondary); margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center;">
+            <span>💡 이 노드의 실제 입력 필드와 값 구조입니다:</span>
+            <span id="nodeIoFieldCount" style="font-size: 11px; color: #00ffcc; background: rgba(0,255,204,0.1); padding: 2px 6px; border-radius: 4px;">0개 필드</span>
+          </div>
+          <div style="position: relative;">
+            <textarea id="nodeIoJsonViewer" readonly spellcheck="false" style="width: 100%; height: 260px; font-family: var(--font-mono, monospace); font-size: 12px; line-height: 1.5; padding: 12px; background: var(--color-bg-primary); border: 1px solid var(--color-border); border-radius: 8px; color: #7ee787; resize: vertical; box-sizing: border-box;"></textarea>
+          </div>
+        </div>
+
+        <!-- 탭 2: JSON 붙여넣기 / 주입 -->
+        <div id="nodeIoTabInject" class="node-io-tab-content hidden">
+          <div style="font-size: 12px; color: var(--color-text-secondary); margin-bottom: 8px;">
+            <span>💡 외부 AI(Claude, ChatGPT 등)가 생성한 JSON 또는 텍스트를 그대로 붙여넣으세요:</span>
+          </div>
+          <textarea id="nodeIoJsonInput" placeholder="여기에 JSON 또는 AI 답변(마크다운 ```json 코드블록 포함)을 붙여넣으세요..." spellcheck="false" style="width: 100%; height: 220px; font-family: var(--font-mono, monospace); font-size: 12px; line-height: 1.5; padding: 12px; background: var(--color-bg-primary); border: 1px solid var(--color-border); border-radius: 8px; color: var(--color-text-primary); resize: vertical; box-sizing: border-box;"></textarea>
+          <div id="nodeIoInjectFeedback" style="margin-top: 8px; font-size: 12px; min-height: 20px;"></div>
+        </div>
+      </div>
+
+      <div class="modal-footer" style="display: flex; justify-content: space-between; align-items: center; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--color-border);">
+        <div id="nodeIoFooterLeft" style="display: flex; gap: 8px;">
+          <button class="btn btn-secondary btn-sm" id="nodeIoCopyBtn" style="color: #00ffcc; border-color: rgba(0,255,204,0.3);">
+            <span>📋</span> <span>JSON 복사</span>
+          </button>
+          <button class="btn btn-secondary btn-sm" id="nodeIoSaveFileBtn" style="color: #7b68ee; border-color: rgba(123,104,238,0.3);">
+            <span>💾</span> <span>파일 저장 (위치 선택)</span>
+          </button>
+        </div>
+        <div id="nodeIoFooterRight" style="display: flex; gap: 8px;">
+          <button class="btn btn-secondary" id="nodeIoCancelBtn">닫기</button>
+          <button class="btn btn-primary" id="nodeIoApplyBtn" style="background: var(--color-accent-primary); display: none;">
+            <span>✨</span> <span>노드에 값 적용</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- JavaScript 모듈 -->
   <script src="js/rag-engine.js"></script>
   <script src="js/ai-api.js"></script>

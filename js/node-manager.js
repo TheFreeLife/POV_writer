@@ -319,6 +319,278 @@ class NodeManager {
     getAllNodes() {
         return Array.from(this.nodes.values());
     }
+
+    /**
+     * 🎯 해당 노드의 실제 입력값(위젯 데이터)만 순수 Key-Value 객체로 추출
+     * 인풋 핀 및 내부 시스템 메타데이터는 제외하고 사용자가 입력한 데이터만 정제
+     */
+    getNodeInputValues(fileId) {
+        const wm = window.windowManager;
+        const info = wm?.getWindowInfo(fileId);
+        const node = this.getNode(fileId);
+        const file = node ? node.toJSON() : (info?.file || null);
+        if (!file) return {};
+
+        const norm = window.nodeEngine?.normalizeNodeData(file) || {};
+        let contentData = { ...(norm.contentData || {}) };
+        const widgets = norm.widgets || [];
+
+        // 1. 현재 화면 DOM에서 사용자가 수정한 실시간 입력값 동기화
+        const winEl = info?.element || document.querySelector(`.editor-window[data-file-id="${fileId}"]`);
+        if (winEl) {
+            const textareas = winEl.querySelectorAll('textarea');
+            textareas.forEach(ta => {
+                const wKey = ta.dataset.widgetKey;
+                if (wKey) {
+                    contentData[wKey] = ta.value;
+                } else if (ta.classList.contains('widget-editor-textarea') || ta.classList.contains('window-textarea')) {
+                    contentData.editorVal = ta.value;
+                    contentData.content = ta.value;
+                }
+            });
+            const inputFields = winEl.querySelectorAll('.widget-input-field');
+            inputFields.forEach(inp => {
+                const wKey = inp.dataset.widgetKey || 'val';
+                contentData[wKey] = inp.value;
+            });
+            const toggleInputs = winEl.querySelectorAll('.widget-toggle-input');
+            toggleInputs.forEach(chk => {
+                const wKey = chk.dataset.widgetKey || 'isEnabled';
+                contentData[wKey] = chk.checked;
+            });
+            const selectDropdowns = winEl.querySelectorAll('.widget-dropdown-select');
+            selectDropdowns.forEach(sel => {
+                const wKey = sel.dataset.widgetKey || 'selectVal';
+                contentData[wKey] = sel.value;
+            });
+        }
+
+        // 2. 위젯에 정의된 key 목록을 우선하여 순수 입력값만 추출
+        const cleanValues = {};
+        if (widgets.length > 0) {
+            widgets.forEach(w => {
+                // 섹션 헤더, 뷰어, 게이트 등 표시 전용 위젯은 제외
+                if (w.type === 'section_header' || w.type === 'text_viewer' || w.type === 'approval_gate' || w.type === 'continue_gate') {
+                    return;
+                }
+                const key = w.key || w.id || w.label || 'val';
+                let val = contentData[key] !== undefined ? contentData[key] :
+                          (w.label && contentData[w.label] !== undefined ? contentData[w.label] :
+                          (contentData.val !== undefined ? contentData.val : (w.defaultVal || '')));
+                cleanValues[key] = val;
+            });
+        }
+
+        // 위젯 정의가 없거나 manuscript(원고)/일반 텍스트 노드인 경우
+        if (Object.keys(cleanValues).length === 0) {
+            if (contentData.editorVal !== undefined) cleanValues.editorVal = contentData.editorVal;
+            else if (contentData.content !== undefined) cleanValues.content = contentData.content;
+            else if (typeof file.content === 'string') cleanValues.content = file.content;
+            else if (typeof file.content === 'object') {
+                Object.entries(file.content).forEach(([k, v]) => {
+                    if (!k.startsWith('_') && k !== 'widgets' && k !== 'isApproved' && k !== 'isContinued') {
+                        cleanValues[k] = v;
+                    }
+                });
+            }
+        }
+
+        return cleanValues;
+    }
+
+    /**
+     * 📋 해당 노드의 입력값 데이터를 예쁘게 포맷팅된 JSON 문자열로 반환
+     */
+    getNodeInputValuesJson(fileId) {
+        const values = this.getNodeInputValues(fileId);
+        return JSON.stringify(values, null, 2);
+    }
+
+    /**
+     * 🤖 외부 AI 응답(마크다운 코드블록, 앞뒤 사족, 후행 쉼표 등)에서 순수 JSON을 안전하게 추출
+     */
+    extractJsonFromAiResponse(rawText) {
+        if (!rawText || typeof rawText !== 'string') return null;
+
+        let text = rawText.trim();
+
+        // 1단계: ```json ... ``` 또는 ``` ... ``` 마크다운 코드블록 추출
+        const codeBlockMatch = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+        if (codeBlockMatch && codeBlockMatch[1]) {
+            text = codeBlockMatch[1].trim();
+        }
+
+        // 2단계: 시작 { (또는 [) 와 끝 } (또는 ]) 범위 탐색
+        const firstBrace = text.indexOf('{');
+        const firstBracket = text.indexOf('[');
+        
+        let startIdx = -1;
+        if (firstBrace !== -1 && firstBracket !== -1) {
+            startIdx = Math.min(firstBrace, firstBracket);
+        } else if (firstBrace !== -1) {
+            startIdx = firstBrace;
+        } else if (firstBracket !== -1) {
+            startIdx = firstBracket;
+        }
+
+        if (startIdx !== -1) {
+            const isObject = text[startIdx] === '{';
+            const lastIdx = isObject ? text.lastIndexOf('}') : text.lastIndexOf(']');
+            if (lastIdx > startIdx) {
+                text = text.substring(startIdx, lastIdx + 1);
+            }
+        }
+
+        // 3단계: JSON 파싱 및 후행 쉼표 보정
+        try {
+            return JSON.parse(text);
+        } catch (err) {
+            try {
+                // AI 오타(마지막 쉼표 ,}) 보정
+                const sanitized = text.replace(/,\s*([}\]])/g, '$1');
+                return JSON.parse(sanitized);
+            } catch (finalErr) {
+                console.error('[NodeManager] JSON 파싱 실패:', text);
+                return null;
+            }
+        }
+    }
+
+    /**
+     * 📥 JSON 데이터를 특정 노드의 입력 필드들에 스마트하게 주입(Inject) 및 저장
+     */
+    async injectValuesToNode(fileId, jsonOrText) {
+        let dataObj = typeof jsonOrText === 'object' && jsonOrText !== null ? jsonOrText : this.extractJsonFromAiResponse(jsonOrText);
+        if (!dataObj || typeof dataObj !== 'object') {
+            throw new Error('유효한 JSON 데이터를 인식할 수 없습니다.');
+        }
+
+        // 배열로 온 경우 첫 번째 요소 사용
+        if (Array.isArray(dataObj)) {
+            dataObj = dataObj[0] || {};
+        }
+
+        const wm = window.windowManager;
+        const info = wm?.getWindowInfo(fileId);
+        const node = this.getNode(fileId);
+        const file = node ? node.toJSON() : (info?.file || await window.storage?.getFile(fileId));
+        if (!file) throw new Error('대상 노드를 찾을 수 없습니다.');
+
+        const norm = window.nodeEngine?.normalizeNodeData(file) || {};
+        const contentData = norm.contentData || {};
+        const widgets = norm.widgets || [];
+
+        let matchedCount = 0;
+
+        // 1. 위젯 필드 매핑 및 값 채우기 (정확한 키 매칭 + 라벨 매칭 + 대소문자 무시 매칭)
+        const lowerDataKeys = {};
+        Object.entries(dataObj).forEach(([k, v]) => {
+            lowerDataKeys[k.toLowerCase().replace(/[\s_-]/g, '')] = v;
+        });
+
+        widgets.forEach(w => {
+            const key = w.key || w.id || w.label;
+            const label = w.label;
+            
+            let assignedVal = undefined;
+            if (dataObj[key] !== undefined) {
+                assignedVal = dataObj[key];
+            } else if (label && dataObj[label] !== undefined) {
+                assignedVal = dataObj[label];
+            } else {
+                // 유사 키 매칭
+                const normK = (key || '').toLowerCase().replace(/[\s_-]/g, '');
+                const normL = (label || '').toLowerCase().replace(/[\s_-]/g, '');
+                if (lowerDataKeys[normK] !== undefined) assignedVal = lowerDataKeys[normK];
+                else if (lowerDataKeys[normL] !== undefined) assignedVal = lowerDataKeys[normL];
+            }
+
+            if (assignedVal !== undefined) {
+                const finalStr = typeof assignedVal === 'object' ? JSON.stringify(assignedVal, null, 2) : assignedVal;
+                contentData[key] = finalStr;
+                if (w.key) contentData[w.key] = finalStr;
+                if (w.label) contentData[w.label] = finalStr;
+                matchedCount++;
+            }
+        });
+
+        // 2. 위젯에 직접 매핑되지 않은 키들도 contentData에 보존
+        Object.entries(dataObj).forEach(([k, v]) => {
+            if (contentData[k] === undefined) {
+                contentData[k] = typeof v === 'object' ? JSON.stringify(v, null, 2) : v;
+            }
+        });
+
+        // 3. 원고(manuscript) 또는 단일 텍스트 노드인 경우 editorVal 지원
+        if (widgets.length === 0 || norm.nodeType === 'manuscript') {
+            const possibleVal = dataObj.editorVal || dataObj.content || dataObj.text || dataObj.val || (typeof dataObj === 'string' ? dataObj : JSON.stringify(dataObj, null, 2));
+            if (possibleVal) {
+                contentData.editorVal = possibleVal;
+                contentData.content = possibleVal;
+                matchedCount++;
+            }
+        }
+
+        // 4. DB 및 활성 노드 인스턴스 갱신
+        file.content = JSON.stringify(contentData, null, 2);
+        await window.storage?.updateFile(fileId, { content: file.content });
+
+        if (node) {
+            node.content = file.content;
+        }
+        if (info && info.file) {
+            info.file.content = file.content;
+        }
+
+        // 5. DOM 화면 즉시 리프레시
+        if (wm) {
+            wm.refreshNodeUI(fileId);
+        }
+
+        window.showToast?.(`'${file.name || '노드'}'에 ${matchedCount}개 필드 값이 성공적으로 주입되었습니다! ✨`);
+        return { matchedCount, contentData };
+    }
+
+    /**
+     * 💾 윈도우 탐색기 저장 창(showSaveFilePicker)을 띄워 사용자가 지정한 위치에 파일 저장
+     */
+    async saveJsonWithDirectoryPicker(suggestedFilename, jsonString) {
+        const cleanName = suggestedFilename.endsWith('.json') ? suggestedFilename : `${suggestedFilename}.json`;
+
+        // 1. 최신 브라우저 File System Access API (폴더 위치 선택 탐색기 창 열림)
+        if (window.showSaveFilePicker) {
+            try {
+                const handle = await window.showSaveFilePicker({
+                    suggestedName: cleanName,
+                    types: [{
+                        description: 'JSON 파일 (*.json)',
+                        accept: { 'application/json': ['.json'] }
+                    }]
+                });
+                const writable = await handle.createWritable();
+                await writable.write(jsonString);
+                await writable.close();
+                window.showToast?.(`'${handle.name || cleanName}' 파일이 성공적으로 저장되었습니다! 💾`);
+                return true;
+            } catch (err) {
+                if (err.name === 'AbortError') return false; // 사용자가 저장을 취소한 경우
+                console.warn('[NodeManager] showSaveFilePicker 오류, 표준 다운로드로 전환:', err);
+            }
+        }
+
+        // 2. Fallback: 표준 브라우저 다운로드
+        const blob = new Blob([jsonString], { type: 'application/json;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = cleanName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        window.showToast?.(`'${cleanName}' 파일 다운로드가 시작되었습니다! 💾`);
+        return true;
+    }
 }
 
 window.NodeModel = NodeModel;

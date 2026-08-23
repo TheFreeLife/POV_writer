@@ -875,3 +875,17 @@ body {
   margin-top: auto;
   padding-top: 4px;
 }
+
+/* 노드 JSON IO 모달 탭 스타일 */
+.node-io-tab {
+  transition: all 0.2s ease;
+}
+.node-io-tab.active {
+  background: rgba(88, 166, 255, 0.15) !important;
+  border-color: #58a6ff !important;
+  color: #58a6ff !important;
+}
+.node-io-tab:hover:not(.active) {
+  background: rgba(255, 255, 255, 0.05) !important;
+  color: var(--color-text-primary) !important;
+}
