@@ -600,7 +600,7 @@ class WindowManager {
         if (!container) return;
 
         container.style.transformOrigin = '0 0';
-        container.style.transform = `translate(${this.panX}px, ${this.panY}px) scale(${this.scale})`;
+        container.style.transform = `translate3d(${this.panX}px, ${this.panY}px, 0) scale(${this.scale})`;
 
         // 도트 배경 동기화 (CSS Variables 활용)
         const area = document.getElementById('canvasArea');
@@ -614,22 +614,44 @@ class WindowManager {
             area.style.setProperty('--dot-opacity', dotOpacity);
         }
 
-        // 화면 밖 노드 위치 레이더 갱신
-        this.updateNodeEdgeIndicators();
+        // 화면 밖 노드 위치 레이더 갱신 (활성화된 경우에만 실행)
+        if (this.isNodeGuideEnabled) {
+            this.updateNodeEdgeIndicators();
+        }
     }
 
     /**
-     * 프로젝트 캔버스 상태 저장 (로컬 스토리지)
+     * 프로젝트 캔버스 상태 저장 (디바운스 300ms 최적화)
      */
-    async saveProjectCanvasState() {
+    saveProjectCanvasState() {
+        if (this._canvasStateDebounceTimer) {
+            clearTimeout(this._canvasStateDebounceTimer);
+        }
+        this._canvasStateDebounceTimer = setTimeout(() => {
+            this.saveProjectCanvasStateImmediate();
+        }, 300);
+    }
+
+    /**
+     * 프로젝트 캔버스 상태 즉시 저장 (마우스 업 등)
+     */
+    async saveProjectCanvasStateImmediate() {
         if (!window.currentProjectId) return;
-        await storage.updateProject(window.currentProjectId, {
-            canvasState: {
-                scale: this.scale,
-                panX: this.panX,
-                panY: this.panY
-            }
-        });
+        if (this._canvasStateDebounceTimer) {
+            clearTimeout(this._canvasStateDebounceTimer);
+            this._canvasStateDebounceTimer = null;
+        }
+        try {
+            await storage.updateProject(window.currentProjectId, {
+                canvasState: {
+                    scale: this.scale,
+                    panX: this.panX,
+                    panY: this.panY
+                }
+            });
+        } catch (e) {
+            console.warn('[WindowManager] 캔버스 상태 저장 실패:', e);
+        }
     }
 
     async restoreSession() {
@@ -2049,7 +2071,6 @@ class WindowManager {
             this.panX = this.panState.origPanX + dx;
             this.panY = this.panState.origPanY + dy;
             this.applyTransform();
-            this.saveProjectCanvasState();
         }
     }
 
@@ -2110,8 +2131,14 @@ class WindowManager {
             document.body.style.userSelect = '';
         }
 
-        if (this.panState || this.selectionState) {
+        if (this.panState) {
             this.panState = null;
+            document.body.style.cursor = '';
+            document.body.style.userSelect = '';
+            this.saveProjectCanvasStateImmediate();
+        }
+
+        if (this.selectionState) {
             this.selectionState = null;
             document.body.style.cursor = '';
             document.body.style.userSelect = '';

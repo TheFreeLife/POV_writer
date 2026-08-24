@@ -485,6 +485,9 @@
     height: 20000px;
     left: 0;
     top: 0;
+    will-change: transform;
+    transform-origin: 0 0;
+    backface-visibility: hidden;
 }
 
 /* 줌 인디케이터 */
@@ -528,6 +531,7 @@
     overflow: visible;
     transition: box-shadow 0.2s ease;
     margin: 0 24px; /* 노드 간 이음선을 위한 좌우 여백 공간 확보 */
+    contain: layout style;
 }
 
 /* SVG 노드 연결선 레이어 */
