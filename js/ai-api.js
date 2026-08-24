@@ -388,6 +388,12 @@ class AiApiManager {
                         resultSummary = Array.isArray(execResult) ? `${execResult.length}개 노드 매칭` : (execResult?.message || '검색 완료');
                     } else if (callName === 'read_node_detail') {
                         resultSummary = execResult?.nodeName ? `'${execResult.nodeName}' 상세 데이터 열람` : '열람 완료';
+                    } else if (callName === 'create_node') {
+                        resultSummary = execResult?.status === 'pending_approval' ? `'${execResult.nodeName || callArgs.name}' 생성 승인 제안` : `'${execResult.nodeName || callArgs.name}' 생성 완료`;
+                    } else if (callName === 'update_node') {
+                        resultSummary = execResult?.status === 'pending_approval' ? `'${execResult.nodeName || callArgs.nodeName}' 수정 승인 제안` : `'${execResult.nodeName || callArgs.nodeName}' 수정 완료`;
+                    } else if (callName === 'delete_node') {
+                        resultSummary = execResult?.status === 'pending_approval' ? `'${execResult.nodeName || callArgs.nodeName}' 삭제 승인 제안` : `'${execResult.nodeName || callArgs.nodeName}' 삭제 완료`;
                     }
 
                     toolCallsLog.push({ turn, name: callName, args: callArgs, resultSummary });
@@ -418,6 +424,47 @@ class AiApiManager {
 
             // 더 이상 툴 호출이 없으면 종료
             break;
+        }
+
+        // 🌟 [최종 답변 합성 턴 - Synthesis Turn]
+        // 턴 제한에 도달했거나 도구만 실행되고 최종 본문 텍스트 생성이 누락된 경우, 도구 없이 최종 정리 답변을 1회 강제 요청!
+        if ((!finalText || finalText.trim() === '') && toolCallsLog.length > 0) {
+            try {
+                const finalPromptContents = [
+                    ...contents,
+                    {
+                        role: 'user',
+                        parts: [{ text: '지금까지 수집하고 실행된 모든 도구 결과 데이터를 종합하여, 사용자에게 친절하고 완결된 최종 한국어 답변을 작성해 주세요.' }]
+                    }
+                ];
+                const finalPayload = {
+                    contents: finalPromptContents,
+                    generationConfig: {
+                        temperature: Math.max(0, Math.min(2.0, temperature))
+                    }
+                };
+                if (systemPrompt) {
+                    finalPayload.system_instruction = { parts: [{ text: systemPrompt }] };
+                }
+
+                const finalData = await this._fetchGeminiRobust(targetModel, apiKey, finalPayload, endpoint);
+                const finalCandidate = finalData.candidates?.[0];
+                const finalParts = finalCandidate?.content?.parts || [];
+                const finalCollectedText = finalParts.filter(p => p.text).map(p => p.text).join('\n').trim();
+                if (finalCollectedText) {
+                    finalText = finalCollectedText;
+                }
+            } catch (synthErr) {
+                console.warn('Gemini 최종 합성 턴 오류:', synthErr);
+            }
+        }
+
+        // 🌟 3단계 안전망: 그래도 비어있다면 도구 실행 로그 기반 요약 자동 생성
+        if (!finalText || finalText.trim() === '') {
+            const summaries = toolCallsLog.map(l => l.resultSummary || l.name).filter(Boolean);
+            if (summaries.length > 0) {
+                finalText = `요청하신 작업(${summaries.slice(0, 3).join(', ')}${summaries.length > 3 ? ' 외' : ''})을 완료했습니다. 상세 내용은 카드 또는 노드를 확인해 주세요! ✨`;
+            }
         }
 
         // 마크다운 보고서 생성
@@ -494,8 +541,26 @@ class AiApiManager {
                     let callArgs = {};
                     try { callArgs = JSON.parse(tc.function.arguments || '{}'); } catch (e) {}
 
-                    toolCallsLog.push({ turn, name: callName, args: callArgs });
                     const execResult = await toolExecutor(callName, callArgs);
+
+                    let resultSummary = '';
+                    if (callName === 'list_project_nodes') {
+                        const chars = execResult?.characters?.length || (execResult?.category === 'characters' ? execResult.total : 0);
+                        const lore = execResult?.lore?.length || 0;
+                        resultSummary = `인물 ${chars}건, 세계관 ${lore}건 목록 조회`;
+                    } else if (callName === 'search_story_nodes') {
+                        resultSummary = Array.isArray(execResult) ? `${execResult.length}개 노드 매칭` : (execResult?.message || '검색 완료');
+                    } else if (callName === 'read_node_detail') {
+                        resultSummary = execResult?.nodeName ? `'${execResult.nodeName}' 상세 데이터 열람` : '열람 완료';
+                    } else if (callName === 'create_node') {
+                        resultSummary = execResult?.status === 'pending_approval' ? `'${execResult.nodeName || callArgs.name}' 생성 승인 제안` : `'${execResult.nodeName || callArgs.name}' 생성 완료`;
+                    } else if (callName === 'update_node') {
+                        resultSummary = execResult?.status === 'pending_approval' ? `'${execResult.nodeName || callArgs.nodeName}' 수정 승인 제안` : `'${execResult.nodeName || callArgs.nodeName}' 수정 완료`;
+                    } else if (callName === 'delete_node') {
+                        resultSummary = execResult?.status === 'pending_approval' ? `'${execResult.nodeName || callArgs.nodeName}' 삭제 승인 제안` : `'${execResult.nodeName || callArgs.nodeName}' 삭제 완료`;
+                    }
+
+                    toolCallsLog.push({ turn, name: callName, args: callArgs, resultSummary });
 
                     if (callName === 'searchLorebookRAG' && execResult?.results) {
                         ragResults.push(...execResult.results);
@@ -513,6 +578,46 @@ class AiApiManager {
             }
 
             break;
+        }
+
+        // 🌟 [최종 답변 합성 턴 - Synthesis Turn for OpenAI]
+        if ((!finalText || finalText.trim() === '') && toolCallsLog.length > 0) {
+            try {
+                const finalMessages = [
+                    ...messages,
+                    {
+                        role: 'user',
+                        content: '지금까지 수집하고 실행된 모든 도구 결과 데이터를 종합하여, 사용자에게 친절하고 완결된 최종 한국어 답변을 작성해 주세요.'
+                    }
+                ];
+                const res = await fetch(endpoint || 'https://api.openai.com/v1/chat/completions', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${apiKey}`
+                    },
+                    body: JSON.stringify({
+                        model: model || 'gpt-4o-mini',
+                        temperature: Math.max(0, Math.min(2.0, temperature)),
+                        messages: finalMessages
+                    })
+                });
+                const data = await res.json();
+                const reply = data.choices?.[0]?.message?.content;
+                if (reply && reply.trim()) {
+                    finalText = reply.trim();
+                }
+            } catch (synthErr) {
+                console.warn('OpenAI 최종 합성 턴 오류:', synthErr);
+            }
+        }
+
+        // 🌟 3단계 안전망: 그래도 비어있다면 도구 실행 로그 기반 요약 자동 생성
+        if (!finalText || finalText.trim() === '') {
+            const summaries = toolCallsLog.map(l => l.resultSummary || l.name).filter(Boolean);
+            if (summaries.length > 0) {
+                finalText = `요청하신 작업(${summaries.slice(0, 3).join(', ')}${summaries.length > 3 ? ' 외' : ''})을 완료했습니다. 상세 내용은 카드 또는 노드를 확인해 주세요! ✨`;
+            }
         }
 
         const ragLogsMarkdown = this._formatRagLogsMarkdown(ragResults);

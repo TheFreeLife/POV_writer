@@ -25,6 +25,8 @@ class ToolsPanel {
         this.agentHistory = [];
         this.isAgentLoading = false;
         this.lastReferencedNodes = [];
+        this.agentMode = localStorage.getItem('agent_mode') || 'ask'; // 'ask' (기본: 승인 후 적용) | 'accept' (자동 적용) | 'plan' (계획 수립)
+        this.pendingActionsMap = new Map(); // actionId -> { type, data, status: 'pending'|'applied'|'rejected', createdAt, diff, preview }
 
         this.init();
     }
@@ -375,6 +377,7 @@ class ToolsPanel {
     renderAgent() {
         const currentConfig = this.getAiConfigSync();
         const isDrawerOpen = !!this.isAgentConfigDrawerOpen;
+        const mode = this.agentMode || 'ask';
 
         return `
             <div class="agent-panel-container" style="display: flex; flex-direction: column; height: 100%; box-sizing: border-box; gap: 6px;">
@@ -389,6 +392,19 @@ class ToolsPanel {
                     </div>
                     <button type="button" class="btn btn-secondary btn-xs" id="agentClearChatBtn" style="font-size: 10px; padding: 2px 6px;" title="대화 기록 비우기">
                         🔄 비우기
+                    </button>
+                </div>
+
+                <!-- 1-1. 🎛️ 에이전트 작업 모드 선택 바 (Ask / Accept / Plan) -->
+                <div class="agent-mode-selector" style="display: flex; gap: 4px; background: var(--color-surface-2); padding: 3px; border-radius: 8px; border: 1px solid var(--color-border); flex-shrink: 0;">
+                    <button type="button" class="btn-agent-mode ${mode === 'ask' ? 'active' : ''}" data-mode="ask" style="flex: 1; padding: 4px 2px; font-size: 10px; font-weight: 700; border-radius: 5px; border: 1px solid ${mode === 'ask' ? 'rgba(56, 189, 248, 0.4)' : 'transparent'}; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 3px; transition: all 0.2s; background: ${mode === 'ask' ? 'rgba(56, 189, 248, 0.2)' : 'transparent'}; color: ${mode === 'ask' ? '#38bdf8' : 'var(--color-text-tertiary)'};" title="AI의 노드 추가/수정/삭제 제안을 확인하고 승인 후 적용합니다. (기본 모드)">
+                        <span>🛡️</span> <span>승인 후 적용</span>
+                    </button>
+                    <button type="button" class="btn-agent-mode ${mode === 'accept' ? 'active' : ''}" data-mode="accept" style="flex: 1; padding: 4px 2px; font-size: 10px; font-weight: 700; border-radius: 5px; border: 1px solid ${mode === 'accept' ? 'rgba(16, 185, 129, 0.4)' : 'transparent'}; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 3px; transition: all 0.2s; background: ${mode === 'accept' ? 'rgba(16, 185, 129, 0.2)' : 'transparent'}; color: ${mode === 'accept' ? '#10b981' : 'var(--color-text-tertiary)'};" title="노드 생성/수정/삭제를 확인 없이 즉시 자동 적용합니다. (accept-edits)">
+                        <span>⚡</span> <span>자동 적용</span>
+                    </button>
+                    <button type="button" class="btn-agent-mode ${mode === 'plan' ? 'active' : ''}" data-mode="plan" style="flex: 1; padding: 4px 2px; font-size: 10px; font-weight: 700; border-radius: 5px; border: 1px solid ${mode === 'plan' ? 'rgba(168, 85, 247, 0.4)' : 'transparent'}; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 3px; transition: all 0.2s; background: ${mode === 'plan' ? 'rgba(168, 85, 247, 0.2)' : 'transparent'}; color: ${mode === 'plan' ? '#c084fc' : 'var(--color-text-tertiary)'};" title="노드를 직접 변경하지 않고 현황 분석 및 단계별 수정 계획서만 작성합니다. (Plan)">
+                        <span>📋</span> <span>계획 수립</span>
                     </button>
                 </div>
 
@@ -490,8 +506,65 @@ class ToolsPanel {
         const inputEl = document.getElementById('agentInputText');
         const sendBtn = document.getElementById('agentSendBtn');
         const clearBtn = document.getElementById('agentClearChatBtn');
+        // 모드 전환 버튼 핸들러
+        document.querySelectorAll('.btn-agent-mode').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const targetMode = btn.getAttribute('data-mode') || 'ask';
+                this.agentMode = targetMode;
+                localStorage.setItem('agent_mode', targetMode);
 
-        // 드로어 토글
+                // 버튼 활성화 상태 갱신
+                document.querySelectorAll('.btn-agent-mode').forEach(b => {
+                    const m = b.getAttribute('data-mode');
+                    const isActive = m === targetMode;
+                    b.classList.toggle('active', isActive);
+                    if (m === 'ask') {
+                        b.style.background = isActive ? 'rgba(56, 189, 248, 0.2)' : 'transparent';
+                        b.style.color = isActive ? '#38bdf8' : 'var(--color-text-tertiary)';
+                        b.style.borderColor = isActive ? 'rgba(56, 189, 248, 0.4)' : 'transparent';
+                    } else if (m === 'accept') {
+                        b.style.background = isActive ? 'rgba(16, 185, 129, 0.2)' : 'transparent';
+                        b.style.color = isActive ? '#10b981' : 'var(--color-text-tertiary)';
+                        b.style.borderColor = isActive ? 'rgba(16, 185, 129, 0.4)' : 'transparent';
+                    } else if (m === 'plan') {
+                        b.style.background = isActive ? 'rgba(168, 85, 247, 0.2)' : 'transparent';
+                        b.style.color = isActive ? '#c084fc' : 'var(--color-text-tertiary)';
+                        b.style.borderColor = isActive ? 'rgba(168, 85, 247, 0.4)' : 'transparent';
+                    }
+                });
+
+                const modeLabels = {
+                    ask: '🛡️ 승인 후 적용 모드 (기본)',
+                    accept: '⚡ 자동 적용 모드 (accept-edits)',
+                    plan: '📋 계획 수립 모드 (Plan)'
+                };
+                window.showToast?.(`${modeLabels[targetMode]}로 전환되었습니다.`);
+            });
+        });
+
+        // 인터랙티브 액션 카드 (승인 / 거절) 이벤트 위임
+        const messagesList = document.getElementById('agentMessagesList');
+        if (messagesList && !messagesList._actionBound) {
+            messagesList._actionBound = true;
+            messagesList.addEventListener('click', async (e) => {
+                const approveBtn = e.target.closest('.btn-agent-action-approve');
+                const rejectBtn = e.target.closest('.btn-agent-action-reject');
+
+                if (approveBtn) {
+                    const actionId = approveBtn.getAttribute('data-action-id');
+                    if (actionId) {
+                        approveBtn.disabled = true;
+                        approveBtn.textContent = '⏳ 적용 중...';
+                        await this.handleApproveAction(actionId);
+                    }
+                } else if (rejectBtn) {
+                    const actionId = rejectBtn.getAttribute('data-action-id');
+                    if (actionId) {
+                        this.handleRejectAction(actionId);
+                    }
+                }
+            });
+        }
         const drawerHeader = document.getElementById('agentConfigToggleHeader');
         const drawerBody = document.getElementById('agentConfigBody');
         const drawerIcon = document.getElementById('agentConfigToggleIcon');
@@ -726,12 +799,22 @@ class ToolsPanel {
 
     renderAgentMessagesHtml() {
         if (!this.agentHistory || this.agentHistory.length === 0) {
+            const mode = this.agentMode || 'ask';
+            const modeDesc = {
+                ask: '🛡️ <b>승인 후 적용 모드</b>: 대화하며 필요한 노드 생성·수정·삭제를 제안하고 승인 시 적용합니다.',
+                accept: '⚡ <b>자동 적용 모드</b>: 대화 중 노드 생성·수정·삭제를 스스로 판단하여 즉시 캔버스에 반영합니다.',
+                plan: '📋 <b>계획 수립 모드</b>: 프로젝트를 심층 분석하여 체계적인 작업 계획서를 먼저 작성합니다.'
+            };
+
             return `
                 <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; min-height: 140px; text-align: center; color: var(--color-text-tertiary); padding: 16px 10px; gap: 8px;">
                     <span style="font-size: 28px; opacity: 0.8;">🤖✨</span>
-                    <div style="font-size: 12px; font-weight: bold; color: var(--color-text-primary);">POV 소설 총괄 비서</div>
-                    <div style="font-size: 11px; line-height: 1.6; max-width: 240px;">
-                        캔버스와 파일 트리의 모든 인물 카드, 세계관, 복선, 대본, 원고를 100% 실시간으로 꿰뚫고 답변해 드립니다.
+                    <div style="font-size: 12px; font-weight: bold; color: var(--color-text-primary);">POV 소설 총괄 비서 (Story Copilot)</div>
+                    <div style="font-size: 11px; line-height: 1.6; max-width: 260px; color: var(--color-text-secondary);">
+                        캔버스와 파일 트리의 모든 인물 카드, 세계관, 복선, 대본, 원고를 실시간으로 꿰뚫고 집필을 돕습니다.
+                    </div>
+                    <div style="font-size: 10px; line-height: 1.5; max-width: 260px; background: rgba(56, 189, 248, 0.08); border: 1px solid rgba(56, 189, 248, 0.2); padding: 6px 8px; border-radius: 6px; color: var(--color-text-primary); margin-top: 4px;">
+                        ${modeDesc[mode] || modeDesc.ask}
                     </div>
                 </div>
             `;
@@ -755,22 +838,29 @@ class ToolsPanel {
             const thinkingHtml = (!isUser && Array.isArray(msg.toolCallsLog) && msg.toolCallsLog.length > 0) ? `
                 <details style="margin-bottom: 6px; background: rgba(0,0,0,0.2); border-radius: 6px; padding: 4px 8px; border: 1px solid rgba(255,255,255,0.06); font-size: 10px;">
                     <summary style="cursor: pointer; color: var(--color-accent-primary, #38bdf8); font-weight: bold; user-select: none; font-size: 10px; display: flex; align-items: center; gap: 4px;">
-                        <span>💭 AI 사고 과정 & 도구 탐색 기록</span>
+                        <span>💭 AI 사고 과정 & 도구 실행 기록</span>
                         <span style="background: rgba(56, 189, 248, 0.15); padding: 1px 5px; border-radius: 8px; font-size: 9px;">${msg.toolCallsLog.length}회</span>
                     </summary>
                     <div style="margin-top: 6px; display: flex; flex-direction: column; gap: 4px; border-top: 1px dashed rgba(255,255,255,0.1); padding-top: 6px; font-size: 10px; color: var(--color-text-secondary);">
                         ${msg.toolCallsLog.map(t => {
-                            const argStr = Object.entries(t.args || {}).map(([k, v]) => `${k}="${v}"`).join(', ');
+                            const argStr = Object.entries(t.args || {}).map(([k, v]) => `${k}="${typeof v === 'object' ? JSON.stringify(v) : v}"`).join(', ');
                             return `
                                 <div style="display: flex; gap: 4px; align-items: baseline; flex-wrap: wrap;">
                                     <span style="color: #38bdf8; font-weight: bold;">[${t.turn}턴]</span>
-                                    <span style="font-family: monospace; color: var(--color-text-primary);"><b>${t.name}</b>(${argStr})</span>
+                                    <span style="font-family: monospace; color: var(--color-text-primary);"><b>${t.name}</b>(${this.escapeHtml(argStr)})</span>
                                     ${t.resultSummary ? `<span style="color: var(--color-text-tertiary);">➔ ${this.escapeHtml(t.resultSummary)}</span>` : ''}
                                 </div>
                             `;
                         }).join('')}
                     </div>
                 </details>
+            ` : '';
+
+            // 📦 승인 대기 / 실행된 액션 카드 렌더링
+            const actionCardsHtml = (!isUser && Array.isArray(msg.actions) && msg.actions.length > 0) ? `
+                <div style="display: flex; flex-direction: column; gap: 6px; margin-top: 8px;">
+                    ${msg.actions.map(actId => this.renderSingleActionCardHtml(actId)).join('')}
+                </div>
             ` : '';
 
             return `
@@ -782,11 +872,135 @@ class ToolsPanel {
                     <div style="max-width: 92%; background: ${bubbleBg}; border: 1px solid ${bubbleBorder}; border-radius: 8px; padding: 8px 10px; font-size: 12px; line-height: 1.6; color: var(--color-text-primary); word-break: break-word; box-sizing: border-box;">
                         ${thinkingHtml}
                         ${isUser ? this.escapeHtml(msg.content).replace(/\n/g, '<br>') : this.formatAgentMarkdown(msg.content)}
+                        ${actionCardsHtml}
                         ${citationsHtml}
                     </div>
                 </div>
             `;
         }).join('');
+    }
+
+    /**
+     * 📦 개별 액션 카드(승인/거절/완료) 렌더링
+     */
+    renderSingleActionCardHtml(actionId) {
+        const act = this.pendingActionsMap.get(actionId);
+        if (!act) return '';
+
+        const type = act.type;
+        const status = act.status || 'pending';
+        const data = act.data || {};
+
+        let title = '';
+        let badgeColor = '#38bdf8';
+        let icon = '⚡';
+        let bodyHtml = '';
+
+        if (type === 'create_node') {
+            title = `새 노드 생성: '${data.name || '새 노드'}'`;
+            badgeColor = '#10b981';
+            icon = '✨';
+
+            const fieldsList = data.fields ? Object.entries(data.fields).map(([k, v]) => `
+                <div style="display: flex; gap: 6px; font-size: 11px;">
+                    <span style="color: var(--color-text-tertiary); min-width: 60px;">• ${this.escapeHtml(k)}:</span>
+                    <span style="color: var(--color-text-primary); font-weight: 500;">${this.escapeHtml(String(v))}</span>
+                </div>
+            `).join('') : '';
+
+            bodyHtml = `
+                <div style="font-size: 11px; color: var(--color-text-secondary); display: flex; flex-direction: column; gap: 3px;">
+                    <div style="display: flex; gap: 6px;"><span style="color: var(--color-text-tertiary);">카테고리:</span> <span style="color: #38bdf8; font-weight: bold;">${this.escapeHtml(data.category || data.presetId || 'general')}</span></div>
+                    ${data.description ? `<div style="display: flex; gap: 6px;"><span style="color: var(--color-text-tertiary);">설명:</span> <span>${this.escapeHtml(data.description)}</span></div>` : ''}
+                    ${fieldsList ? `<div style="margin-top: 4px; padding-top: 4px; border-top: 1px dashed rgba(255,255,255,0.1); display: flex; flex-direction: column; gap: 2px;">${fieldsList}</div>` : ''}
+                    ${data.content ? `<div style="margin-top: 4px; padding: 4px 6px; background: rgba(0,0,0,0.2); border-radius: 4px; font-size: 10px; font-family: monospace; white-space: pre-wrap; max-height: 80px; overflow-y: auto;">${this.escapeHtml(data.content.slice(0, 150))}${data.content.length > 150 ? '...' : ''}</div>` : ''}
+                </div>
+            `;
+        } else if (type === 'update_node') {
+            title = `노드 수정: '${data.nodeName || '지정 노드'}'`;
+            badgeColor = '#f59e0b';
+            icon = '📝';
+
+            const diffList = (act.diff && Array.isArray(act.diff)) ? act.diff.map(d => `
+                <div style="display: flex; flex-direction: column; gap: 1px; font-size: 11px; background: rgba(0,0,0,0.15); padding: 3px 6px; border-radius: 4px;">
+                    <span style="color: #f59e0b; font-weight: bold;">• ${this.escapeHtml(d.key)}</span>
+                    <div style="display: flex; gap: 4px; font-size: 10px;">
+                        <span style="color: #ef4444; text-decoration: line-through;">${this.escapeHtml(String(d.oldVal || '(비어있음)'))}</span>
+                        <span style="color: var(--color-text-tertiary);">➔</span>
+                        <span style="color: #10b981; font-weight: bold;">${this.escapeHtml(String(d.newVal || ''))}</span>
+                    </div>
+                </div>
+            `).join('') : (data.fields ? Object.entries(data.fields).map(([k, v]) => `
+                <div style="display: flex; gap: 6px; font-size: 11px;">
+                    <span style="color: var(--color-text-tertiary);">• ${this.escapeHtml(k)}:</span>
+                    <span style="color: #10b981; font-weight: bold;">${this.escapeHtml(String(v))}</span>
+                </div>
+            `).join('') : '');
+
+            bodyHtml = `
+                <div style="font-size: 11px; color: var(--color-text-secondary); display: flex; flex-direction: column; gap: 4px;">
+                    ${data.newName && data.newName !== data.nodeName ? `<div style="font-size: 11px; color: #38bdf8;">📌 이름 변경: <b>${this.escapeHtml(data.nodeName)}</b> ➔ <b>${this.escapeHtml(data.newName)}</b></div>` : ''}
+                    <div style="display: flex; flex-direction: column; gap: 3px;">${diffList}</div>
+                    ${data.content ? `<div style="margin-top: 4px; padding: 4px 6px; background: rgba(0,0,0,0.2); border-radius: 4px; font-size: 10px; font-family: monospace; white-space: pre-wrap; max-height: 80px; overflow-y: auto;">${this.escapeHtml(data.content.slice(0, 150))}${data.content.length > 150 ? '...' : ''}</div>` : ''}
+                </div>
+            `;
+        } else if (type === 'delete_node') {
+            title = `노드 삭제: '${data.nodeName || '지정 노드'}'`;
+            badgeColor = '#ef4444';
+            icon = '🗑️';
+
+            bodyHtml = `
+                <div style="font-size: 11px; color: var(--color-text-secondary); display: flex; flex-direction: column; gap: 3px;">
+                    <div style="color: #ef4444; font-weight: bold;">⚠️ 주의: 노드 및 캔버스 창, 연결선이 완전히 삭제됩니다.</div>
+                    ${data.reason ? `<div><span style="color: var(--color-text-tertiary);">사유:</span> <span>${this.escapeHtml(data.reason)}</span></div>` : ''}
+                </div>
+            `;
+        }
+
+        let actionFooter = '';
+        if (status === 'pending') {
+            actionFooter = `
+                <div style="display: flex; gap: 6px; margin-top: 8px; padding-top: 6px; border-top: 1px solid rgba(255,255,255,0.08); justify-content: flex-end;">
+                    <button type="button" class="btn btn-secondary btn-xs btn-agent-action-reject" data-action-id="${actionId}" style="padding: 3px 8px; font-size: 10px; border-radius: 4px; cursor: pointer;">
+                        ❌ 거절
+                    </button>
+                    <button type="button" class="btn btn-primary btn-xs btn-agent-action-approve" data-action-id="${actionId}" style="padding: 3px 10px; font-size: 10px; font-weight: bold; background: #10b981; border: 1px solid #059669; color: #fff; border-radius: 4px; cursor: pointer;">
+                        ✅ 승인 및 적용
+                    </button>
+                </div>
+            `;
+        } else if (status === 'applied') {
+            actionFooter = `
+                <div style="margin-top: 6px; padding-top: 4px; border-top: 1px solid rgba(255,255,255,0.08); display: flex; align-items: center; justify-content: space-between; font-size: 10px; color: #10b981; font-weight: bold;">
+                    <span>✅ 적용 완료 (캔버스에 반영됨)</span>
+                    <span style="font-size: 9px; opacity: 0.8;">${new Date(act.appliedAt || Date.now()).toLocaleTimeString()}</span>
+                </div>
+            `;
+        } else if (status === 'rejected') {
+            actionFooter = `
+                <div style="margin-top: 6px; padding-top: 4px; border-top: 1px solid rgba(255,255,255,0.08); font-size: 10px; color: var(--color-text-tertiary);">
+                    <span>❌ 제안이 거절/취소되었습니다.</span>
+                </div>
+            `;
+        }
+
+        return `
+            <div class="agent-action-card" data-action-id="${actionId}" style="background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.12); border-left: 3px solid ${badgeColor}; border-radius: 6px; padding: 8px; display: flex; flex-direction: column; gap: 4px; box-sizing: border-box;">
+                <div style="display: flex; align-items: center; justify-content: space-between;">
+                    <div style="display: flex; align-items: center; gap: 4px; font-size: 11px; font-weight: bold; color: var(--color-text-primary);">
+                        <span>${icon}</span>
+                        <span>${this.escapeHtml(title)}</span>
+                    </div>
+                    <span style="font-size: 9px; padding: 1px 5px; border-radius: 4px; background: rgba(255,255,255,0.08); color: ${badgeColor}; border: 1px solid rgba(255,255,255,0.1); font-weight: bold;">
+                        ${status === 'pending' ? '승인 대기' : (status === 'applied' ? '적용 완료' : '거절됨')}
+                    </span>
+                </div>
+                <div style="margin-top: 4px;">
+                    ${bodyHtml}
+                </div>
+                ${actionFooter}
+            </div>
+        `;
     }
 
     scrollAgentToBottom(smooth = true) {
@@ -847,15 +1061,17 @@ class ToolsPanel {
         }
 
         // 3. 로딩 상태 및 도구 바 표시
+        const currentMode = this.agentMode || 'ask';
         this.setAgentToolStatus(true, '🧠 질문 분석 및 지식 도구 탐색 중...');
         const referencedNodeNames = new Set();
+        const triggeredActionIds = [];
 
         try {
             // 도구 정의 (Tool Declarations)
             const agentTools = [
                 {
                     name: 'list_project_nodes',
-                    description: '현재 소설 프로젝트에 존재하는 모든 노드(등장인물, 세계관, 씬 대본, 원고, 복선 등)의 목록과 카테고리를 조회합니다.',
+                    description: '현재 소설 프로젝트에 존재하는 모든 노드(등장인물, 세계관, 씬 대본, 원고, 복선 등)의 목록과 카테고리, 1줄 요약을 조회합니다. 특정 키워드가 없는 질문이나 전체 설정을 파악할 때 가장 먼저 호출하세요.',
                     parameters: {
                         type: 'object',
                         properties: {
@@ -885,28 +1101,109 @@ class ToolsPanel {
                             nodeName: { type: 'string', description: '열람할 노드의 이름 (예: 카일, 아르카디아 대륙, 제 1화 등)' }
                         }
                     }
+                },
+                {
+                    name: 'create_node',
+                    description: '소설 프로젝트에 새로운 노드(등장인물, 세계관/설정, 고유명사, 플롯/씬, 원고 등)를 새로 생성하여 캔버스에 추가합니다. fields 객체에 성격, 외모, 설정, 배경 등 상세 내용을 알차게 채워서 호출하세요.',
+                    parameters: {
+                        type: 'object',
+                        properties: {
+                            name: { type: 'string', description: '생성할 노드의 이름 (예: 카일, 아르카디아 제국, 백은 기사단, 제 1화 - 시작)' },
+                            category: { type: 'string', description: '노드 카테고리: character (인물), lore (세계관), proper (고유명사/아이템/세력/장소), plot (플롯/시나리오), manuscript (원고) 중 하나' },
+                            fields: {
+                                type: 'object',
+                                description: '노드 유형별 상세 설정 필드 객체:\n• character (인물): { role: "역할/직업", profile_summary: "나이/성별/신분", personality: "성격 및 내면", appearance: "외모/복장", speech_tone: "말투/호칭", special_ability: "특수능력/스킬", past_and_motivation: "과거사/동기", dialogue_examples: "대표 대사 예시", relationships: "인간관계" }\n• proper (고유명사/세력/장소/아이템): { term: "명칭", type: "장소|세력 / 길드|사건 / 역사|특수 현상 / 법칙|마도구 / 아이템", desc: "상세 정의 및 설정 설명", keywords: "트리거 키워드" }\n• lore (세계관): { title: "세계관 제목", tags: "태그", logline: "한줄소개", background_lore: "시대/마법/사회체계 등 상세 배경" }\n• plot (플롯/시나리오): { scenario_title: "소제목", core_goal: "핵심 목표", main_conflict: "주요 갈등", climax_turning_point: "절정/전환점", resolution_outcome: "결말" }\n• manuscript (원고): { editorVal: "소설 본문 텍스트" }'
+                            },
+                            content: { type: 'string', description: '원고 본문 내용 또는 일반 텍스트' },
+                            description: { type: 'string', description: '노드에 대한 간략한 설명' }
+                        },
+                        required: ['name', 'fields']
+                    }
+                },
+                {
+                    name: 'update_node',
+                    description: '기존 노드의 설정 필드값, 본문 텍스트, 또는 노드 이름을 부분/전체 수정합니다.',
+                    parameters: {
+                        type: 'object',
+                        properties: {
+                            nodeId: { type: 'string', description: '수정할 대상 노드의 ID' },
+                            nodeName: { type: 'string', description: '수정할 대상 노드의 이름 (nodeId가 없을 경우 사용)' },
+                            name: { type: 'string', description: '노드의 새 이름 (이름을 변경할 때만 지정)' },
+                            fields: { type: 'object', description: '수정하거나 추가할 위젯 필드들의 키-값 객체 (기존 필드는 보존되고 전달된 필드만 병합)' },
+                            content: { type: 'string', description: '일반 텍스트나 원고 노드일 경우 수정할 전체 본문 내용' }
+                        }
+                    }
+                },
+                {
+                    name: 'delete_node',
+                    description: '더 이상 필요 없거나 중복/삭제를 요청받은 노드를 프로젝트와 캔버스에서 안전하게 삭제합니다.',
+                    parameters: {
+                        type: 'object',
+                        properties: {
+                            nodeId: { type: 'string', description: '삭제할 노드의 ID' },
+                            nodeName: { type: 'string', description: '삭제할 노드의 이름 (nodeId가 없을 경우 사용)' },
+                            reason: { type: 'string', description: '노드 삭제 사유' }
+                        }
+                    }
                 }
             ];
 
-            const systemPrompt = `당신은 사용자의 웹소설 프로젝트를 100% 완벽히 파악하고 집필을 돕는 'POV 소설 총괄 비서 (Story Copilot)'입니다.
-프로젝트의 모든 설정과 원고는 도구(Tool)를 통해 실시간으로 접근할 수 있습니다.
+            let modeSystemInstruction = '';
+            if (currentMode === 'plan') {
+                modeSystemInstruction = `
+[🚨 현재 작업 모드: 📋 계획 수립 모드 (PLANNING MODE)]
+- 당신은 '계획 수립 모드'입니다. 실제 노드를 생성, 수정, 삭제하는 쓰기 도구('create_node', 'update_node', 'delete_node')는 절대 호출하지 마세요.
+- 오직 읽기 도구('list_project_nodes', 'search_story_nodes', 'read_node_detail')만을 활용하여 프로젝트 현황을 완벽히 분석하세요.
+- 분석을 바탕으로, 앞으로 수행할 단계별 작업 계획서(추가/수정할 노드 구성안, 설정 내용, 체크리스트 등)를 마크다운으로 체계적이고 구체적으로 작성하세요.
+- 답변 마지막에 "계획이 마음에 드시면 상단의 [승인 후 적용] 또는 [자동 적용] 모드로 전환하여 작업을 요청해주세요."라고 안내하세요.`;
+            } else if (currentMode === 'accept') {
+                modeSystemInstruction = `
+[⚡ 현재 작업 모드: 자동 적용 모드 (ACCEPT-EDITS MODE)]
+- 당신은 '자동 적용 모드'입니다. 사용자의 요청이나 스토리 보완 작업에 맞춰 'create_node', 'update_node', 'delete_node' 도구를 즉시 호출하여 실제 캔버스와 프로젝트에 자율 반영하세요.
+- 반영 후 어떤 노드가 어떻게 생성·수정·삭제되었는지 명확하고 깔끔하게 요약 보고하세요.`;
+            } else {
+                modeSystemInstruction = `
+[🛡️ 현재 작업 모드: 승인 후 적용 모드 (ASK BEFORE EDIT - 기본)]
+- 당신은 '승인 후 적용 모드'입니다. 사용자의 요청이나 스토리 보완에 필요한 경우 'create_node', 'update_node', 'delete_node' 도구를 자유롭게 호출하세요.
+- 도구를 호출하면 시스템이 사용자에게 확인/승인 카드를 자동으로 띄웁니다.
+- 제안 후 사용자에게 어떤 내용을 왜 변경/추가하도록 제안했는지 명확하고 친절하게 설명하세요.`;
+            }
 
-[도구 사용 원칙]
-1. 일반 인사(예: "안녕", "반가워", "수고해"), 잡담, 글쓰기 조언/팁, 일반적 아이디어 질문 등 프로젝트 노드 조회가 불필요한 대화에는 도구를 절대 호출하지 말고 즉시 친절하게 답변하세요.
-2. 사용자가 "등장인물 누구누구 있어?", "세계관 설정 알려줘", "줄거리 요약해줘" 같이 소설의 전체/포괄적 구성을 물어볼 때만 'list_project_nodes'를 호출하여 노드 목록과 요약을 조회하고 답변하세요.
-3. 특정 인물(예: 카일)이나 사건에 대한 상세 설정 및 본문 팩트 확인이 필요할 때는 'read_node_detail'을 호출하여 확인하세요.
-4. 소설 설정을 임의로 지어내지 말고, 도구로 확인된 실제 데이터에 기반하여 답변하세요.
-5. 마크다운 서식(굵은 글씨, 목록, 인용구 등)을 활용하여 가독성 높게 답변하세요.`;
+            const systemPrompt = `당신은 사용자의 웹소설 프로젝트를 100% 완벽히 파악하고 집필을 돕는 최고급 'POV 소설 총괄 비서 (Story Copilot)'입니다.
+프로젝트의 모든 설정과 원고는 도구(Tool)를 통해 실시간으로 접근 및 조작할 수 있습니다.
+
+${modeSystemInstruction}
+
+[도구 사용 및 지식 탐색 핵심 원칙]
+1. 인사(예: "안녕", "반가워"), 잡담, 일반적 창작 조언 등 프로젝트 노드 조회가 불필요한 대화에는 도구를 절대 호출하지 말고 즉시 친절하게 답변하세요.
+2. "지금 설정 어때?", "등장인물 누구 있냐", "설정 뭐뭐 있냐" 같이 프로젝트 목록/현황을 묻는 질문에는 'list_project_nodes'를 호출하세요. 'list_project_nodes'가 반환하는 노드 이름과 요약 목록만으로도 충분히 답변할 수 있으므로, 모든 노드를 불필요하게 'read_node_detail'로 하나하나 열람하여 턴을 낭비하지 마세요.
+3. 특정 인물(예: 카일)이나 사건에 대한 상세 설정 및 본문 팩트 확인이 구체적으로 필요할 때만 'read_node_detail'을 호출하여 확인하세요.
+4. 노드를 새로 만들 때는 'create_node'를 호출하고, 인물은 character, 세계관은 lore, 고유명사는 proper, 플롯/씬은 plot 카테고리를 적절히 지정하고 fields에 성격/설정 등을 풍부하게 채우세요.
+5. 기존 노드를 변경할 때는 'update_node'를 호출하여 변경할 필드(fields)를 명시하세요.
+6. 도구를 호출한 뒤에는 반드시 사용자에게 작업 내용이나 조회된 사실을 친절하게 한국어 문장으로 설명해야 합니다. (텍스트 없이 종료 금지)
+7. 마크다운 서식(굵은 글씨, 목록, 인용구 등)을 활용하여 가독성 높게 답변하세요.`;
 
             // 도구 실행 핸들러 (Tool Executor)
             const toolExecutor = async (name, args) => {
-                this.setAgentToolStatus(true, `🔍 [도구 실행] ${name === 'read_node_detail' ? (args.nodeName || args.nodeId) + ' 노드 열람 중' : '프로젝트 지식 탐색 중'}...`);
+                let statusText = '프로젝트 지식 탐색 중...';
+                if (name === 'read_node_detail') statusText = `'${args.nodeName || args.nodeId}' 노드 열람 중...`;
+                else if (name === 'create_node') statusText = `'${args.name}' 노드 생성 작업 중...`;
+                else if (name === 'update_node') statusText = `'${args.nodeName || args.nodeId}' 노드 수정 작업 중...`;
+                else if (name === 'delete_node') statusText = `'${args.nodeName || args.nodeId}' 노드 삭제 작업 중...`;
+
+                this.setAgentToolStatus(true, `🔍 [도구 실행] ${statusText}`);
                 const result = await this.executeAgentTool(name, args);
+
                 if (name === 'read_node_detail' && result?.nodeName) {
                     referencedNodeNames.add(result.nodeName);
                 } else if (name === 'search_story_nodes' && Array.isArray(result)) {
                     result.forEach(r => r.name && referencedNodeNames.add(r.name));
                 }
+
+                if (result?.actionId) {
+                    triggeredActionIds.push(result.actionId);
+                }
+
                 return result;
             };
 
@@ -916,7 +1213,7 @@ class ToolsPanel {
             const toolCallsLog = [];
 
             if (window.aiApi?.callWithTools) {
-                const maxTurns = aiConfig.maxTurns || 5;
+                const maxTurns = aiConfig.maxTurns || 10;
                 res = await window.aiApi.callWithTools(
                     aiConfig,
                     systemPrompt,
@@ -937,6 +1234,7 @@ class ToolsPanel {
                 role: 'assistant',
                 content: answer || '답변을 생성하지 못했습니다.',
                 citations: Array.from(referencedNodeNames),
+                actions: triggeredActionIds.length > 0 ? triggeredActionIds : undefined,
                 toolCallsLog: logEntries
             });
 
@@ -954,7 +1252,7 @@ class ToolsPanel {
     }
 
     /**
-     * 🛠️ 에이전트 전용 로컬 도구 실행 함수
+     * 🛠️ 에이전트 전용 로컬 도구 실행 함수 (CRUD 및 검색 지원)
      */
     async executeAgentTool(name, args = {}) {
         const projectId = this.currentProjectId || window.currentProjectId || window.fileTreeManager?.currentProjectId || window.projectManager?.currentProjectId;
@@ -965,6 +1263,7 @@ class ToolsPanel {
         try {
             const files = await window.storage.getProjectFiles(projectId);
             const nonFolderFiles = (files || []).filter(f => f.type !== 'folder');
+            const currentMode = this.agentMode || 'ask';
 
             // 지능형 노드 카테고리 분류 헬퍼
             const classifyNode = (file, norm) => {
@@ -1024,6 +1323,7 @@ class ToolsPanel {
                 return '';
             };
 
+            // 1. 전체 노드 목록 조회
             if (name === 'list_project_nodes') {
                 const categorized = {
                     characters: [],
@@ -1076,6 +1376,7 @@ class ToolsPanel {
                 };
             }
 
+            // 2. 키워드 검색
             if (name === 'search_story_nodes') {
                 const query = String(args.query || '').toLowerCase().trim();
                 const limit = Number(args.limit) || 5;
@@ -1109,6 +1410,7 @@ class ToolsPanel {
                 return top;
             }
 
+            // 3. 노드 세부 본문 열람
             if (name === 'read_node_detail') {
                 const target = nonFolderFiles.find(f => 
                     (args.nodeId && String(f.id) === String(args.nodeId)) ||
@@ -1119,7 +1421,6 @@ class ToolsPanel {
                     return { error: `노드 \'${args.nodeName || args.nodeId}\'를 프로젝트에서 찾을 수 없습니다.` };
                 }
 
-                // 🌟 [핵심 정제]: 창 좌표(windowState), code, portsConfig, widgets 스키마 100% 필터링!
                 const norm = window.nodeEngine?.normalizeNodeData(target);
                 const contentData = norm?.contentData || {};
                 const cleanFields = {};
@@ -1165,10 +1466,502 @@ class ToolsPanel {
                 };
             }
 
+            // 4. ✨ 노드 신규 생성 (create_node)
+            if (name === 'create_node') {
+                const nodeName = String(args.name || '새 노드').trim();
+                const category = args.category || 'general';
+                const presetId = args.presetId || null;
+                const fields = (typeof args.fields === 'object' && args.fields) ? args.fields : {};
+                const content = args.content || '';
+                const description = args.description || '';
+
+                if (currentMode === 'ask') {
+                    const actionId = 'act_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
+                    const actData = {
+                        id: actionId,
+                        type: 'create_node',
+                        status: 'pending',
+                        createdAt: Date.now(),
+                        data: {
+                            projectId,
+                            name: nodeName,
+                            category,
+                            presetId,
+                            fields,
+                            content,
+                            description
+                        }
+                    };
+                    this.pendingActionsMap.set(actionId, actData);
+
+                    return {
+                        status: 'pending_approval',
+                        actionId,
+                        message: `'${nodeName}' 노드 생성 제안 카드를 생성했습니다. 사용자에게 변경 제안 내용을 설명하고 승인을 요청하세요.`,
+                        nodeName
+                    };
+                }
+
+                // accept 모드 (즉시 자동 생성)
+                const created = await this.applyCreateNode({
+                    projectId,
+                    name: nodeName,
+                    category,
+                    presetId,
+                    fields,
+                    content,
+                    description
+                });
+
+                return {
+                    status: 'success',
+                    message: `'${nodeName}' 노드가 성공적으로 캔버스에 생성되었습니다.`,
+                    nodeId: created?.id,
+                    nodeName: created?.name || nodeName
+                };
+            }
+
+            // 5. 📝 노드 수정 (update_node)
+            if (name === 'update_node') {
+                const target = nonFolderFiles.find(f => 
+                    (args.nodeId && String(f.id) === String(args.nodeId)) ||
+                    (args.nodeName && f.name.toLowerCase().includes(String(args.nodeName).toLowerCase()))
+                );
+
+                if (!target) {
+                    return { error: `수정할 노드 \'${args.nodeName || args.nodeId}\'를 찾을 수 없습니다.` };
+                }
+
+                const norm = window.nodeEngine?.normalizeNodeData(target);
+                const prevContentData = norm?.contentData || {};
+                const fields = (typeof args.fields === 'object' && args.fields) ? args.fields : {};
+                const newName = args.name ? String(args.name).trim() : target.name;
+                const content = args.content !== undefined ? args.content : null;
+
+                // Diff 계산
+                const diff = [];
+                Object.entries(fields).forEach(([k, v]) => {
+                    const oldVal = prevContentData[k];
+                    if (String(oldVal) !== String(v)) {
+                        diff.push({ key: k, oldVal: oldVal !== undefined ? oldVal : '', newVal: v });
+                    }
+                });
+
+                if (currentMode === 'ask') {
+                    const actionId = 'act_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
+                    const actData = {
+                        id: actionId,
+                        type: 'update_node',
+                        status: 'pending',
+                        createdAt: Date.now(),
+                        diff,
+                        data: {
+                            nodeId: target.id,
+                            nodeName: target.name,
+                            newName,
+                            fields,
+                            content
+                        }
+                    };
+                    this.pendingActionsMap.set(actionId, actData);
+
+                    return {
+                        status: 'pending_approval',
+                        actionId,
+                        message: `'${target.name}' 노드 수정 제안 카드를 생성했습니다. 사용자에게 변경 제안 내용을 설명하고 승인을 요청하세요.`,
+                        nodeName: target.name
+                    };
+                }
+
+                // accept 모드 (즉시 자동 수정)
+                await this.applyUpdateNode({
+                    nodeId: target.id,
+                    targetFile: target,
+                    newName,
+                    fields,
+                    content
+                });
+
+                return {
+                    status: 'success',
+                    message: `'${target.name}' 노드가 성공적으로 수정되었습니다.`,
+                    nodeId: target.id,
+                    nodeName: newName
+                };
+            }
+
+            // 6. 🗑️ 노드 삭제 (delete_node)
+            if (name === 'delete_node') {
+                const target = nonFolderFiles.find(f => 
+                    (args.nodeId && String(f.id) === String(args.nodeId)) ||
+                    (args.nodeName && f.name.toLowerCase().includes(String(args.nodeName).toLowerCase()))
+                );
+
+                if (!target) {
+                    return { error: `삭제할 노드 \'${args.nodeName || args.nodeId}\'를 찾을 수 없습니다.` };
+                }
+
+                const reason = args.reason || '사용자 요청에 의한 삭제';
+
+                if (currentMode === 'ask') {
+                    const actionId = 'act_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
+                    const actData = {
+                        id: actionId,
+                        type: 'delete_node',
+                        status: 'pending',
+                        createdAt: Date.now(),
+                        data: {
+                            nodeId: target.id,
+                            nodeName: target.name,
+                            reason
+                        }
+                    };
+                    this.pendingActionsMap.set(actionId, actData);
+
+                    return {
+                        status: 'pending_approval',
+                        actionId,
+                        message: `'${target.name}' 노드 삭제 제안 카드를 생성했습니다. 사용자에게 확인을 요청하세요.`,
+                        nodeName: target.name
+                    };
+                }
+
+                // accept 모드 (즉시 자동 삭제)
+                await this.applyDeleteNode(target.id, target.name);
+
+                return {
+                    status: 'success',
+                    message: `'${target.name}' 노드가 성공적으로 삭제되었습니다.`
+                };
+            }
+
             return { error: `지원하지 않는 도구: ${name}` };
 
         } catch (error) {
             return { error: `도구 실행 실패: ${error.message}` };
+        }
+    }
+
+    /**
+     * 🚀 승인된 액션 실제 실행 처리기
+     */
+    async handleApproveAction(actionId) {
+        const act = this.pendingActionsMap.get(actionId);
+        if (!act || act.status !== 'pending') return;
+
+        try {
+            if (act.type === 'create_node') {
+                await this.applyCreateNode(act.data);
+            } else if (act.type === 'update_node') {
+                await this.applyUpdateNode(act.data);
+            } else if (act.type === 'delete_node') {
+                await this.applyDeleteNode(act.data.nodeId, act.data.nodeName);
+            }
+
+            act.status = 'applied';
+            act.appliedAt = Date.now();
+            this.updateAgentMessagesView(false);
+            window.showToast?.(`'${act.data.name || act.data.nodeName}' 작업이 성공적으로 적용되었습니다! ✨`);
+        } catch (err) {
+            console.error('액션 적용 실패:', err);
+            window.showToast?.(`적용 실패: ${err.message}`);
+        }
+    }
+
+    /**
+     * ❌ 제안 거절 처리기
+     */
+    handleRejectAction(actionId) {
+        const act = this.pendingActionsMap.get(actionId);
+        if (!act) return;
+        act.status = 'rejected';
+        this.updateAgentMessagesView(false);
+        window.showToast?.(`제안이 취소되었습니다.`);
+    }
+
+    /**
+     * 🛠️ 실제 노드 생성 함수 (Storage DB + Canvas Node)
+     */
+    async applyCreateNode(data) {
+        const projectId = data.projectId || this.currentProjectId || window.currentProjectId || window.fileTreeManager?.currentProjectId;
+        if (!projectId || !window.storage) throw new Error('프로젝트 저장소에 접근할 수 없습니다.');
+
+        let presetId = data.presetId;
+        const cat = String(data.category || '').toLowerCase();
+        const rawFields = (typeof data.fields === 'object' && data.fields) ? { ...data.fields } : {};
+        if (data.content && !rawFields.content && !rawFields.editorVal) {
+            rawFields.content = data.content;
+        }
+
+        // 1. 프리셋 ID 정밀 자동 매핑
+        if (!presetId) {
+            if (cat.includes('char') || cat.includes('인물') || cat.includes('캐릭터') || cat.includes('주인공')) {
+                presetId = 'preset_sys_detailed_character';
+            } else if (cat.includes('proper') || cat.includes('item') || cat.includes('아이템') || cat.includes('장소') || cat.includes('세력') || cat.includes('고유명사')) {
+                presetId = 'preset_sys_proper_nouns';
+            } else if (cat.includes('world') || cat.includes('lore') || cat.includes('세계관') || cat.includes('설정')) {
+                presetId = 'preset_sys_world_settings';
+            } else if (cat.includes('plot') || cat.includes('플롯') || cat.includes('대본') || cat.includes('씬') || cat.includes('시나리오')) {
+                presetId = 'preset_sys_scenario_planner';
+            } else if (cat.includes('foreshadow') || cat.includes('복선')) {
+                presetId = 'preset_sys_foreshadowing';
+            } else if (cat.includes('novel') || cat.includes('manuscript') || cat.includes('원고')) {
+                presetId = 'preset_sys_manuscript';
+            } else {
+                presetId = 'preset_sys_detailed_character'; // 기본값 인물/페르소나 카드
+            }
+        }
+
+        // 2. 기본 템플릿 로드
+        let defaultTpls = [];
+        try {
+            if (window.templateManager?.getDefaultNodeTemplates) {
+                defaultTpls = await window.templateManager.getDefaultNodeTemplates();
+            }
+        } catch (e) {}
+
+        const matchedPreset = defaultTpls.find(p => p.id === presetId) || defaultTpls.find(p => p.id === 'preset_sys_detailed_character');
+        let widgets = matchedPreset?.widgets ? JSON.parse(JSON.stringify(matchedPreset.widgets)) : [];
+        const portsConfig = matchedPreset?.portsConfig ? JSON.parse(JSON.stringify(matchedPreset.portsConfig)) : { inputs: [], outputs: [{ id: 'out_1', name: '출력', color: '#00ffcc' }] };
+
+        // 3. 지능형 스마트 필드 매핑 (Smart Field Mapper)
+        const contentData = {};
+        const nodeName = data.name || rawFields.name || rawFields.charName || rawFields.term || rawFields.title || '새 노드';
+
+        // 프리셋 기본값 먼저 채우기
+        if (widgets.length > 0) {
+            widgets.forEach(w => {
+                const k = w.key || w.id;
+                if (k) contentData[k] = w.defaultVal !== undefined ? w.defaultVal : '';
+            });
+        }
+
+        // 프리셋별 전용 키 매핑
+        if (presetId === 'preset_sys_detailed_character' || matchedPreset?.id === 'preset_sys_detailed_character') {
+            const role = rawFields.role || rawFields.job || rawFields.position || '등장인물';
+            contentData.name_role = rawFields.name_role || `${nodeName} / ${role}`;
+            contentData.profile_summary = rawFields.profile_summary || rawFields.profile || rawFields.age_gender || (rawFields.age ? `${rawFields.age} / ${rawFields.gender || '미상'}` : '') || '';
+            contentData.appearance = rawFields.appearance || rawFields.look || rawFields.외모 || '';
+            contentData.personality = rawFields.personality || rawFields.traits || rawFields.성격 || '';
+            contentData.speech_tone = rawFields.speech_tone || rawFields.tone || rawFields.말투 || '';
+            contentData.behavior_patterns = rawFields.behavior_patterns || rawFields.habits || rawFields.버릇 || '';
+            contentData.dialogue_examples = rawFields.dialogue_examples || rawFields.dialogue || rawFields.대사 || '';
+            contentData.relationships = rawFields.relationships || rawFields.relation || rawFields.관계 || '';
+            contentData.knowledge = rawFields.knowledge || rawFields.지식 || '';
+            contentData.memories = rawFields.memories || rawFields.기억 || '';
+            contentData.special_ability = rawFields.special_ability || rawFields.ability || rawFields.skill || rawFields.능력 || '';
+            contentData.preferences = rawFields.preferences || rawFields.likes_dislikes || rawFields.호불호 || '';
+            contentData.past_and_motivation = rawFields.past_and_motivation || rawFields.past || rawFields.background || rawFields.과거사 || '';
+            contentData.extra_notes = rawFields.extra_notes || rawFields.memo || rawFields.기타 || '';
+        } else if (presetId === 'preset_sys_world_settings' || matchedPreset?.id === 'preset_sys_world_settings') {
+            contentData.title = rawFields.title || nodeName;
+            contentData.tags = rawFields.tags || rawFields.genre || '#세계관';
+            contentData.logline = rawFields.logline || rawFields.summary || rawFields.한줄소개 || '';
+            contentData.background_lore = rawFields.background_lore || rawFields.lore || rawFields.description || rawFields.content || rawFields.설정 || '';
+        } else if (presetId === 'preset_sys_proper_nouns' || matchedPreset?.id === 'preset_sys_proper_nouns') {
+            contentData.term = rawFields.term || nodeName;
+            contentData.type = rawFields.type || rawFields.category || '장소';
+            contentData.keywords = rawFields.keywords || '';
+            contentData.desc = rawFields.desc || rawFields.description || rawFields.content || rawFields.설정 || '';
+        } else if (presetId === 'preset_sys_scenario_planner' || matchedPreset?.id === 'preset_sys_scenario_planner') {
+            contentData.scenario_title = rawFields.scenario_title || nodeName;
+            contentData.core_goal = rawFields.core_goal || rawFields.goal || '';
+            contentData.main_conflict = rawFields.main_conflict || rawFields.conflict || '';
+            contentData.climax_turning_point = rawFields.climax_turning_point || rawFields.climax || '';
+            contentData.resolution_outcome = rawFields.resolution_outcome || rawFields.resolution || '';
+        } else if (presetId === 'preset_sys_manuscript' || matchedPreset?.id === 'preset_sys_manuscript') {
+            contentData.editorVal = rawFields.editorVal || rawFields.content || rawFields.text || '';
+        }
+
+        // 원본 fields 객체도 전부 보존 병합
+        Object.entries(rawFields).forEach(([k, v]) => {
+            if (contentData[k] === undefined || contentData[k] === '') {
+                contentData[k] = v;
+            }
+        });
+
+        // 4. 만약 프리셋이 없거나 위젯이 없는 경우, 동적 위젯 자동 생성 (Fallback)
+        if (widgets.length === 0) {
+            widgets = Object.entries(rawFields).map(([k, v]) => ({
+                id: 'w_' + k,
+                type: 'input_text',
+                label: k,
+                key: k,
+                rows: String(v).length > 40 ? 3 : 1,
+                defaultVal: v
+            }));
+            if (widgets.length === 0) {
+                widgets = [{ id: 'w_content', type: 'input_text', label: '내용', key: 'content', rows: 4, defaultVal: '' }];
+            }
+        }
+
+        contentData.widgets = widgets;
+        contentData.presetId = presetId;
+
+        const newFileData = {
+            projectId,
+            name: nodeName,
+            type: 'file',
+            template: 'custom_node',
+            presetId: presetId || matchedPreset?.id || null,
+            nodeType: cat || 'general',
+            category: cat || 'general',
+            content: JSON.stringify(contentData, null, 2),
+            contentData,
+            widgets: widgets,
+            portsConfig,
+            code: matchedPreset?.code || '',
+            description: data.description || matchedPreset?.desc || '',
+            icon: matchedPreset?.icon || (cat === 'character' ? '👤' : (cat === 'lore' ? '📜' : (cat === 'plot' ? '🎬' : '📄'))),
+            windowState: {
+                x: 140 + Math.floor(Math.random() * 80),
+                y: 140 + Math.floor(Math.random() * 80),
+                width: matchedPreset?.defaultWidth || 540,
+                height: matchedPreset?.defaultHeight || 700,
+                collapsed: false
+            }
+        };
+
+        const created = await window.storage.createFile(newFileData);
+
+        // 파일 트리 새로고침
+        if (window.fileTreeManager) {
+            await window.fileTreeManager.loadProjectFiles(projectId);
+        }
+
+        // 캔버스 창 자동 열기 및 리렌더링
+        if (window.windowManager && created?.id) {
+            await window.windowManager.openWindow(created.id);
+            // DOM 생성 안정화 후 즉시 최신 데이터 리렌더링
+            setTimeout(() => {
+                const info = window.windowManager.windows.get(created.id);
+                if (info && info.element) {
+                    const container = info.element.querySelector('.custom-node-body') || info.element.querySelector('.window-body');
+                    if (container) container.innerHTML = ''; // 강제 재조립 트리거
+                    window.windowManager.renderCustomNode(created.id);
+                }
+            }, 80);
+        }
+
+        return created;
+    }
+
+    /**
+     * 🛠️ 실제 노드 수정 함수 (Storage DB + Canvas Window 갱신)
+     */
+    async applyUpdateNode({ nodeId, targetFile, newName, fields, content }) {
+        if (!nodeId || !window.storage) throw new Error('노드 ID가 없거나 스토리지에 접근할 수 없습니다.');
+
+        let file = targetFile;
+        if (!file) {
+            const files = await window.storage.getProjectFiles(this.currentProjectId || window.currentProjectId);
+            file = files?.find(f => String(f.id) === String(nodeId));
+        }
+        if (!file) throw new Error(`노드 ID ${nodeId}를 찾을 수 없습니다.`);
+
+        const norm = window.nodeEngine?.normalizeNodeData(file);
+        const contentData = norm?.contentData || {};
+        let widgets = norm?.widgets || [];
+
+        // 스마트 필드 매핑 및 병합
+        if (fields && typeof fields === 'object') {
+            const presetId = file.presetId || norm?.presetId;
+            if (presetId === 'preset_sys_detailed_character') {
+                if (fields.name || fields.role) {
+                    const prevNameRole = contentData.name_role || '';
+                    const parts = prevNameRole.split('/');
+                    const n = fields.name || parts[0]?.trim() || file.name;
+                    const r = fields.role || parts[1]?.trim() || '';
+                    contentData.name_role = `${n} / ${r}`;
+                }
+                if (fields.profile || fields.age) contentData.profile_summary = fields.profile || fields.profile_summary || fields.age;
+                if (fields.appearance || fields.look) contentData.appearance = fields.appearance || fields.look;
+                if (fields.personality || fields.traits) contentData.personality = fields.personality || fields.traits;
+                if (fields.speech_tone || fields.tone) contentData.speech_tone = fields.speech_tone || fields.tone;
+                if (fields.dialogue || fields.dialogue_examples) contentData.dialogue_examples = fields.dialogue || fields.dialogue_examples;
+                if (fields.special_ability || fields.ability || fields.skill) contentData.special_ability = fields.special_ability || fields.ability || fields.skill;
+                if (fields.past || fields.past_and_motivation || fields.background) contentData.past_and_motivation = fields.past || fields.past_and_motivation || fields.background;
+            } else if (presetId === 'preset_sys_world_settings') {
+                if (fields.lore || fields.description) contentData.background_lore = fields.lore || fields.description || fields.background_lore;
+                if (fields.logline || fields.summary) contentData.logline = fields.logline || fields.summary;
+            } else if (presetId === 'preset_sys_proper_nouns') {
+                if (fields.desc || fields.description) contentData.desc = fields.desc || fields.description;
+                if (fields.type || fields.category) contentData.type = fields.type || fields.category;
+            }
+
+            // 모든 fields 직접 병합
+            Object.assign(contentData, fields);
+
+            // 기존 위젯에 없는 새 필드인 경우 위젯 동적 추가
+            Object.keys(fields).forEach(k => {
+                if (!widgets.some(w => (w.key || w.id) === k)) {
+                    widgets.push({
+                        id: 'w_' + k,
+                        type: 'input_text',
+                        label: k,
+                        key: k,
+                        rows: 2,
+                        defaultVal: fields[k]
+                    });
+                }
+            });
+        }
+
+        if (content !== null && content !== undefined) {
+            contentData.editorVal = content;
+            contentData.content = content;
+        }
+
+        contentData.widgets = widgets;
+
+        const updatePayload = {
+            content: JSON.stringify(contentData, null, 2),
+            contentData,
+            widgets
+        };
+
+        if (newName && newName !== file.name) {
+            updatePayload.name = newName;
+            file.name = newName;
+        }
+
+        await window.storage.updateFile(nodeId, updatePayload);
+
+        // 열려 있는 창이 있다면 실시간 UI 리렌더링
+        if (window.windowManager) {
+            const info = window.windowManager.windows.get(nodeId);
+            if (info) {
+                info.file = { ...info.file, ...updatePayload };
+                if (updatePayload.name) {
+                    const titleEl = info.element?.querySelector('.window-title-text');
+                    if (titleEl) titleEl.textContent = updatePayload.name;
+                }
+                const container = info.element?.querySelector('.custom-node-body') || info.element?.querySelector('.window-body');
+                if (container) container.innerHTML = ''; // 강제 재조립
+                window.windowManager.renderCustomNode(nodeId);
+            }
+        }
+
+        // 파일 트리 갱신
+        if (window.fileTreeManager) {
+            const currentProjId = this.currentProjectId || window.currentProjectId;
+            if (currentProjId) await window.fileTreeManager.loadProjectFiles(currentProjId);
+        }
+    }
+
+    /**
+     * 🛠️ 실제 노드 삭제 함수 (Storage DB + Canvas Window 제거)
+     */
+    async applyDeleteNode(nodeId, nodeName = '') {
+        if (!nodeId || !window.storage) throw new Error('삭제할 노드 ID가 없습니다.');
+
+        if (window.windowManager) {
+            await window.windowManager.deleteFile(nodeId, true);
+        } else {
+            await window.storage.deleteFile(nodeId);
+            if (window.fileTreeManager) {
+                await window.fileTreeManager.loadProjectFiles(this.currentProjectId || window.currentProjectId);
+            }
         }
     }
 
